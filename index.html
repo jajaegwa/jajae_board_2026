@@ -274,7 +274,7 @@ details.card summary .cnt{font-size:12px;color:var(--mut);font-weight:500}
     <h2>발주 등록</h2>
     <div class="hint">빠른선택(프리셋)을 고르면 매입처·품목·수량·착일이 자동 입력됨. 프리셋 외 품목은 직접 입력. 착일 = 발주일 + 리드타임(기준표, 없으면 국산 2일).</div>
     <div class="row">
-      <div style="flex:2;min-width:260px"><label>빠른선택</label><select id="odPreset" onchange="applyPreset()"><option value="">— 프리셋 선택 —</option></select></div>
+      <div style="flex:2;min-width:260px"><label>빠른선택</label><select id="odPreset" onchange="applyPreset()"><option value="">— 프리셋 선택 —</option></select><div id="presetGate" style="display:none;margin-top:4px"></div></div>
       <div><label>구분</label><select id="odType"><option value="self">자가(부강 입고)</option><option value="consign">사급(업체 직납)</option></select></div>
       <div><label>발주일</label><input id="odDate" type="date"></div>
     </div>
@@ -796,6 +796,17 @@ function fillLists(){
     M.presetConsign.forEach((p,i)=>{const o=document.createElement('option');o.value='c'+i;o.textContent=p.label;g2.appendChild(o);});
     sel.append(g1,g2);
     if([...sel.options].some(o=>o.value===cur))sel.value=cur;
+  }
+  // GitHub Pages 배포본은 실시간 공유 연결 전에는 프리셋이 비어 있음 — 그 이유와 바로 연결할 수 있는
+  // 버튼을 프리셋 자리에 직접 보여줌(헤더의 [실시간 공유 연결] 버튼까지 안 가도 되게).
+  const pg=document.getElementById('presetGate');
+  if(pg){
+    if(wantN===0&&sb&&!sbOK){
+      pg.style.display='';
+      pg.innerHTML='<span class="tag">프리셋이 비어 있습니다 — </span><button class="btn sm pri" onclick="sbAskPass()">실시간 공유 연결</button><span class="tag"> 후 자동으로 채워집니다 (연결 전엔 아래 칸에 직접 입력하세요)</span>';
+    }else{
+      pg.style.display='none';pg.innerHTML='';
+    }
   }
   const q=document.getElementById('mvQuick');
   if(!q.children.length){

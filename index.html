@@ -784,12 +784,18 @@ function fillLists(){
   const cs=[...new Set([...M.consigneeResponse.map(c=>c.consignee),...M.contacts.map(c=>c.name),...S.cons.map(c=>c.consignee)])].filter(Boolean);
   document.getElementById('consList').innerHTML=cs.map(v=>`<option value="${esc(v)}">`).join('');
   const sel=document.getElementById('odPreset');
-  if(sel.options.length<=1){
+  // 프리셋 개수 기준으로 다시 채울지 판단(옵션 총 개수 기준 <=1 가드는 GitHub Pages 배포본처럼
+  // M이 처음엔 비어 있다가 Supabase 연결 후 채워지는 경우 영원히 빈 채로 굳어버리는 문제가 있었음).
+  const wantN=M.presetSelf.length+M.presetConsign.length;
+  if(sel.options.length-1!==wantN){
+    sel.querySelectorAll('optgroup').forEach(g=>g.remove());
+    const cur=sel.value;
     const g1=document.createElement('optgroup');g1.label='자가(부강 입고)';
     M.presetSelf.forEach((p,i)=>{const o=document.createElement('option');o.value='s'+i;o.textContent=p.label;g1.appendChild(o);});
     const g2=document.createElement('optgroup');g2.label='사급(업체 직납)';
     M.presetConsign.forEach((p,i)=>{const o=document.createElement('option');o.value='c'+i;o.textContent=p.label;g2.appendChild(o);});
     sel.append(g1,g2);
+    if([...sel.options].some(o=>o.value===cur))sel.value=cur;
   }
   const q=document.getElementById('mvQuick');
   if(!q.children.length){

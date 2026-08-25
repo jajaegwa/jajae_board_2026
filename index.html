@@ -722,9 +722,9 @@ function sbQueueSave(){
   },600);
 }
 function toast(m){const t=document.getElementById('toast');t.textContent=m;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),1800);}
-/* 공유 링크 — 게시된 아티팩트 주소(고정) */
-const ART_URL='https://claude.ai/code/artifact/8391711d-f45d-488b-9a96-2f8fcfe7c64d';
-function openShare(){document.getElementById('lnkAdmin').value=ART_URL;document.getElementById('lnkDriver').value=ART_URL+'#driver';document.getElementById('dlgShare').showModal();}
+/* 공유 링크 — 지금 열려 있는 주소 기준(클로드 아티팩트/GitHub Pages 어디서 열어도 자동으로 맞는 링크 표시) */
+function curUrl(){return location.origin+location.pathname;}
+function openShare(){document.getElementById('lnkAdmin').value=curUrl();document.getElementById('lnkDriver').value=curUrl()+'#driver';document.getElementById('dlgShare').showModal();}
 function copyText(t){navigator.clipboard?.writeText(t).then(()=>toast('복사됨'),()=>toast('복사 실패 — 직접 드래그해 복사'));}
 
 /* ═════════ 탭 · 날짜 ═════════ */

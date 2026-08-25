@@ -310,7 +310,7 @@ details.card summary .cnt{font-size:12px;color:var(--mut);font-weight:500}
       <div class="hint">사급업체가 보낸 발주서 엑셀(.xlsx)을 끌어다 놓거나, PDF·메일 본문 텍스트를 붙여넣고 [자동 인식]. 사급처·품목을 인식한 뒤 <b>발주 대응 / 14동 직접출고</b>를 자동 판정함.</div>
       <div class="dropzone" id="drop" onclick="xlsFile.click()">여기에 발주서 엑셀 파일을 끌어다 놓기 (또는 클릭해서 선택)</div>
       <input type="file" id="xlsFile" accept=".xlsx,.xls,.csv" style="display:none" onchange="readXls(this.files[0])">
-      <textarea id="csPaste" style="margin-top:10px" placeholder="또는 발주서 텍스트 붙여넣기&#10;예) 발 신  동부엔지니어링㈜ ...&#10;1  IF-850  25  1500  08월18일"></textarea>
+      <textarea id="csPaste" style="margin-top:10px" placeholder="또는 발주서 텍스트 붙여넣기&#10;예) 발 신  ○○엔지니어링㈜ ...&#10;1  IF-850  25  1500  08월18일"></textarea>
       <div class="row" style="margin-top:8px">
         <button class="btn pri" onclick="parseCs()">자동 인식</button>
         <button class="btn" onclick="addCsLine()">+ 수동 행</button>
@@ -320,7 +320,7 @@ details.card summary .cnt{font-size:12px;color:var(--mut);font-weight:500}
     <div class="card">
       <h2>② 인식 결과 · 처리 판정</h2>
       <div class="row" style="margin-bottom:8px">
-        <div><label>사급처</label><input id="csVendor" list="consList" placeholder="동부엔지니어링" onchange="judgeAll()"></div>
+        <div><label>사급처</label><input id="csVendor" list="consList" placeholder="예: ○○엔지니어링" onchange="judgeAll()"></div>
         <div><label>의뢰일</label><input id="csDate" type="date"></div>
         <div><label>공통 요청납기</label><input id="csDue" type="date"></div>
       </div>
@@ -511,6 +511,21 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
 <script>
 /* ═════════ 기준정보 ═════════ */
 const M=JSON.parse(document.getElementById('masterData').textContent);
+// GitHub Pages 배포본은 민감정보 보호를 위해 masterData가 {}로 비어 있다가
+// Supabase 연결 후 채워짐 — 그 전에도 M.rop.find() 등이 크래시하지 않도록 배열 키 기본값을 보장.
+['orderRules','presetSelf','presetConsign','consignees','materials','consigneeResponse','supplierMap','contacts','rop'].forEach(k=>{if(!Array.isArray(M[k]))M[k]=[];});
+/* 코드 곳곳에 흩어져 있던 매입처명·담당자명 하드코딩을 한 곳에 모음 — GitHub Pages 배포본에서는
+   이 기본값들이 빈 문자열/일반 문구로 대체되고, Supabase 연결 후 'jajae-master'의 notes로 채워짐. */
+const SENSITIVE={
+  gppsVendor:'',
+  tionaFallbackVendor:'',
+  m210Supplier:'',
+  m210Contact:'',
+  packNoteOmya:'',
+  packNoteM210:'',
+  insLabel:'',
+  kscatCode:''
+};
 const CYCLE={'매일':1,'주 2회':3.5,'주2회':3.5,'주 1회':7,'주1회':7,'격주':14,'3주 1회':21,'3주1회':21,'월 1회':30};
 const norm=s=>String(s||'').toUpperCase().replace(/[\s\(\)\[\]\-_.,#\/㈜주식회사]/g,'');
 const short=s=>String(s||'').replace(/^.*?_(?=[^_]+$)/,'');  // 'TiO2_TIONA-696' → 'TIONA-696'
@@ -518,13 +533,13 @@ const short=s=>String(s||'').replace(/^.*?_(?=[^_]+$)/,'');  // 'TiO2_TIONA-696'
 (function(){
   const bag=M.rop.find(r=>r.item==='BAG'&&/단석/.test(r.vendor||''));if(bag)bag.item='DS356S1';
   const V6=[
-   ['HYDROCARB-95T',4,18000,122069],['SP-390',3,25000,58579,'한화솔루션 울산2','직납(벌크)'],
+   ['HYDROCARB-95T',4,18000,122069],['SP-390',3,25000,58579],
    ['MB-875',2,12000,18390],['PMS-180',2,5600,7365],['TIONA-696',2,2000,8046],
    ['IM-812',2,6000,4890],['Kronos2450',2,3000,4636],['DS356S1',4,3700,8295],
    ['O-130P',2,4800,4569],['MB-838A',2,5000,4091],['PMS-1808',2,5600,3895],
-   ['DS-356T',3,5000,3752],['ROSIN C-9',3.5,2800,3549],['LPR-22274',2,2400,2490,'유니소재','31동'],
+   ['DS-356T',3,5000,3752],['ROSIN C-9',3.5,2800,3549],['LPR-22274',2,2400,2490],
    ['SL-64',4,1700,3230],['ES-95',2,3000,1754],['PMS-1803',2,5600,1615],
-   ['125EB',2,5000,1863],['UV-P',3,1000,1403],['PMS-500',2,3200,560,'프로켐','14동'],
+   ['125EB',2,5000,1863],['UV-P',3,1000,1403],['PMS-500',2,3200,560],
    ['GHP BLUE 3931P',4,100,290]];
   V6.forEach(([key,lt,qty,rop,vendor,loc])=>{
     const k=norm(key);
@@ -657,6 +672,18 @@ async function sbConnect(pass){
     const SB_MASTER_KEYS=['orderRules','presetSelf','presetConsign','consignees','materials','consigneeResponse','supplierMap','contacts','rop'];
     if(md&&typeof md==='object'&&!Array.isArray(md)){
       SB_MASTER_KEYS.forEach(k=>{if(Array.isArray(md[k]))M[k]=md[k];});
+      // STAT_RULES(통계탭 계획표)는 M 소속이 아닌 별도 const 배열이라 같은 방식으로 취급 못 함 —
+      // 참조를 그대로 유지해야 하는 코드가 있을 수 있어 재대입 대신 내용만 교체(splice).
+      if(Array.isArray(md.statRules)&&typeof STAT_RULES!=='undefined'){
+        // 원소가 plain object가 아니면(null·문자열·배열 등) 버림 — statRuleOf 등에서 r.label/r._ns 접근 시 크래시 방지.
+        const okRules=md.statRules.filter(r=>r!==null&&typeof r==='object'&&!Array.isArray(r));
+        STAT_RULES.splice(0,STAT_RULES.length,...okRules);
+        STAT_RULES.forEach(r=>r._ns=Array.isArray(r.items)?r.items.map(norm):[]);
+      }
+      // 코드 곳곳의 매입처명·담당자명 하드코딩(SENSITIVE) — 문자열 값만 허용해 병합.
+      if(md.notes&&typeof md.notes==='object'&&!Array.isArray(md.notes)){
+        Object.keys(SENSITIVE).forEach(k=>{if(typeof md.notes[k]==='string')SENSITIVE[k]=md.notes[k];});
+      }
     }
   }catch(e){}
   if(data&&Object.keys(data).length){
@@ -908,9 +935,9 @@ function ropDue(){
   return M.rop.filter(r=>S.inv.stock[r.item]!=null)
     .map(r=>{
       const rr={...r,stk:S.inv.stock[r.item]};
-      // GPPS 정책: 유니드글로벌 신재(125EB)는 상시 2,000kg 유지 기준 — INS 재생(PSGNT1TPZ)과 합산·대체 금지
-      if(norm(rr.item).includes('125EB')){rr.rop=Math.max(rr.rop,2000);rr.vendor='유니드글로벌';rr.gpps='신재 — INS 재생과 합산·대체 금지';}
-      if(norm(rr.item).includes('PSGNT1TPZ')){rr.gpps='재생(INS) — 유니드 신재와 합산·대체 금지';}
+      // GPPS 정책: 신재(125EB)는 상시 2,000kg 유지 기준 — 재생(PSGNT1TPZ)과 합산·대체 금지 (매입처명은 SENSITIVE 참조)
+      if(norm(rr.item).includes('125EB')){rr.rop=Math.max(rr.rop,2000);if(SENSITIVE.gppsVendor)rr.vendor=SENSITIVE.gppsVendor;rr.gpps=`신재 — ${SENSITIVE.insLabel||'재생업체'} 재생과 합산·대체 금지`;}
+      if(norm(rr.item).includes('PSGNT1TPZ')){rr.gpps=`재생(${SENSITIVE.insLabel||'재생업체'}) — ${SENSITIVE.gppsVendor||'신재'} 신재와 합산·대체 금지`;}
       return rr;})
     .filter(r=>{if(seen.has(r.item))return false;seen.add(r.item);return true;})
     .filter(r=>r.stk<=(norm(r.item).includes('125EB')?r.rop:r.rop*1.15))
@@ -1010,10 +1037,11 @@ const PACK_NOTES=[
  [/BP276S/,'BP-276S: 1PLT=1,000kg — 1,360kg 요청 시 360kg 까대기 배차'],
  [/NPET/,'NPET: LOT·사진 필수 — P401P2 입고 후 M401P2 이동 → 사급 배차'],
  [/SL64/,'SL-64: 파레트 540/465/450kg 혼재 — kg 기준으로 확인'],
- [/95T|HYDROCARB/,'오미아 벌크: 18톤=창호 P201P2 · 12톤=경질 M404P2'],
+ [/95T|HYDROCARB/,()=>SENSITIVE.packNoteOmya||'벌크 톤수별 창고 구분 확인 필요'],
  [/^P700$/,'P-700: 타일/DBP 행선 구분 필수'],
- [/M210/,'M-210: 월1회 입항분은 행선지(NHC/동부) 건별 확인 전 배차 금지']];
-function packNote(it){const n=norm(it);const h=PACK_NOTES.find(([re])=>re.test(n));return h?h[1]:'';}
+ [/M210/,()=>SENSITIVE.packNoteM210||'M-210: 월1회 입항분은 행선지 건별 확인 전 배차 금지']];
+// note가 함수면 호출 시점(Supabase 연결 이후 포함)에 SENSITIVE를 다시 읽음 — 배열 평가 시점에 값이 고정되지 않게.
+function packNote(it){const n=norm(it);const h=PACK_NOTES.find(([re])=>re.test(n));if(!h)return'';return typeof h[1]==='function'?h[1]():h[1];}
 /* 파레트 중량 — 예외 품목 우선, 나머지는 포장형태 기본 규칙
    기본: 드럼 1PLT=800kg(200kg×4, 최소단위) · F/B(플레콘백) 1PLT=1,000kg · P/B(지대) 1PLT=1,000kg
    예외: DS-356/DS-356T 1,005 · ROSIN C-9 700 · SL-64 465/540 두 규격 · SONGNOX 500 · BP-276S 1,000 */
@@ -1149,7 +1177,7 @@ function openR696(m){
     if(o.dec==='발주'){
       const short2=rp&&projected!=null?Math.max(0,rp.rop-projected):0;
       const qty=rp?Math.max(rp.qty,Math.ceil(short2/(rp.qty||1))*(rp.qty||1)):4000;
-      S.orders.push({id:S.seq++,type:'self',ordDate:cur,vendor:rp?rp.vendor:'개화',item:variant==='TIONA-666(696)'?'TIONA-696(지대)':'TIONA-696(백)',dest:'자가(세종·부강)',qty,unit:'kg',eta:addDays(cur,rp?Math.ceil(rp.lt):2),inDate:'',loc:m.loc,dept:m.dept,note:`R696 창고이동 연계 발주 (확인:${o.by})`});
+      S.orders.push({id:S.seq++,type:'self',ordDate:cur,vendor:rp?rp.vendor:(SENSITIVE.tionaFallbackVendor||'(확인 필요)'),item:variant==='TIONA-666(696)'?'TIONA-696(지대)':'TIONA-696(백)',dest:'자가(세종·부강)',qty,unit:'kg',eta:addDays(cur,rp?Math.ceil(rp.lt):2),inDate:'',loc:m.loc,dept:m.dept,note:`R696 창고이동 연계 발주 (확인:${o.by})`});
       toast(`R696 확인 완료 · ${fmtN(qty)}kg 발주안 등록됨`);
     }else toast('R696 확인 기록 저장 — 이동 완료 처리됨');
     saveDB();refreshAll();
@@ -1280,11 +1308,11 @@ function judge(consignee,item){
   const sm=M.supplierMap.find(s=>norm(s.items).includes(n.slice(0,5))&&(!cn||norm(s.consignee).includes(cn.slice(0,2))))||M.supplierMap.find(s=>norm(s.items).includes(n.slice(0,5)));
   if(sm)supplier=sm.supplier;
   const m=matchItem(item);if(!supplier&&m&&!/확인/.test(m.vendor))supplier=m.vendor;
-  if(action==='확인'&&m){ if(/KSCAT|사급/.test(m.note+m.vendor))action='직접출고'; }
+  if(action==='확인'&&m){ const esc2=s=>s.replace(/[.*+?^${}()|[\]\\]/g,'\\$&'); const kw=SENSITIVE.kscatCode?new RegExp(esc2(SENSITIVE.kscatCode)+'|사급'):/사급/; if(kw.test(m.note+m.vendor))action='직접출고'; }
   // 발주 대응 품목: 우리 창고 출고 아님 — 항상 공급사 발주(사급처 직납)
   if(orderResp(item))action='발주';
-  // M-210: 정기 NHC 건 / 월1회 입항분 구분 필요 — 행선지 건별 확인 전 자동 판정 금지
-  if(isM210(item)){action='확인';supplier=supplier||'한국미쓰이(MITSUI)';}
+  // M-210: 정기 거래처 건 / 월1회 입항분 구분 필요 — 행선지 건별 확인 전 자동 판정 금지
+  if(isM210(item)){action='확인';supplier=supplier||SENSITIVE.m210Supplier||'(공급사 확인)';}
   return {action,supplier,loc:m?m.loc.replace('(경질창고)',''):''};
 }
 function judgeAll(){const v=csVendor.value.trim();draft.forEach(d=>{const j=judge(v,d.item);if(!d._manual){d.action=j.action;d.supplier=j.supplier;}d.loc=j.loc;});renderDraft();}
@@ -1301,7 +1329,7 @@ function commitCs(){
     if(excl.length){draft=[];renderDraft();csPaste.value='';csMsg.textContent='';toast(`${excl.length}건 전부 제외 — 우리 공장 출고·발주 대상 아님`);return;}
     toast('품목·수량이 있는 행이 없습니다');return;}
   const recv=csDate.value||cur,cd=csDue.value||'';const ids=[];
-  valid.forEach(d=>{const id=S.seq++;ids.push(id);S.cons.push({id,recvDate:recv,consignee:v,item:d.item,pack:d.pack,qty:d.qty,due:d.due||cd,action:d.action,supplier:d.supplier,loc:d.loc||'',ordDate:'',outDate:'',done:false,note:isM210(d.item)?'⚠ 월1회 입항분 여부 확인 — 입항분이면 이정훈 선임 행선지 확인 전 배차·출고 금지':''});});
+  valid.forEach(d=>{const id=S.seq++;ids.push(id);S.cons.push({id,recvDate:recv,consignee:v,item:d.item,pack:d.pack,qty:d.qty,due:d.due||cd,action:d.action,supplier:d.supplier,loc:d.loc||'',ordDate:'',outDate:'',done:false,note:isM210(d.item)?`⚠ 월1회 입항분 여부 확인 — 입항분이면 ${SENSITIVE.m210Contact||'담당자'} 행선지 확인 전 배차·출고 금지`:''});});
   draft=[];renderDraft();csPaste.value='';csMsg.textContent='';
   saveDB();refreshAll();buildMails(ids);toast(`${valid.length}건 등록${excl.length?` · ${excl.length}건 제외(우리 출고 아님)`:''}`);
 }
@@ -1339,9 +1367,9 @@ function csRow(c,board){const st=csStatus(c);const cls={'발주대기':'c-wait',
   return`<tr class="${c.done?'done':''}"><td><input type="checkbox" class="csSel" value="${c.id}"></td><td>${c.recvDate}</td><td><b>${esc(c.consignee)}</b></td><td>${esc(c.item)}${c.loc?` <span class="loc">${esc(c.loc)}</span>`:''}</td><td class="num">${fmtN(c.qty)}</td><td>${act}</td><td>${esc(c.supplier)}</td><td>${c.due||''}</td><td>${c.ordDate||''}</td><td>${c.outDate||(c.done?'✓':'')}${isThird(c.outBy)?` <span class="chip c-wait">✋ ${esc(c.outBy)}</span>`:''}</td><td><span class="chip ${cls}">${st}</span></td><td>${btn} <button class="btn sm" onclick="editCs(${c.id})">수정</button> <button class="btn sm" style="color:var(--red)" onclick="delCs(${c.id})">${armLbl('cs'+c.id)}</button></td></tr>`;}
 function csMark(id,f){const c=S.cons.find(x=>x.id===id);
   if((f==='outDate'||f==='done')&&needName(()=>csMark(id,f)))return;
-  // M-210: 월1회 입항분은 행선지(NHC/동부) 건별 확인 전 배차·출고·완료 금지
+  // M-210: 월1회 입항분은 행선지 건별 확인 전 배차·출고·완료 금지
   if(isM210(c.item)&&(f==='outDate'||f==='done')&&!c.m210by){
-    openDlg('M-210 행선지 확인 — 입력 전 처리 차단',[['v','확인자 / 행선지 / 근거 (예: 이정훈 선임 / NHC행 / 8-22 통화)']],{v:''},o=>{
+    openDlg('M-210 행선지 확인 — 입력 전 처리 차단',[['v',`확인자 / 행선지 / 근거 (예: ${SENSITIVE.m210Contact||'담당자'} / ○○행 / 8-22 통화)`]],{v:''},o=>{
       const v=(o.v||'').trim();if(!v){toast('M-210: 행선지 확인 입력 전에는 처리할 수 없습니다');return false;}
       c.m210by=v;c.note=(c.note?c.note+' · ':'')+'M210 행선지 확인: '+v;
       csMarkCore(c,f);
@@ -1479,53 +1507,13 @@ function kgOf(o){
 /* 발주 기준표(orderRules 40건) ↔ 실제 발주 품목명 정적 매핑.
    items는 프리셋/ROP 발주가 만드는 실제 o.item 표기 전부 — norm() 완전일치로만 매칭(PMS-180↔PMS-1808, P-1000↔P-1000F 오염 방지).
    DOTP 자가는 원본 기준표의 벌크(96,513)+드럼(25,109) 2행을 발주 데이터로는 구분 불가하여 1행(121,622)으로 합침. */
-const STAT_RULES=[
- {label:'P-800 (벌크)',dest:'자가(세종·부강)',monthly:357864,items:['P-800']},
- {label:'P-1000F (창호)',dest:'자가(세종·부강)',monthly:352986,items:['P-1000F']},
- {label:'P-1000 (벌크)',dest:'자가(세종·부강)',monthly:349384,items:['P-1000']},
- {label:'P-700 (벌크)',dest:'자가(세종·부강)',monthly:133373,items:['P-700']},
- {label:'DOTP (벌크+드럼)',dest:'자가(세종·부강)',monthly:121622,items:['DOTP_SP-390','SP-390','DOTP']},
- {label:'HYDROCARB-95T',dest:'자가(세종·부강)',monthly:115200,items:['탄산칼슘_HYDROCARB-95T','HYDROCARB-95T']},
- {label:'P-1000 → 두하 진천',dest:'두하 진천',monthly:71133,items:['P-1000']},
- {label:'MB-875',dest:'자가(세종·부강)',monthly:69253,items:['MBS_MB-875','MB-875']},
- {label:'DOTP → 동원 김포',dest:'동원 김포',monthly:41537,items:['DOTP_SP-390','SP-390','DOTP']},
- {label:'PMS-1808',dest:'자가(세종·부강)',monthly:22989,items:['PMS-1808']},
- {label:'PMS-180',dest:'자가(세종·부강)',monthly:21094,items:['PMS-180']},
- {label:'DWC4S',dest:'자가(세종·부강)',monthly:20397,items:['DWC4S']},
- {label:'AAC-4000-4 → 두성플러스',dest:'두성플러스',monthly:20189,items:['AAC-4000-4']},
- {label:'DOTP → 두하 진천',dest:'두하 진천',monthly:18842,items:['DOTP_SP-390','SP-390','DOTP']},
- {label:'GPPS(재생)',dest:'자가(세종·부강)',monthly:17061,items:['PS_PSGNT1TPZ','PSGNT1TPZ','GPPS(재생)']},
- {label:'TiO2 NR-950',dest:'자가(세종·부강)',monthly:17061,items:['TiO2_NR-950','NR-950']},
- {label:'TiO2 TIONA',dest:'자가(세종·부강)',monthly:15907,items:['TiO2_TIONA-666(696)','TIONA-696','TIONA-666(696)']},
- {label:'IM-812',dest:'자가(세종·부강)',monthly:15461,items:['아크릴_AIM_IM-812/S','IM-812']},
- {label:'O-130P(ESO)',dest:'자가(세종·부강)',monthly:14227,items:['SOYABEAN OIL O-130P(E.S.O)','O-130P']},
- {label:'AAC-4000-4 → 한엘',dest:'한엘',monthly:12718,items:['AAC-4000-4']},
- {label:'J293F-1',dest:'자가(세종·부강)',monthly:12324,items:['J293F-1']},
- {label:'LOX-203(PL) → 동원 김포',dest:'동원 김포',monthly:12224,items:['LOX-203(PL)','LOX-203']},
- {label:'TiO2 Kronos2450',dest:'자가(세종·부강)',monthly:12015,items:['TiO2_Kronos2450','Kronos2450']},
- {label:'PEH-7000L(F) → 한엘',dest:'한엘',monthly:12004,items:['PEH-7000L(F)']},
- {label:'P-3000(탱크)',dest:'자가(세종·부강)',monthly:11141,items:['P-3000(탱크)','P-3000']},
- {label:'DS-356S1',dest:'자가(세종·부강)',monthly:10857,items:['DS356S1_BAG','DS-356S1','DS356S1']},
- {label:'MB-838A',dest:'자가(세종·부강)',monthly:10743,items:['MBS_MB-838A','MB-838A']},
- {label:'J293 → 광성',dest:'광성',monthly:9918,items:['J293']},
- {label:'AAC-4000-4 → 두성인더스트리',dest:'두성인더스트리',monthly:9864,items:['AAC-4000-4']},
- {label:'DS-356',dest:'자가(세종·부강)',monthly:8147,items:['DS-356']},
- {label:'PMMA IF850 → 엔에이치씨',dest:'엔에이치씨',monthly:7435,items:['IF850','PMMA IF850']},
- {label:'PMS-1803',dest:'자가(세종·부강)',monthly:7435,items:['PMS-1803']},
- {label:'P-3000(탱크) → 선영 천안',dest:'선영 천안',monthly:6616,items:['P-3000(탱크)','P-3000']},
- {label:'ES-95(PRETEX-70)',dest:'자가(세종·부강)',monthly:5730,items:['모노구리 ES-95(PRETEX-70)','ES-95(PRETEX-70)','ES-95']},
- {label:'J293F-1 → 두성인더스트리',dest:'두성인더스트리',monthly:5599,items:['J293F-1']},
- {label:'J293F-S → 두성인더스트리',dest:'두성인더스트리',monthly:3851,items:['J293F-S']},
- {label:'LOX-203(PL)',dest:'자가(세종·부강)',monthly:1911,items:['LOX-203(PL)','LOX-203']},
- {label:'CR-102NT',dest:'자가(세종·부강)',monthly:1157,items:['CR-102NT']},
- {label:'SB-102',dest:'자가(세종·부강)',monthly:298,items:['SB-102']}
-];
+const STAT_RULES=[];
 STAT_RULES.forEach(r=>r._ns=r.items.map(norm));
 function statDestOk(o,r){
   const nd=norm(o.dest);
   if(!nd)return o.type==='self'&&r.dest==='자가(세종·부강)';   // 수동 발주에서 dest 비운 자가 건
   const rd=norm(r.dest);
-  return nd===rd||nd.includes(rd)||rd.includes(nd);            // '엔에이치씨(NHC)' ↔ '엔에이치씨' 흡수
+  return nd===rd||nd.includes(rd)||rd.includes(nd);            // 괄호 병기 표기(예: '○○(ABC)') ↔ '○○' 흡수
 }
 function statRuleOf(o){
   const ni=norm(o.item);

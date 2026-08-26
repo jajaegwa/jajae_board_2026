@@ -1650,7 +1650,7 @@ function renderDriver(){
   const el=document.getElementById('tab-driver');
   const ins=S.orders.filter(o=>!o.skip&&o.type==='self'&&o.eta&&o.eta<=cur&&(!o.inDate||o.inDate===cur)).sort((a,b)=>(a.loc||'').localeCompare(b.loc||''));
   const mv=S.moves.filter(m=>m.date===cur);const order={'경질':0,'창호':1,'타일':2,'DBP':3};mv.sort((a,b)=>(order[a.dept]??9)-(order[b.dept]??9));
-  const outs=S.cons.filter(c=>c.action==='직접출고'&&!c.done);
+  const outs=S.cons.filter(c=>c.action==='직접출고'&&!c.done&&(!c.due||c.due<=addDays(cur,1)));
   const sp=S.specials[cur]||{};const spTxt=Object.entries(sp).filter(([k,v])=>v).map(([k,v])=>`${k}: ${v}`).join(' · ');
   const ro=readOnly||!cap;
   const cb=(fn,done)=>`<label><input type="checkbox" ${done?'checked':''} ${ro&&!cap?'':''} onchange="${fn}">완료</label>`;
@@ -1682,7 +1682,7 @@ function renderDriver(){
     </form>
     <div class="tag" style="margin-top:6px">등록하면 자재과 화면에 ✋ 이름과 함께 표시됩니다.</div>
   </div>`;
-  h+=`<h2>③ 사급 출고 (업체로 보낼 것) <span class="cnt">${outs.length}건</span></h2>`;
+  h+=`<h2>③ 사급 출고 (오늘·내일 나갈 것) <span class="cnt">${outs.length}건</span></h2>`;
   h+=`<div class="tag" style="margin:-4px 0 8px">⚠ 찢어진 지대는 사급 출고 금지 — 자재과 협의 후 자사 생산 투입 · 전산 재고 차감은 배차완료(실물 출고) 시점</div>`;
   const byC={};outs.forEach(c=>(byC[c.consignee]=byC[c.consignee]||[]).push(c));
   h+=outs.length?Object.entries(byC).map(([k,list])=>`<div class="grp">${esc(k)} 행 ${list[0].due?' · 납기 '+fmtK(list.map(c=>c.due).filter(Boolean).sort()[0]):''} · 약 ${Math.max(1,Math.ceil(list.reduce((a,c)=>a+c.qty,0)/1000))} PLT</div>`+list.map(c=>`<div class="item"><div><div class="name">${esc(c.item)} <span class="loc">${esc(c.loc||'14동')}</span></div><div class="meta">${esc(c.consignee)}${c.pack?' · '+esc(c.pack):''}</div></div><div><div class="qty">${fmtN(c.qty)} kg</div>${cb(`csMark(${c.id},'outDate')`,false)}</div></div>`).join('')).join(''):'<div class="empty">사급 출고 없음</div>';

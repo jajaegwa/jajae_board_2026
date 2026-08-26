@@ -130,6 +130,7 @@ body.driver #drvNotif{display:none!important}
 .drv .item input[type=checkbox]{width:22px;height:22px}
 .drv .banner{background:var(--navy);color:var(--navy-ink);border-radius:4px;padding:14px 18px;font-size:14.5px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px}
 .drv .banner b{font-size:21px}
+.drv .banner .drv-date{margin-left:10px;background:transparent;color:var(--navy-ink);border:1px solid #4a5b6c;border-radius:2px;padding:4px 8px;font-family:inherit;font-size:13px;color-scheme:dark}
 .drv .grp{font-size:12.5px;font-weight:700;color:var(--mut);margin:12px 0 6px;letter-spacing:.02em}
 dialog{border:1px solid var(--line);border-radius:3px;padding:0;max-width:620px;width:94%;box-shadow:0 8px 24px rgba(0,0,0,.2);background:var(--card);color:var(--ink)}
 dialog::backdrop{background:rgba(10,18,26,.5)}
@@ -1634,7 +1635,8 @@ function renderDriver(){
   const cb=(fn,done)=>`<label><input type="checkbox" ${done?'checked':''} ${ro&&!cap?'':''} onchange="${fn}">완료</label>`;
   const meName=localStorage.getItem('jjUser')||'';
   const insLeft=ins.filter(o=>!o.inDate).length;
-  let h=`<div class="banner"><div><b>${fmtK(cur)}</b> 지게차 작업 <span style="opacity:.7;font-size:13px">(${cur})</span></div><div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">입고 ${insLeft} · 창고이동 ${mv.filter(m=>!m.done).length} · 사급출고 ${outs.length}<button class="btn sm" style="background:transparent;color:var(--navy-ink);border-color:#4a5b6c" onclick="askName()">👤 ${esc(meName)||'이름 입력'}</button><button class="btn sm" style="background:transparent;color:var(--navy-ink);border-color:#4a5b6c" onclick="location.reload()">새로고침</button></div></div>`;
+  let h=`<div class="banner"><div><b>${fmtK(cur)}</b> 지게차 작업 <span style="opacity:.7;font-size:13px">(${cur})</span><input type="date" class="drv-date" value="${cur}" onchange="setDate(this.value)"></div><div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">입고 ${insLeft} · 창고이동 ${mv.filter(m=>!m.done).length} · 사급출고 ${outs.length}<button class="btn sm" style="background:transparent;color:var(--navy-ink);border-color:#4a5b6c" onclick="askName()">👤 ${esc(meName)||'이름 입력'}</button><button class="btn sm" style="background:transparent;color:var(--navy-ink);border-color:#4a5b6c" onclick="location.reload()">새로고침</button></div></div>`;
+  if(cur!==localISO(new Date()))h+=`<div class="card" style="margin-top:10px;font-size:13px;color:var(--amber)">⚠ 오늘(${fmtK(localISO(new Date()))}) 날짜가 아닙니다 · <b onclick="setDate('${localISO(new Date())}')" style="cursor:pointer;text-decoration:underline">오늘로 돌아가기</b></div>`;
   if(spTxt)h+=`<div class="card" style="margin-top:10px;font-size:15px"><b>특이사항</b> ${esc(spTxt)}</div>`;
   h+=`<h2>① 오늘 들어오는 것 <span class="cnt">${insLeft}건 남음</span></h2>`;
   h+=ins.length?ins.map(o=>`<div class="item ${o.inDate?'done':''}"><div><div class="name">${esc(o.item)} <span class="loc">${esc(o.loc||'창고 확인')}</span></div><div class="meta">${esc(o.vendor)} · ${esc(o.dept)}${o.eta<cur?' · <b style="color:var(--red)">'+fmtK(o.eta)+' 예정분 지연</b>':''}${o.note?' · '+esc(o.note):''}</div></div><div><div class="qty">${fmtN(o.qty)} ${esc(o.unit)}</div>${cb(`markInDrv(${o.id})`,!!o.inDate)}</div></div>`).join(''):'<div class="empty">오늘 입고 예정 없음</div>';

@@ -132,7 +132,7 @@ const SB_ANON='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJl
 const B_MAGAM='jajae-magam', B_MAIN='jajae-main';
 const STEPS={
   sales:['수량일치','금액일치','매출입력','매출승인','수금','입금표전송','입금표수취','증빙'],
-  purchase:['수량일치','금액일치','매입전표','매입승인','대금지급','계산서요청','계산서수취','증빙']
+  purchase:['수량일치','금액일치','매입전표','매입승인','대금지급','계산서요청','계산서수취']
 };
 const SIDE_LB={sales:'사급(매각) 매출마감',purchase:'매입 마감'};
 const VIAS=['','이메일','카카오톡','팩스','전화','기타'];
@@ -170,8 +170,8 @@ let S=(()=>{try{const v=normalize(JSON.parse(localStorage.getItem('magamDB')));i
 function ensureMonth(m){if(!S.months[m])S.months[m]={sales:{},purchase:{}};return S.months[m];}
 function entry(side,vid,m){const mm=ensureMonth(m||mon);if(!mm[side][vid])mm[side][vid]={sent:'',via:'',st:STEPS.sales.map(()=>false),note:''};return mm[side][vid];}
 function entryRO(side,vid,m){const mm=S.months[m||mon];return mm&&mm[side]&&mm[side][vid]?mm[side][vid]:{sent:'',via:'',st:STEPS.sales.map(()=>false),note:''};}
-function pct(e){return e.st.filter(Boolean).length/8;}
-function delayStep(side,e){const i=e.st.findIndex(x=>!x);return i<0?'':STEPS[side][i]+' 지연';}
+function pct(side,e){const n=STEPS[side].length;return e.st.slice(0,n).filter(Boolean).length/n;}
+function delayStep(side,e){const n=STEPS[side].length;const i=e.st.slice(0,n).findIndex(x=>!x);return i<0?'':STEPS[side][i]+' 지연';}
 
 /* ===== 저장 + Supabase 동기화 ===== */
 const sbClientId=Math.random().toString(36).slice(2);
@@ -283,7 +283,9 @@ function linkBadge(side,v){
 /* ===== 화면 ===== */
 const VIEWS=[['dash','대시보드'],['sales','사급 매출마감'],['purchase','매입 마감'],['setup','데이터·설정']];
 let view='dash';
-const flt={sales:{q:'',st:'',who:'',ty:''},purchase:{q:'',st:'',who:'',ty:''}};
+/* who=처리자(자재과 담당, 기본 김성진), buyer=구매팀(매입 전용) */
+const flt={sales:{q:'',st:'',who:'김성진',ty:''},purchase:{q:'',st:'',who:'김성진',buyer:'',ty:''}};
+let dashWho='김성진';
 function esc(s){return (s||'').toString().replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
 
 function renderNav(){
@@ -291,7 +293,7 @@ function renderNav(){
   n.innerHTML=VIEWS.map(([k,lb])=>{
     let b='';
     if(k==='sales'||k==='purchase'){
-      const miss=S.vendors[k].filter(v=>pct(entryRO(k,v.id))<1).length;
+      const miss=S.vendors[k].filter(v=>pct(k,entryRO(k,v.id))<1).length;
       if(S.vendors[k].length)b=`<span class="b">${miss}</span>`;
     }
     return`<button class="${view===k?'on':''}" onclick="setView('${k}')">${lb}${b}</button>`;
@@ -308,17 +310,20 @@ function renderView(){
 }
 
 /* --- 대시보드 --- */
+function dashVendors(side){return S.vendors[side].filter(v=>!dashWho||(v.handler||'').includes(dashWho));}
 function sideStat(side){
-  const vs=S.vendors[side];
+  const vs=dashVendors(side);
   const es=vs.map(v=>entryRO(side,v.id));
-  const done=es.filter(e=>pct(e)===1).length;
-  const avg=vs.length?es.reduce((a,e)=>a+pct(e),0)/vs.length:0;
+  const done=es.filter(e=>pct(side,e)===1).length;
+  const avg=vs.length?es.reduce((a,e)=>a+pct(side,e),0)/vs.length:0;
   const dist={};es.forEach(e=>{const d=delayStep(side,e);if(d)dist[d]=(dist[d]||0)+1;});
   return{total:vs.length,done,avg,dist};
 }
+function setDashWho(w){dashWho=w;flt.sales.who=w;flt.purchase.who=w;renderView();}
 function dashHTML(){
   const s1=sideStat('sales'),s2=sideStat('purchase');
-  const openAll=side=>S.vendors[side].map(v=>({v,L:linkOf(side,v)})).filter(x=>x.L.open.length);
+  const allWho=[...new Set([...nameList('sales','handler'),...nameList('purchase','handler')])].sort();
+  const openAll=side=>dashVendors(side).map(v=>({v,L:linkOf(side,v)})).filter(x=>x.L.open.length);
   const o1=mainOK?openAll('sales'):[],o2=mainOK?openAll('purchase'):[];
   const distBar=(side,st)=>{
     const max=Math.max(1,...Object.values(st.dist));
@@ -338,7 +343,11 @@ function dashHTML(){
       list.sort((a,b)=>b.L.open.length-a.L.open.length).map(x=>`<tr><td class="vname" onclick="setView('${side}')">${esc(x.v.name)}</td><td class="num">${x.L.open.length}건${x.L.late.length?` <span class="pill r">지연 ${x.L.late.length}</span>`:''}</td><td style="white-space:normal;font-size:12px" class="mut">${x.L.open.slice(0,4).map(o=>`${esc(o.item)} ${o.qty||''}${esc(o.unit||'')}${o.eta?`(${o.eta.slice(5)})`:''}`).join(' · ')}${x.L.open.length>4?' 외':''}</td></tr>`).join('')
     }</table></div>`:'<div class="mut" style="font-size:13px">발주분 전량 입고 완료 ✓</div>')
     :'<div class="mut" style="font-size:13px">작업판 발주 데이터 연동이 필요합니다 — 우측 하단 [연결] 또는 설정 탭.</div>'}</div>`;
-  return`<div class="grid g2">
+  return`<div class="bar" style="margin-bottom:12px">
+    <label style="font-size:12px;font-weight:600;color:var(--mut)">처리자</label>
+    <select onchange="setDashWho(this.value)"><option value="">전체</option>${allWho.map(w=>`<option${dashWho===w?' selected':''}>${esc(w)}</option>`).join('')}</select>
+    <span class="mut" style="font-size:11.5px">— 대시보드와 체크리스트 탭에 함께 적용됩니다</span>
+  </div><div class="grid g2">
     ${statCard('sales',s1)}${statCard('purchase',s2)}
     ${openCard('사급 출고분 미입고 (사급발주 대사)',o1,'sales')}
     ${openCard('자가 발주분 미입고 (발주 대사)',o2,'purchase')}
@@ -347,9 +356,9 @@ function dashHTML(){
 }
 
 /* --- 체크리스트 --- */
-function whoList(side){
+function nameList(side,key){
   const set=new Set();
-  S.vendors[side].forEach(v=>(((side==='sales'?v.handler:v.buyer)||v.handler)||'').split('/').forEach(x=>{x=x.trim();if(x&&x!=='—')set.add(x);}));
+  S.vendors[side].forEach(v=>((v[key])||'').split('/').forEach(x=>{x=x.trim();if(x&&x!=='—')set.add(x);}));
   return[...set].sort();
 }
 function listHTML(side){
@@ -357,15 +366,16 @@ function listHTML(side){
   const rows=S.vendors[side].filter(v=>{
     const e=entryRO(side,v.id);
     if(f.q&&!(v.name+v.type+v.items+v.handler+v.buyer).toUpperCase().includes(f.q.toUpperCase()))return false;
-    if(f.st==='done'&&pct(e)<1)return false;
-    if(f.st==='open'&&pct(e)===1)return false;
-    if(f.who&&!((side==='sales'?v.handler:v.buyer)||v.handler||'').includes(f.who))return false;
+    if(f.st==='done'&&pct(side,e)<1)return false;
+    if(f.st==='open'&&pct(side,e)===1)return false;
+    if(f.who&&!(v.handler||'').includes(f.who))return false;
+    if(side==='purchase'&&f.buyer&&!(v.buyer||'').includes(f.buyer))return false;
     if(f.ty&&!(v.type||'').includes(f.ty))return false;
     return true;
   });
   const tySet=new Set();
   S.vendors[side].forEach(v=>(v.type||'').split(/[·,+]/).forEach(t=>{t=t.trim();if(t)tySet.add(t);}));
-  const short=['수량','금액',...(side==='sales'?['매출입력','매출승인','수금','입금표전송','입금표수취']:['매입전표','매입승인','대금지급','계산서요청','계산서수취']),'증빙'];
+  const short=side==='sales'?['수량','금액','매출입력','매출승인','수금','입금표전송','입금표수취','증빙']:['수량','금액','매입전표','매입승인','대금지급','계산서요청','계산서수취'];
   return`<div class="card">
   <h2>${SIDE_LB[side]} <span class="cnt">${mon} · ${rows.length}/${S.vendors[side].length}개 업체</span></h2>
   <div class="bar">
@@ -374,17 +384,21 @@ function listHTML(side){
       <option value="">전체</option><option value="open"${f.st==='open'?' selected':''}>미완만</option><option value="done"${f.st==='done'?' selected':''}>완료만</option>
     </select>
     <select onchange="flt['${side}'].who=this.value;renderView()">
-      <option value="">담당 전체</option>${whoList(side).map(w=>`<option${f.who===w?' selected':''}>${esc(w)}</option>`).join('')}
+      <option value="">처리자 전체</option>${nameList(side,'handler').map(w=>`<option${f.who===w?' selected':''}>${esc(w)}</option>`).join('')}
     </select>
+    ${side==='purchase'?`<select onchange="flt.purchase.buyer=this.value;renderView()">
+      <option value="">구매팀 전체</option>${nameList(side,'buyer').map(w=>`<option${f.buyer===w?' selected':''}>${esc(w)}</option>`).join('')}
+    </select>`:''}
     <select onchange="flt['${side}'].ty=this.value;renderView()">
       <option value="">유형 전체</option>${[...tySet].sort().map(t=>`<option${f.ty===t?' selected':''}>${esc(t)}</option>`).join('')}
     </select>
     <span class="sp" style="flex:1"></span>
     <button class="btn sm" onclick="addVendor('${side}')">+ 업체 추가</button>
     <button class="btn sm" onclick="exportCSV('${side}')">CSV 내보내기</button>
+    <button class="btn sm danger" onclick="resetSide('${side}')">체크 초기화</button>
   </div>
   <div class="tbl"><table>
-    <tr><th>업체명</th><th>유형·품목</th><th>${side==='sales'?'처리자':'구매팀'}</th><th>발주↔입고</th><th>보낸날짜</th><th>방식</th>${short.map(s=>`<th style="text-align:center">${s}</th>`).join('')}<th>진행률</th><th>상태</th><th></th></tr>
+    <tr><th>업체명</th><th>유형·품목</th><th>${side==='sales'?'처리자':'처리자·구매팀'}</th><th>발주↔입고</th><th>보낸날짜</th><th>방식</th>${short.map(s=>`<th style="text-align:center">${s}</th>`).join('')}<th>진행률</th><th>상태</th><th></th></tr>
     ${rows.map(v=>rowHTML(side,v)).join('')}
   </table></div>
   <div class="hint" style="margin-top:8px">업체명 클릭 → 연락처·미입고 상세. 발주↔입고는 자재과 작업판 데이터와 실시간 대사(사급=사급처 출고분, 매입=매입처 발주분).</div>
@@ -392,16 +406,16 @@ function listHTML(side){
 }
 function rowHTML(side,v){
   const e=entryRO(side,v.id);
-  const p=pct(e);
+  const p=pct(side,e);
   const dl=delayStep(side,e);
   return`<tr>
     <td><span class="vname" onclick="toggleDetail('${side}','${v.id}',this)">${esc(v.name)}</span>${v.mgr?`<div class="vsub">${esc(v.mgr)}</div>`:''}</td>
     <td><div>${esc(v.type)||'<span class=mut>—</span>'}</div><div class="vsub">${esc(v.items)}</div></td>
-    <td style="font-size:12px">${esc((side==='sales'?v.handler:v.buyer)||v.handler)||'<span class=mut>—</span>'}</td>
+    <td style="font-size:12px">${esc(v.handler)||'<span class=mut>—</span>'}${side==='purchase'&&v.buyer?`<div class="vsub">${esc(v.buyer)}</div>`:''}</td>
     <td>${linkBadge(side,v)}</td>
     <td><input type="date" value="${esc(e.sent)}" onchange="setSent('${side}','${v.id}','sent',this.value)"></td>
     <td><select onchange="setSent('${side}','${v.id}','via',this.value)">${VIAS.map(x=>`<option${e.via===x?' selected':''}>${x}</option>`).join('')}</select></td>
-    ${e.st.map((c,i)=>`<td style="text-align:center"><input type="checkbox" class="ck"${c?' checked':''} onchange="setStep('${side}','${v.id}',${i},this.checked)"></td>`).join('')}
+    ${e.st.slice(0,STEPS[side].length).map((c,i)=>`<td style="text-align:center"><input type="checkbox" class="ck"${c?' checked':''} onchange="setStep('${side}','${v.id}',${i},this.checked)"></td>`).join('')}
     <td><span class="prog${p===1?' done':''}"><i style="width:${p*100}%"></i></span><span class="pct num">${Math.round(p*100)}%</span></td>
     <td>${p===1?'<span class="pill g">완료</span>':`<span class="pill ${p>0?'a':'r'}">${dl||'미완'}</span>`}</td>
     <td><button class="btn sm ghost" onclick="editVendor('${side}','${v.id}')">✎</button></td>
@@ -510,13 +524,17 @@ function exportCSV(side){
   S.vendors[side].forEach(v=>{
     const e=entryRO(side,v.id);
     const cell=s=>'"'+(s||'').toString().replace(/"/g,'""')+'"';
-    lines.push([v.name,v.mgr,v.type,v.handler,v.buyer,v.items,e.sent,e.via,...e.st.map(x=>x?'O':''),Math.round(pct(e)*100)+'%',pct(e)===1?'완료':'미완',delayStep(side,e)].map(cell).join(','));
+    lines.push([v.name,v.mgr,v.type,v.handler,v.buyer,v.items,e.sent,e.via,...e.st.slice(0,STEPS[side].length).map(x=>x?'O':''),Math.round(pct(side,e)*100)+'%',pct(side,e)===1?'완료':'미완',delayStep(side,e)].map(cell).join(','));
   });
   dl(`${side==='sales'?'사급매출마감':'매입마감'}-${mon}.csv`,'﻿'+lines.join('\r\n'),'text/csv');
 }
 function resetMonth(){
-  if(!confirm(mon+' 체크리스트를 모두 해제할까요?'))return;
-  S.months[mon]={sales:{},purchase:{}};saveDB();refreshAll();toast(mon+' 초기화됨');
+  if(!confirm('⚠️ 정말 초기화할까요?\n\n'+mon+' 한 달치 체크리스트(사급+매입 전체)가 모두 해제됩니다.\n이 작업은 되돌릴 수 없습니다.'))return;
+  S.months[mon]={sales:{},purchase:{}};saveDB();refreshAll();toast(mon+' 전체 초기화됨');
+}
+function resetSide(side){
+  if(!confirm('⚠️ 정말 초기화할까요?\n\n'+mon+' '+SIDE_LB[side]+' 체크리스트가 모두 해제됩니다.\n(보낸날짜·방식 포함, 다른 탭과 다른 달은 유지)\n이 작업은 되돌릴 수 없습니다.'))return;
+  ensureMonth(mon)[side]={};saveDB();refreshAll();toast(mon+' '+SIDE_LB[side]+' 초기화됨');
 }
 
 /* ===== 기타 ===== */

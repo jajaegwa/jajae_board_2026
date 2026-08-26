@@ -378,6 +378,18 @@ details.card summary .cnt{font-size:11.5px;color:var(--mut);font-weight:500}
     <div class="tbl"><table><thead><tr><th>품목</th><th>종류</th><th>포장</th><th class="num">단위kg</th><th>매입처</th><th>사용</th><th>창고</th><th>비고</th></tr></thead><tbody id="matBody"></tbody></table></div>
   </div>
   <div class="card">
+    <h2>발주 기준 (재고 임계치) <span class="cnt" id="cntRopMat"></span></h2>
+    <div class="hint">현황 화면 "오늘 발주할 것 → 재고 기준" 표에서 이 목록의 품목만 발주점 계산 대상이 됩니다. 값을 바꾸면 바로 저장됩니다 — 품목명은 재고파일·발주 등록에서 쓰는 이름과 정확히 같아야 매칭됩니다.</div>
+    <div class="row" style="margin:10px 0"><input id="ropSearch" placeholder="품목·매입처·위치 검색" oninput="renderRopMat()" style="flex:1;min-width:160px"><button class="btn sm pri" onclick="addRopRow()">+ 품목 추가</button></div>
+    <div class="tbl scroll"><table><thead><tr><th>품목</th><th class="num">발주점(kg)</th><th class="num">1회 발주량</th><th class="num">리드타임(일)</th><th>매입처</th><th>위치</th><th></th></tr></thead><tbody id="ropMatBody"></tbody></table></div>
+  </div>
+  <div class="card">
+    <h2>주기 기준 대상 (자가 발주) <span class="cnt" id="cntCycMat"></span></h2>
+    <div class="hint">"자가 아님"에 체크하면 현황 화면 "주기 기준" 표에서 빠집니다. 주기·1회 발주량도 여기서 바로 수정됩니다.</div>
+    <input id="cycSearch" placeholder="품목 검색" oninput="renderCycMat()" style="width:100%;margin:10px 0">
+    <div class="tbl scroll"><table><thead><tr><th>품목</th><th>주기</th><th class="num">1회 발주량</th><th>단위</th><th>자가 아님(제외)</th></tr></thead><tbody id="cycMatBody"></tbody></table></div>
+  </div>
+  <div class="card">
     <h2>사급처별 요청 대응 이력 (발주 대응 vs 14동 직접출고)</h2>
     <div class="tbl"><table><thead><tr><th>사급처</th><th class="num">요청건수</th><th>발주 대응 품목</th><th>직접출고 품목</th></tr></thead><tbody id="respBody"></tbody></table></div>
   </div>
@@ -556,8 +568,12 @@ const norm=s=>String(s||'').toUpperCase().replace(/[\s\(\)\[\]\-_.,#\/㈜주식�
 const short=s=>String(s||'').replace(/^.*?_(?=[^_]+$)/,'');  // 'TiO2_TIONA-696' → 'TIONA-696'
 /* 발주기준 심플 v6(2026-07-09) + 이후 발주점 수정 요청들을 한 곳에 모아 M.rop/M.presetSelf에 적용.
    Supabase 로그인 성공 시 M이 실제 마스터데이터로 통째로 교체되므로(M[k]=md[k]), 그 직후에도
-   이 함수를 다시 호출해야 패치가 사라지지 않음 — sb 연결 코드에서 재호출하는 부분 참고. */
+   이 함수를 다시 호출해야 패치가 사라지지 않음 — sb 연결 코드에서 재호출하는 부분 참고.
+   M._patchVersion으로 딱 한 번만 실행되게 막아둠 — 기준정보 탭에서 사람이 직접 고친 값을
+   다음 로그인 때 또 덮어쓰지 않기 위함. 새 패치를 추가할 땐 MASTER_PATCH_VERSION을 올릴 것. */
+const MASTER_PATCH_VERSION=1;
 function applyMasterPatches(){
+  if((M._patchVersion||0)>=MASTER_PATCH_VERSION)return;
   const bag=M.rop.find(r=>r.item==='BAG'&&/단석/.test(r.vendor||''));if(bag)bag.item='DS356S1';
   const V6=[
    ['HYDROCARB-95T',4,18000,122069],['SP-390',3,25000,58579],
@@ -596,11 +612,17 @@ function applyMasterPatches(){
   let jdE=M.rop.find(r=>r.item==='TIONA-666(696)');
   if(!jdE&&bagE){jdE={...bagE,item:'TIONA-666(696)'};M.rop.push(jdE);}
   if(jdE){jdE.loc='JD';jdE.vendor='일삼시화';}
-  // NR-950은 자가 발주 대상 — 1회 발주량을 20 Bag(F/B 500kg) 기준 kg으로 환산해 표시
+  // NR-950은 자가 발주 대상 — 1회 발주량을 20 Bag(F/B 500kg) 기준 kg으로 최초 1회만 환산
+  // (이후엔 기준정보 탭에서 직접 수정 가능 — unit이 이미 kg이면 다시 덮어쓰지 않음)
   const nr=M.presetSelf.find(p=>norm(p.item)==='NR950'||norm(p.label||'').includes('NR950'));
-  if(nr){nr.qty=20*500;nr.unit='kg';}
+  if(nr&&nr.unit!=='kg'){nr.qty=20*500;nr.unit='kg';}
+  // 주기 기준 제외 — 예전엔 품목명 추측으로 걸러냈지만 이제 p.excluded 체크박스로 직접 관리(기준정보 탭).
+  // 아직 한 번도 정해진 적 없는(excluded가 null/undefined) 기존 데이터에 한해서만 최초 1회 자동 체크.
+  const LEGACY_CYCLE_EXCLUDE=new Set(['CR-102','J293F-1','P3000 Bag','P3000 탱크','P3000(탱크)','P3000 Tank','LOX-203','SB-102'].map(norm));
+  M.presetSelf.forEach(p=>{if(p.excluded==null&&LEGACY_CYCLE_EXCLUDE.has(norm(p.item)))p.excluded=true;});
+  M._patchVersion=MASTER_PATCH_VERSION;
+  if(sb&&sbOK)sbSaveMasterAfterPatch();
 }
-applyMasterPatches();
 /* DWC4S·DWC6S → DWC4Z·DWC6Z 품명 변경 — 기존에 S로 등록된 발주·이동 이력도
    새 Z 품목과 같은 품목으로 인식되게(위치 조회·발주 주기 이력 등) */
 const ITEM_ALIAS={'GPPS(재생)':'PSGNT1TPZ','GPPS(유니드글로벌)':'PSGNT1TPZ','GPPS':'PSGNT1TPZ','DWC4S':'DWC4Z','DWC6S':'DWC6Z'};
@@ -696,6 +718,7 @@ const SB_ANON='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJl
 const SB_BOARD='jajae-main';
 const sbClientId=Math.random().toString(36).slice(2);
 let sb=null,sbPass=(()=>{try{return localStorage.getItem('jjPass')||'';}catch(e){return'';}})(),sbOK=false,sbApplying=false,sbCh=null,sbSaveT=null,sbPollT=null;
+applyMasterPatches();   // sb 선언 이후 호출 — 로그인 전(임베디드 기본값) 상태에도 안전하게 1회 적용
 
 /* 원격 데이터는 남이 만든 페이로드 — 배열 필드가 없거나 타입이 다르면 기본값으로 채워서
    S.moves.filter 등이 절대 크래시하지 않게 정규화 후에만 적용한다. */
@@ -750,7 +773,10 @@ async function sbConnect(pass){
     const SB_MASTER_KEYS=['orderRules','presetSelf','presetConsign','consignees','materials','consigneeResponse','supplierMap','contacts','rop'];
     if(md&&typeof md==='object'&&!Array.isArray(md)){
       SB_MASTER_KEYS.forEach(k=>{if(Array.isArray(md[k]))M[k]=md[k];});
-      applyMasterPatches();   // M.rop/M.presetSelf가 실제 서버 데이터로 교체됐으므로 발주점 패치를 다시 적용
+      // _patchVersion은 배열이 아니라 위 루프로 안 옮겨짐 — 서버의 실제 값(없으면 0)을 명시적으로 반영해야
+      // applyMasterPatches()가 "이미 이 서버 데이터에 적용됐는지"를 정확히 판단할 수 있음.
+      M._patchVersion=typeof md._patchVersion==='number'?md._patchVersion:0;
+      applyMasterPatches();   // 처음(버전 미달)이면 M.rop/M.presetSelf에 발주점 패치를 적용하고 서버에 저장
       // STAT_RULES(통계탭 계획표)는 M 소속이 아닌 별도 const 배열이라 같은 방식으로 취급 못 함 —
       // 참조를 그대로 유지해야 하는 코드가 있을 수 있어 재대입 대신 내용만 교체(splice).
       if(Array.isArray(md.statRules)&&typeof STAT_RULES!=='undefined'){
@@ -969,11 +995,10 @@ function autoLoc(p){const v=document.getElementById(p+'Item').value;const m=matc
 function deptChip(d){return `<span class="dept d-${['경질','창호','타일','DBP'].includes(d)?d:'기타'}">${esc(d)}</span>`;}
 
 /* ═════════ 오늘 작업판 ═════════ */
-// 주기 기준은 자가만 대상 — 아래 품목은 실제로는 자가 발주가 아니므로 제외
-const SELF_CYCLE_EXCLUDE=new Set(['CR-102','J293F-1','P3000 Bag','P3000 탱크','P3000(탱크)','P3000 Tank','LOX-203','SB-102'].map(norm));
+// 주기 기준은 자가만 대상 — p.excluded는 기준정보 탭 "주기 기준 대상" 표에서 직접 체크
 function dueList(){
   // 프리셋별 마지막 발주일 → 주기 경과 시 제안 (자가만 — 사급 주기는 표시 안 함)
-  const all=M.presetSelf.filter(p=>!SELF_CYCLE_EXCLUDE.has(norm(p.item))).map(p=>({...p,type:'self',dest:'자가(세종·부강)'}));
+  const all=M.presetSelf.filter(p=>!p.excluded).map(p=>({...p,type:'self',dest:'자가(세종·부강)'}));
   const out=[];
   for(const p of all){
     const cyc=CYCLE[p.cycle]||7;
@@ -989,7 +1014,7 @@ function dueList(){
    가장 가까운 값으로 스냅. 자동 반영은 하지 않고 제안만 — 적용은 사람이 버튼으로. */
 const CYCLE_START='2026-08-26';
 function cycleSuggestions(){
-  return M.presetSelf.filter(p=>!SELF_CYCLE_EXCLUDE.has(norm(p.item))).map(p=>{
+  return M.presetSelf.filter(p=>!p.excluded).map(p=>{
     const hist=S.orders.filter(o=>itemKey(o.item)===itemKey(p.item)&&norm(o.dest)===norm('자가(세종·부강)')&&o.ordDate>=CYCLE_START).map(o=>o.ordDate).sort();
     if(hist.length<2)return null;
     const gaps=[];for(let i=1;i<hist.length;i++)gaps.push(diffDays(hist[i],hist[i-1]));
@@ -1792,6 +1817,101 @@ function renderMaster(){
   document.getElementById('respBody').innerHTML=M.consigneeResponse.map(r=>{
     const dir=r.directItems.filter(x=>!orderResp(x)),ex=r.directItems.filter(x=>orderResp(x));
     return `<tr><td><b>${esc(r.consignee)}</b></td><td class="num">${r.reqCount}</td><td class="tag" style="color:var(--acc)">${esc(r.orderItems.join(', '))||'—'}${ex.length?`<div class="tag" style="color:var(--acc)">+ 발주 대응(직납): ${esc(ex.join(', '))}</div>`:''}</td><td class="tag" style="color:var(--amber)">${esc(dir.join(', '))||'—'}</td></tr>`;}).join('');
+  renderRopMat();
+  renderCycMat();
+}
+/* ═════════ 발주 기준(M.rop) 직접 관리 — 품목명 추측으로 인한 매칭 실패를 없애기 위해
+   사용자가 직접 보고 고칠 수 있게 함 ═════════ */
+function renderRopMat(){
+  const box=document.getElementById('ropMatBody');if(!box)return;
+  const q=(document.getElementById('ropSearch').value||'').trim().toUpperCase();
+  const rows=M.rop.filter(r=>!q||(r.item+(r.vendor||'')+(r.loc||'')).toUpperCase().includes(q));
+  box.innerHTML=rows.length?rows.map(r=>{
+    const idx=M.rop.indexOf(r);
+    return `<tr><td><input value="${esc(r.item)}" style="width:150px;font-weight:700" onchange="ropField(${idx},'item',this.value)"></td><td class="num"><input type="number" value="${r.rop??''}" style="width:90px;text-align:right" onchange="ropField(${idx},'rop',this.value)"></td><td class="num"><input type="number" value="${r.qty??''}" style="width:90px;text-align:right" onchange="ropField(${idx},'qty',this.value)"></td><td class="num"><input type="number" step="any" value="${r.lt??''}" style="width:70px;text-align:right" onchange="ropField(${idx},'lt',this.value)"></td><td><input value="${esc(r.vendor||'')}" list="vendorList" style="width:110px" onchange="ropField(${idx},'vendor',this.value)"></td><td><input value="${esc(r.loc||'')}" style="width:90px" onchange="ropField(${idx},'loc',this.value)"></td><td><button class="btn sm" style="color:var(--red)" onclick="delRopRow(${idx})">${armLbl('rop'+idx)}</button></td></tr>`;
+  }).join(''):'<tr><td colspan="7" class="empty">등록된 발주 기준 품목 없음</td></tr>';
+  document.getElementById('cntRopMat').textContent=`${M.rop.length}개`;
+}
+function ropField(idx,key,val){
+  const r=M.rop[idx];if(!r)return;
+  if(key==='item')r.item=val.trim();
+  else if(key==='rop'||key==='qty')r[key]=val===''?null:+val;
+  else if(key==='lt')r.lt=val===''?null:+val;
+  else r[key]=val.trim();
+  if(sb&&sbOK)sbSaveMasterRop();
+  renderRopMat();
+  toast(`${r.item||'품목'} 저장됨${sbOK?'':' (이 기기에만 — 공유 연결 시 전체 반영)'}`);
+}
+function addRopRow(){
+  const name=(prompt('추가할 품목명 — 재고파일·발주 등록에서 쓰는 이름과 정확히 같아야 발주점이 제대로 매칭됩니다')||'').trim();
+  if(!name)return;
+  M.rop.push({item:name,loc:'',vendor:'',dept:'',lt:2,qty:0,rop:0,flag:''});
+  if(sb&&sbOK)sbSaveMasterRop();
+  renderRopMat();
+  toast(`${name} 추가됨 — 발주점 등 값을 입력하세요`);
+}
+function delRopRow(idx){
+  if(!armDel('rop'+idx))return;
+  const r=M.rop[idx];
+  M.rop.splice(idx,1);
+  if(sb&&sbOK)sbSaveMasterRop();
+  renderRopMat();
+  toast(`${r?.item||''} 삭제됨`);
+}
+async function sbSaveMasterRop(){
+  if(!sb||!sbOK)return;
+  try{
+    const{data:cur}=await sb.rpc('get_board',{p_id:'jajae-master',p_passcode:sbPass});
+    const base=(cur&&typeof cur==='object'&&!Array.isArray(cur))?cur:{};
+    const payload={...base,rop:M.rop};
+    const res=await sb.rpc('set_board',{p_id:'jajae-master',p_passcode:sbPass,p_data:payload});
+    if(res&&res.error)toast('발주 기준 저장 실패 — 네트워크 확인');
+  }catch(e){toast('발주 기준 저장 실패 — 네트워크 확인');}
+}
+/* applyMasterPatches()가 처음(딱 한 번) 실행됐을 때 결과를 서버에 남겨 —
+   다음 로그인부터는 재적용을 건너뛰고 사람이 고친 값을 그대로 존중함. */
+async function sbSaveMasterAfterPatch(){
+  if(!sb||!sbOK)return;
+  try{
+    const{data:cur}=await sb.rpc('get_board',{p_id:'jajae-master',p_passcode:sbPass});
+    const base=(cur&&typeof cur==='object'&&!Array.isArray(cur))?cur:{};
+    const payload={...base,rop:M.rop,presetSelf:M.presetSelf,_patchVersion:M._patchVersion};
+    const res=await sb.rpc('set_board',{p_id:'jajae-master',p_passcode:sbPass,p_data:payload});
+    if(res&&res.error)toast('발주 기준 자동 반영 저장 실패 — 네트워크 확인');
+  }catch(e){toast('발주 기준 자동 반영 저장 실패 — 네트워크 확인');}
+}
+/* ═════════ 주기 기준 대상(M.presetSelf) 직접 관리 ═════════ */
+function renderCycMat(){
+  const box=document.getElementById('cycMatBody');if(!box)return;
+  const q=(document.getElementById('cycSearch').value||'').trim().toUpperCase();
+  const rows=M.presetSelf.filter(p=>!q||(p.item+(p.label||'')).toUpperCase().includes(q));
+  const cycOptsFor=cur2=>Object.keys(CYCLE).filter((v,i,a)=>a.indexOf(v)===i).map(c=>`<option ${cur2===c?'selected':''}>${c}</option>`).join('');
+  box.innerHTML=rows.length?rows.map(p=>{
+    const idx=M.presetSelf.indexOf(p);
+    return `<tr><td><b>${esc(p.item)}</b>${p.label&&p.label!==p.item?`<div class="tag">${esc(p.label)}</div>`:''}</td><td><select onchange="cycField(${idx},'cycle',this.value)">${cycOptsFor(p.cycle)}</select></td><td class="num"><input type="number" value="${p.qty??''}" style="width:90px;text-align:right" onchange="cycField(${idx},'qty',this.value)"></td><td><input value="${esc(p.unit||'')}" style="width:60px" onchange="cycField(${idx},'unit',this.value)"></td><td style="text-align:center"><input type="checkbox" ${p.excluded?'checked':''} onchange="cycField(${idx},'excluded',this.checked)"></td></tr>`;
+  }).join(''):'<tr><td colspan="5" class="empty">등록된 자가 발주 품목 없음</td></tr>';
+  document.getElementById('cntCycMat').textContent=`${M.presetSelf.length}개`;
+}
+function cycField(idx,key,val){
+  const p=M.presetSelf[idx];if(!p)return;
+  if(key==='qty')p.qty=val===''?null:+val;
+  else if(key==='excluded')p.excluded=val;
+  else if(key==='unit')p.unit=val.trim();
+  else p[key]=val;
+  if(sb&&sbOK)sbSaveMasterPresetSelfAll();
+  renderCycMat();
+  refreshAll();
+  toast(`${p.item} 저장됨${sbOK?'':' (이 기기에만 — 공유 연결 시 전체 반영)'}`);
+}
+async function sbSaveMasterPresetSelfAll(){
+  if(!sb||!sbOK)return;
+  try{
+    const{data:cur}=await sb.rpc('get_board',{p_id:'jajae-master',p_passcode:sbPass});
+    const base=(cur&&typeof cur==='object'&&!Array.isArray(cur))?cur:{};
+    const payload={...base,presetSelf:M.presetSelf};
+    const res=await sb.rpc('set_board',{p_id:'jajae-master',p_passcode:sbPass,p_data:payload});
+    if(res&&res.error)toast('주기 기준 저장 실패 — 네트워크 확인');
+  }catch(e){toast('주기 기준 저장 실패 — 네트워크 확인');}
 }
 
 /* ═════════ 지게차 기사 화면 ═════════ */

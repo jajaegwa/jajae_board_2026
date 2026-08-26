@@ -241,7 +241,8 @@ details.card summary .cnt{font-size:12px;color:var(--mut);font-weight:500}
   </div>
   <div class="card">
     <h2>기준일 요청 목록 <span class="cnt" id="cntMv2"></span></h2>
-    <div class="tbl"><table><thead><tr><th>실물</th><th>부서</th><th>품목</th><th class="num">수량</th><th>출고창고</th><th>비고</th><th>전산이동</th></tr></thead><tbody id="mvBody"></tbody></table></div>
+    <div class="row" style="margin-bottom:10px"><button class="btn sm pri" onclick="bulkDoneMv()">선택 실물이동완료 처리</button><span class="tag" id="mvSelCnt"></span></div>
+    <div class="tbl"><table><thead><tr><th><input type="checkbox" id="mvSelAll" onchange="toggleAllMv(this.checked)" title="전체 선택"></th><th>실물</th><th>부서</th><th>품목</th><th class="num">수량</th><th>출고창고</th><th>비고</th><th>전산이동</th></tr></thead><tbody id="mvBody"></tbody></table></div>
   </div>
   <details class="card">
     <summary>벌크·라인 직납 발주 <span class="cnt">P-1000·SP-390 등 — 등록하면 ⑤특이사항·발주에 같이 기록</span></summary>
@@ -297,8 +298,10 @@ details.card summary .cnt{font-size:12px;color:var(--mut);font-weight:500}
       <select id="odFlt" onchange="renderOrders()"><option value="">상태 전체</option><option value="발주완료">발주완료(입고대기)</option><option value="입고지연">입고지연</option><option value="입고완료">입고완료</option></select>
       <input id="odSearch" placeholder="품목·업체 검색" oninput="renderOrders()" style="flex:1;min-width:140px">
       <label style="display:flex;align-items:center;gap:5px;margin:0"><input type="checkbox" id="odHide" checked onchange="renderOrders()">입고완료 7일 지난 건 숨김</label>
+      <button class="btn sm pri" onclick="bulkMarkIn()">선택 입고 처리</button>
+      <span class="tag" id="odSelCnt"></span>
     </div>
-    <div class="tbl"><table><thead><tr><th>발주일</th><th>구분</th><th>매입처</th><th>품목</th><th>납품처</th><th class="num">수량</th><th>착일</th><th>D-day</th><th>창고</th><th>상태</th><th></th></tr></thead><tbody id="odBody"></tbody></table></div>
+    <div class="tbl"><table><thead><tr><th><input type="checkbox" id="odSelAll" onchange="toggleAllOd(this.checked)" title="전체 선택"></th><th>발주일</th><th>구분</th><th>매입처</th><th>품목</th><th>납품처</th><th class="num">수량</th><th>착일</th><th>D-day</th><th>창고</th><th>상태</th><th></th></tr></thead><tbody id="odBody"></tbody></table></div>
   </div>
 </section>
 
@@ -1217,13 +1220,37 @@ const armLbl=key=>_arm===key?'정말 삭제?':'삭제';
 function delMove(id){if(!armDel('mv'+id))return;S.moves=S.moves.filter(x=>x.id!==id);saveDB();refreshAll();toast('삭제됨');}
 function delOrder(id){if(!armDel('od'+id))return;S.orders=S.orders.filter(x=>x.id!==id);saveDB();refreshAll();toast('발주 건 삭제됨');}
 function delCs(id){if(!armDel('cs'+id))return;S.cons=S.cons.filter(x=>x.id!==id);saveDB();refreshAll();toast('사급 건 삭제됨');}
+let selMv=new Set();
+function toggleSelMv(id,checked){checked?selMv.add(id):selMv.delete(id);const el=document.getElementById('mvSelAll');if(el)el.checked=false;updateMvSelCnt();}
+function toggleAllMv(checked){
+  const mv=S.moves.filter(m=>m.date===cur);
+  if(checked)mv.forEach(m=>selMv.add(m.id));else mv.forEach(m=>selMv.delete(m.id));
+  renderMoves();
+}
+function updateMvSelCnt(){const el=document.getElementById('mvSelCnt');if(el)el.textContent=selMv.size?`${selMv.size}건 선택됨`:'';}
+function bulkDoneMv(){
+  if(!selMv.size){toast('선택된 항목이 없습니다');return;}
+  if(needName(()=>bulkDoneMv()))return;
+  let done=0,skipped=0;
+  selMv.forEach(id=>{
+    const m=S.moves.find(x=>x.id===id);
+    if(!m||m.done)return;
+    if(isR696(m.item)&&!m.r696){skipped++;return;}
+    m.done=true;m.doneBy=whoNow();m.doneAt=realToday()+' '+new Date().toTimeString().slice(0,5);done++;
+  });
+  selMv.clear();saveDB();refreshAll();
+  toast(skipped?`${done}건 처리됨 (R696 ${skipped}건은 개별 확인 필요)`:`${done}건 실물이동완료 처리됨`);
+}
 function renderMoves(){
   const mv=S.moves.filter(m=>m.date===cur);
   const order={'경질':0,'창호':1,'타일':2,'DBP':3};
   mv.sort((a,b)=>(order[a.dept]??9)-(order[b.dept]??9)||a.id-b.id);
+  const allSel=mv.length>0&&mv.every(m=>selMv.has(m.id));
+  const selAllEl=document.getElementById('mvSelAll');if(selAllEl)selAllEl.checked=allSel;
   document.getElementById('mvBody').innerHTML=mv.length?mv.map(m=>{const cv=convInfo(m.item,m.qty,m.unit);
-    return`<tr class="${m.done&&m.erp?'done':''}"><td><input type="checkbox" ${m.done?'checked':''} onchange="toggleMove(${m.id})" title="실물이동"></td><td>${deptChip(m.dept)}</td><td><b>${esc(m.item)}</b>${r696Badge(m)}${isThird(m.addedBy)?` <span class="chip c-ord">✋ ${esc(m.addedBy)} 등록</span>`:''}${m.done?byBadge(m.doneBy):''}</td><td class="num">${fmtN(m.qty)} ${esc(m.unit)}${m.actKg?`<div class="tag" style="color:var(--acc)">전산 ${fmtN(m.actKg)}kg (실출고 보정)</div>`:(cv?`<div class="tag">${esc(cv)}</div>`:'')}</td><td><span class="loc">${esc(m.loc||'?')}</span></td><td class="tag">${esc(m.note)}</td><td>${m.done?(m.erp?`<span class="chip c-done">전산완료</span> <button class="btn sm ghost" onclick="toggleErp(${m.id})" title="전산 완료 취소">↩</button>`:`<span class="chip c-wait">전산 대기</span> <button class="btn sm pri" onclick="toggleErp(${m.id})">전산완료</button>`):`<span class="chip c-mut">실물 대기</span>`} <button class="btn sm" onclick="editMove(${m.id})">수정</button> <button class="btn sm" style="color:var(--red)" onclick="delMove(${m.id})">${armLbl('mv'+m.id)}</button></td></tr>`;}).join(''):'<tr><td colspan="7" class="empty">기준일 요청 없음</td></tr>';
+    return`<tr class="${m.done&&m.erp?'done':''}"><td><input type="checkbox" ${selMv.has(m.id)?'checked':''} onchange="toggleSelMv(${m.id},this.checked)" title="선택"></td><td><input type="checkbox" ${m.done?'checked':''} onchange="toggleMove(${m.id})" title="실물이동"></td><td>${deptChip(m.dept)}</td><td><b>${esc(m.item)}</b>${r696Badge(m)}${isThird(m.addedBy)?` <span class="chip c-ord">✋ ${esc(m.addedBy)} 등록</span>`:''}${m.done?byBadge(m.doneBy,'실물이동완료'):''}</td><td class="num">${fmtN(m.qty)} ${esc(m.unit)}${m.actKg?`<div class="tag" style="color:var(--acc)">전산 ${fmtN(m.actKg)}kg (실출고 보정)</div>`:(cv?`<div class="tag">${esc(cv)}</div>`:'')}</td><td><span class="loc">${esc(m.loc||'?')}</span></td><td class="tag">${esc(m.note)}</td><td>${m.done?(m.erp?`<span class="chip c-done">전산완료</span> <button class="btn sm ghost" onclick="toggleErp(${m.id})" title="전산 완료 취소">↩</button>`:`<span class="chip c-wait">전산 대기</span> <button class="btn sm pri" onclick="toggleErp(${m.id})">전산완료</button>`):`<span class="chip c-mut">실물 대기</span>`} <button class="btn sm" onclick="editMove(${m.id})">수정</button> <button class="btn sm" style="color:var(--red)" onclick="delMove(${m.id})">${armLbl('mv'+m.id)}</button></td></tr>`;}).join(''):'<tr><td colspan="8" class="empty">기준일 요청 없음</td></tr>';
   document.getElementById('cntMv2').textContent=mv.length?`${mv.length}건`:'';
+  updateMvSelCnt();
 }
 function editMove(id){const m=S.moves.find(x=>x.id===id);openDlg('창고이동 수정',[['date','날짜','date'],['dept','부서'],['item','품목'],['qty','수량','number'],['unit','단위'],['loc','출고창고'],['actKg','실출고 합계 kg (파레트 보정 — 예: SL-64 540+465=1,005)','number'],['note','비고']],m,()=>{saveDB();refreshAll();},()=>{S.moves=S.moves.filter(x=>x.id!==id);saveDB();refreshAll();});}
 
@@ -1243,12 +1270,35 @@ function addOrder(){
   odPreset.value='';odItem.value='';odQty.value='';odNote.value='';odLoc.value='';saveDB();refreshAll();toast('발주 등록됨');
 }
 function markIn(id){const o=S.orders.find(x=>x.id===id);o.inDate=cur;o.inBy=whoNow();saveDB();refreshAll();toast('입고 처리됨 (오늘 날짜) — 날짜 변경은 [수정]에서');}
+let selOd=new Set();
+function toggleSelOd(id,checked){checked?selOd.add(id):selOd.delete(id);const el=document.getElementById('odSelAll');if(el)el.checked=false;updateOdSelCnt();}
+function toggleAllOd(checked){
+  const f=odFlt.value,q=odSearch.value.trim().toUpperCase(),hide=odHide.checked;
+  const rows=S.orders.filter(o=>!o.skip).filter(o=>{const st=orderStatus(o);if(f&&st!==f)return false;if(hide&&o.inDate&&diffDays(cur,o.inDate)>7)return false;if(q&&!(o.item+o.vendor+o.dest).toUpperCase().includes(q))return false;return true;});
+  if(checked)rows.forEach(o=>selOd.add(o.id));else rows.forEach(o=>selOd.delete(o.id));
+  renderOrders();
+}
+function updateOdSelCnt(){const el=document.getElementById('odSelCnt');if(el)el.textContent=selOd.size?`${selOd.size}건 선택됨`:'';}
+function bulkMarkIn(){
+  if(!selOd.size){toast('선택된 항목이 없습니다');return;}
+  let done=0;
+  selOd.forEach(id=>{
+    const o=S.orders.find(x=>x.id===id);
+    if(!o||o.inDate)return;
+    o.inDate=cur;o.inBy=whoNow();done++;
+  });
+  selOd.clear();saveDB();refreshAll();
+  toast(`${done}건 입고 처리됨`);
+}
 function renderOrders(){
   const f=odFlt.value,q=odSearch.value.trim().toUpperCase(),hide=odHide.checked;
   const rows=S.orders.filter(o=>!o.skip).filter(o=>{const st=orderStatus(o);if(f&&st!==f)return false;if(hide&&o.inDate&&diffDays(cur,o.inDate)>7)return false;if(q&&!(o.item+o.vendor+o.dest).toUpperCase().includes(q))return false;return true;}).sort((a,b)=>(b.ordDate+b.id)<(a.ordDate+a.id)?-1:1);
+  const allSel=rows.length>0&&rows.every(o=>selOd.has(o.id));
+  const selAllEl=document.getElementById('odSelAll');if(selAllEl)selAllEl.checked=allSel;
   document.getElementById('odBody').innerHTML=rows.length?rows.map(o=>{const st=orderStatus(o),d=o.eta&&!o.inDate?diffDays(o.eta,cur):null;const cls={'발주완료':'c-ord','입고지연':'c-late','입고완료':'c-done'}[st];
-    return `<tr class="${o.inDate?'done':''}"><td>${o.ordDate}</td><td>${o.type==='self'?'자가':'사급'}</td><td>${esc(o.vendor)}</td><td><b>${esc(o.item)}</b>${o.note?`<div class="tag">${esc(o.note)}</div>`:''}</td><td>${esc(o.dest)}</td><td class="num">${fmtN(o.qty)} ${esc(o.unit)}</td><td>${o.eta||''}</td><td class="dday ${d!=null&&d<0?'late':(d===0?'soon':'')}">${d==null?(o.inDate?'입고 '+o.inDate:''):(d<0?`D+${-d}`:`D-${d}`)}</td><td>${o.loc?`<span class="loc">${esc(o.loc)}</span>`:''}</td><td><span class="chip ${cls}">${st}</span></td><td>${!o.inDate?`<button class="btn sm" onclick="markIn(${o.id})">입고</button> `:''}<button class="btn sm" onclick="editOrder(${o.id})">수정</button> <button class="btn sm" style="color:var(--red)" onclick="delOrder(${o.id})">${armLbl('od'+o.id)}</button></td></tr>`;}).join(''):'<tr><td colspan="11" class="empty">발주 건 없음</td></tr>';
+    return `<tr class="${o.inDate?'done':''}"><td><input type="checkbox" ${selOd.has(o.id)?'checked':''} onchange="toggleSelOd(${o.id},this.checked)" title="선택"></td><td>${o.ordDate}</td><td>${o.type==='self'?'자가':'사급'}</td><td>${esc(o.vendor)}</td><td><b>${esc(o.item)}</b>${o.note?`<div class="tag">${esc(o.note)}</div>`:''}</td><td>${esc(o.dest)}</td><td class="num">${fmtN(o.qty)} ${esc(o.unit)}</td><td>${o.eta||''}</td><td class="dday ${d!=null&&d<0?'late':(d===0?'soon':'')}">${d==null?(o.inDate?'입고 '+o.inDate:''):(d<0?`D+${-d}`:`D-${d}`)}</td><td>${o.loc?`<span class="loc">${esc(o.loc)}</span>`:''}</td><td><span class="chip ${cls}">${st}</span></td><td>${!o.inDate?`<button class="btn sm" onclick="markIn(${o.id})">입고</button> `:''}<button class="btn sm" onclick="editOrder(${o.id})">수정</button> <button class="btn sm" style="color:var(--red)" onclick="delOrder(${o.id})">${armLbl('od'+o.id)}</button></td></tr>`;}).join(''):'<tr><td colspan="12" class="empty">발주 건 없음</td></tr>';
   document.getElementById('cntOd').textContent=`${rows.length}건`;
+  updateOdSelCnt();
 }
 function editOrder(id){const o=S.orders.find(x=>x.id===id);openDlg('발주 건 수정',[['ordDate','발주일','date'],['vendor','매입처'],['item','품목'],['dest','납품처'],['qty','수량','number'],['unit','단위'],['eta','착일','date'],['inDate','실입고일 (비우면 미입고)','date'],['loc','창고'],['dept','부서'],['note','비고']],o,()=>{saveDB();refreshAll();},()=>{S.orders=S.orders.filter(x=>x.id!==id);saveDB();refreshAll();});}
 

@@ -250,11 +250,11 @@ details.card summary .cnt{font-size:11.5px;color:var(--mut);font-weight:500}
         <span class="tag" id="qmLoc"></span>
       </div>
       <div class="quick qm-qty" id="qmQty" style="margin:8px 0 4px"></div>
-      <div class="row">
+      <form class="row" onsubmit="event.preventDefault();qmAdd(+qmCustom.value)">
         <input id="qmCustom" type="number" step="any" placeholder="직접 수량" style="width:110px;text-align:right">
-        <button class="btn pri sm" onclick="qmAdd(+qmCustom.value)">추가</button>
+        <button class="btn pri sm" type="submit">추가</button>
         <span class="tag">숫자를 탭하면 바로 등록됨 · 같은 품목 연속 등록 가능</span>
-      </div>
+      </form>
     </div>
   </div>
   <div class="card">
@@ -1231,7 +1231,7 @@ function renderQm(){
     document.getElementById('qmQty').innerHTML=[1,2,3,4,5,6,8,10,12,16,20].map(n2=>`<button onclick="qmAdd(${n2})">${n2}</button>`).join('');
   }else box.style.display='none';
 }
-function qmPick(it){qmItem=it;renderQm();}
+function qmPick(it){qmItem=it;renderQm();document.getElementById('qmCustom')?.focus();}
 function qmAdd(n){
   if(!qmItem){toast('품목을 먼저 탭하세요');return;}
   if(!n||n<=0){toast('수량을 선택하세요');return;}
@@ -1241,6 +1241,7 @@ function qmAdd(n){
   document.getElementById('qmCustom').value='';
   const u=document.getElementById('qmUnit').value,cv=convInfo(qmItem,n,u);
   saveDB();refreshAll();toast(`${qmDept} ← ${qmItem} ${fmtN(n)} ${u}${cv?' ('+cv+')':''} 등록됨`);
+  document.getElementById('qmCustom')?.focus();   // 같은 품목 연속 등록 대비 — 수량 입력창에 커서 유지
 }
 
 /* ═════════ 창고이동 ═════════ */

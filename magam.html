@@ -49,6 +49,17 @@ main{max-width:1800px;margin:14px auto;padding:0 16px 60px}
 .card h2 .cnt{font-size:11.5px;color:var(--mut);font-weight:500}
 .card .hint{font-size:12px;color:var(--mut);margin-bottom:10px;line-height:1.55}
 .tbl{overflow-x:auto}
+/* 세로 스크롤 시 헤더행 고정 — overflow-x:auto만 있으면 overflow-y가 auto로 계산돼
+   .tbl이 스크롤 컨테이너가 되고, sticky th가 페이지가 아닌 이 박스 기준으로 묶여
+   높이 제한이 없으면 결국 헤더가 그대로 밀려 올라감. 높이를 제한해 박스 안에서
+   스크롤되게 하면 그 안에서 헤더가 고정됨.
+   이 표들은 <thead> 없이 첫 행이 th라서 tr:first-child th까지 함께 처리.
+   사파리는 border-collapse:collapse 표에서 sticky를 지원하지 않아 separate로 전환. */
+.tbl.scroll{max-height:560px;overflow:auto}
+.tbl.scroll table{border-collapse:separate;border-spacing:0}
+.tbl.scroll th,.tbl.scroll td{border-width:0 1px 1px 0}
+.tbl.scroll tr>*:first-child{border-left-width:1px}
+.tbl.scroll tr:first-child th{border-top-width:1px}
 table{width:100%;border-collapse:collapse}
 th{background:var(--head);color:var(--mut);font-size:11.5px;font-weight:700;text-align:left;padding:6px 8px;border:1px solid var(--line);position:sticky;top:0;white-space:nowrap;z-index:1}
 td{padding:5px 8px;border:1px solid var(--line2);font-size:12.5px;vertical-align:middle;white-space:nowrap}
@@ -339,7 +350,7 @@ function dashHTML(){
     <div style="margin-top:12px"><div class="k mut" style="font-size:12px;margin-bottom:2px">지연단계 분포 (미완 업체)</div>${distBar(side,st)}</div>
     <div style="margin-top:12px"><button class="btn sm" onclick="setView('${side}')">체크리스트 열기 →</button></div></div>`;
   const openCard=(t,list,side)=>`<div class="card"><h2>${t} <span class="cnt">${mainOK?list.length+'개 업체':'연동 필요'}</span></h2>
-    ${mainOK?(list.length?`<div class="tbl"><table><tr><th>업체</th><th class="num">미입고</th><th>품목 (착일)</th></tr>${
+    ${mainOK?(list.length?`<div class="tbl scroll"><table><tr><th>업체</th><th class="num">미입고</th><th>품목 (착일)</th></tr>${
       list.sort((a,b)=>b.L.open.length-a.L.open.length).map(x=>`<tr><td class="vname" onclick="setView('${side}')">${esc(x.v.name)}</td><td class="num">${x.L.open.length}건${x.L.late.length?` <span class="pill r">지연 ${x.L.late.length}</span>`:''}</td><td style="white-space:normal;font-size:12px" class="mut">${x.L.open.slice(0,4).map(o=>`${esc(o.item)} ${o.qty||''}${esc(o.unit||'')}${o.eta?`(${o.eta.slice(5)})`:''}`).join(' · ')}${x.L.open.length>4?' 외':''}</td></tr>`).join('')
     }</table></div>`:'<div class="mut" style="font-size:13px">발주분 전량 입고 완료 ✓</div>')
     :'<div class="mut" style="font-size:13px">작업판 발주 데이터 연동이 필요합니다 — 우측 하단 [연결] 또는 설정 탭.</div>'}</div>`;
@@ -397,7 +408,7 @@ function listHTML(side){
     <button class="btn sm" onclick="exportCSV('${side}')">CSV 내보내기</button>
     <button class="btn sm danger" onclick="resetSide('${side}')">체크 초기화</button>
   </div>
-  <div class="tbl"><table>
+  <div class="tbl scroll"><table>
     <tr><th>업체명</th><th>유형·품목</th><th>${side==='sales'?'처리자':'처리자·구매팀'}</th><th>발주↔입고</th><th>보낸날짜</th><th>방식</th>${short.map(s=>`<th style="text-align:center">${s}</th>`).join('')}<th>진행률</th><th>상태</th><th></th></tr>
     ${rows.map(v=>rowHTML(side,v)).join('')}
   </table></div>

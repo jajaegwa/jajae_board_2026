@@ -359,11 +359,14 @@ details.card summary .cnt{font-size:11.5px;color:var(--mut);font-weight:500}
     <div class="row" style="margin-bottom:10px">
       <select id="csFlt" onchange="renderCs()"><option value="">전체</option><option value="대기">대기(발주/출고 전)</option><option value="진행">진행(입고/출고 대기)</option><option value="완료">완료</option></select>
       <input id="csSearch" placeholder="사급처·품목 검색" oninput="renderCs()" style="flex:1;min-width:140px">
+      <div><label>납기 날짜</label><input type="date" id="csDueDateFlt" onchange="renderCs()"></div>
+      <div><label>납기 월</label><input type="month" id="csDueMonthFlt" onchange="renderCs()"></div>
+      <button class="btn sm ghost" onclick="csDueDateFlt.value='';csDueMonthFlt.value='';renderCs()">납기 필터 지우기</button>
       <button class="btn" onclick="mailForSelected()">선택 건 메일 다시 만들기</button>
       <button class="btn sm pri" onclick="csBulkMark()">선택 입고완료 처리</button>
       <span class="tag" id="csSelCnt"></span>
     </div>
-    <div class="tbl"><table><thead><tr><th><input type="checkbox" id="csSelAll" onchange="toggleAllCs(this.checked)" title="전체 선택"></th><th class="due-hl">요청납기</th><th>사급처</th><th>품목</th><th class="num">수량</th><th>처리</th><th>공급사</th><th>접수일</th><th>발주일</th><th>출고/입고일</th><th>상태</th><th></th></tr></thead><tbody id="csBody"></tbody></table></div>
+    <div class="tbl"><table><thead><tr><th><input type="checkbox" id="csSelAll" onchange="toggleAllCs(this.checked)" title="전체 선택"></th><th class="due-hl" id="csDueTh" style="cursor:pointer" onclick="csSortByDue()" title="클릭하면 요청납기 기준 정렬">요청납기</th><th>사급처</th><th>품목</th><th class="num">수량</th><th>처리</th><th>공급사</th><th>접수일</th><th>발주일</th><th>출고/입고일</th><th>상태</th><th></th></tr></thead><tbody id="csBody"></tbody></table></div>
   </div>
 </section>
 
@@ -1666,7 +1669,7 @@ function csRow(c,board){const st=csStatus(c);const cls={'발주대기':'c-wait',
   const act=`<span class="act-${{'발주':'order','직접출고':'direct','확인':'check','제외':'none'}[c.action]}">${c.action}</span>`;
   const btn=c.action==='발주'&&!c.ordDate?`<button class="btn sm warn" onclick="csMark(${c.id},'ordDate')">발주 체크</button>`:(c.action==='직접출고'&&!c.outDate?`<button class="btn sm warn" onclick="csMark(${c.id},'outDate')">출고 체크</button>`:(!c.done?`<button class="btn sm" onclick="csMark(${c.id},'done')">${c.action==='발주'?'입고 완료':'완료'}</button>`:''));
   if(board)return`<tr class="${c.done?'done':''}"><td><b>${esc(c.consignee)}</b></td><td><b>${esc(c.item)}</b></td><td class="num">${fmtN(c.qty)}</td><td>${act}</td><td>${c.due?fmtK(c.due):''}</td><td><span class="chip ${cls}">${st}</span></td><td>${btn}</td></tr>`;
-  return`<tr class="${c.done?'done':''}"><td><input type="checkbox" class="csSel" value="${c.id}" ${selCs.has(c.id)?'checked':''} onchange="toggleSelCs(${c.id},this.checked)"></td><td class="due-hl">${c.due||''}</td><td><b>${esc(c.consignee)}</b></td><td><b>${esc(c.item)}</b>${c.loc?` <span class="loc">${esc(c.loc)}</span>`:''}</td><td class="num">${fmtN(c.qty)}</td><td>${act}</td><td><b>${esc(c.supplier)}</b></td><td>${c.recvDate}</td><td>${c.ordDate||''}</td><td>${c.outDate||(c.done?'✓':'')}${isThird(c.outBy)?` <span class="chip c-wait">✋ ${esc(c.outBy)}</span>`:''}</td><td><span class="chip ${cls}">${st}</span></td><td>${btn} <button class="btn sm" onclick="editCs(${c.id})">수정</button> <button class="btn sm" style="color:var(--red)" onclick="delCs(${c.id})">${armLbl('cs'+c.id)}</button></td></tr>`;}
+  return`<tr class="${c.done?'done':''}"><td><input type="checkbox" class="csSel" value="${c.id}" ${selCs.has(c.id)?'checked':''} onchange="toggleSelCs(${c.id},this.checked)"></td><td class="due-hl"><b>${c.due||''}</b></td><td><b>${esc(c.consignee)}</b></td><td><b>${esc(c.item)}</b>${c.loc?` <span class="loc">${esc(c.loc)}</span>`:''}</td><td class="num">${fmtN(c.qty)}</td><td>${act}</td><td><b>${esc(c.supplier)}</b></td><td>${c.recvDate}</td><td>${c.ordDate||''}</td><td>${c.outDate||(c.done?'✓':'')}${isThird(c.outBy)?` <span class="chip c-wait">✋ ${esc(c.outBy)}</span>`:''}</td><td><span class="chip ${cls}">${st}</span></td><td>${btn} <button class="btn sm" onclick="editCs(${c.id})">수정</button> <button class="btn sm" style="color:var(--red)" onclick="delCs(${c.id})">${armLbl('cs'+c.id)}</button></td></tr>`;}
 function csMark(id,f){const c=S.cons.find(x=>x.id===id);
   if((f==='outDate'||f==='done')&&needName(()=>csMark(id,f)))return;
   // M-210: 월1회 입항분은 행선지 건별 확인 전 배차·출고·완료 금지
@@ -1684,9 +1687,19 @@ function csMarkCore(c,f){
   if(f==='done'){c.done=true;if(c.action==='발주'&&!c.inDate)c.inDate=cur;}else{c[f]=cur;if(f==='outDate')c.done=true;}
   if(f==='outDate'||f==='done')c.outBy=whoNow();
   saveDB();refreshAll();}
+let csSort=null;   // null(등록순) → 'asc'(요청납기 빠른순) → 'desc'(늦은순) → null
+function csSortByDue(){csSort=csSort==='asc'?'desc':(csSort==='desc'?null:'asc');renderCs();}
 function csFilteredRows(){
   const f=csFlt.value,q=csSearch.value.trim().toUpperCase();
-  return S.cons.filter(c=>{const st=csStatus(c);if(f==='대기'&&!/대기$|확인/.test(st))return false;if(f==='대기'&&/입고대기/.test(st))return false;if(f==='진행'&&st!=='입고대기'&&st!=='입고지연')return false;if(f==='완료'&&!c.done)return false;if(q&&!(c.consignee+c.item+c.supplier).toUpperCase().includes(q))return false;return true;}).sort((a,b)=>b.id-a.id);
+  const dueDate=document.getElementById('csDueDateFlt')?.value||'';
+  const dueMonth=document.getElementById('csDueMonthFlt')?.value||'';
+  let rows=S.cons.filter(c=>{const st=csStatus(c);if(f==='대기'&&!/대기$|확인/.test(st))return false;if(f==='대기'&&/입고대기/.test(st))return false;if(f==='진행'&&st!=='입고대기'&&st!=='입고지연')return false;if(f==='완료'&&!c.done)return false;if(q&&!(c.consignee+c.item+c.supplier).toUpperCase().includes(q))return false;if(dueDate&&c.due!==dueDate)return false;if(dueMonth&&(!c.due||!c.due.startsWith(dueMonth)))return false;return true;});
+  if(csSort){
+    const withDue=rows.filter(c=>c.due),noDue=rows.filter(c=>!c.due);
+    withDue.sort((a,b)=>csSort==='asc'?a.due.localeCompare(b.due):b.due.localeCompare(a.due));
+    rows=[...withDue,...noDue];
+  }else rows.sort((a,b)=>b.id-a.id);
+  return rows;
 }
 function renderCs(){
   const rows=csFilteredRows();
@@ -1694,6 +1707,7 @@ function renderCs(){
   const selAllEl=document.getElementById('csSelAll');if(selAllEl)selAllEl.checked=allSel;
   document.getElementById('csBody').innerHTML=rows.length?rows.map(c=>csRow(c,false)).join(''):'<tr><td colspan="12" class="empty">사급 요청 없음</td></tr>';
   document.getElementById('cntCs2').textContent=`${rows.length}건`;
+  const th=document.getElementById('csDueTh');if(th)th.textContent='요청납기'+(csSort==='asc'?' ▲':csSort==='desc'?' ▼':'');
   updateCsSelCnt();
 }
 function editCs(id){const c=S.cons.find(x=>x.id===id);openDlg('사급 요청 수정',[['recvDate','접수일','date'],['consignee','사급처'],['item','품목'],['qty','수량(kg)','number'],['due','요청납기','date'],['action','처리(발주/직접출고/확인)'],['supplier','공급사'],['loc','출고창고'],['ordDate','발주일','date'],['outDate','출고일','date'],['note','비고']],c,()=>{saveDB();refreshAll();},()=>{S.cons=S.cons.filter(x=>x.id!==id);saveDB();refreshAll();});}

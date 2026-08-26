@@ -242,7 +242,7 @@ details.card summary .cnt{font-size:12px;color:var(--mut);font-weight:500}
   <div class="card">
     <h2>기준일 요청 목록 <span class="cnt" id="cntMv2"></span></h2>
     <div class="row" style="margin-bottom:10px"><button class="btn sm pri" onclick="bulkDoneMv()">선택 실물이동완료 처리</button><span class="tag" id="mvSelCnt"></span></div>
-    <div class="tbl"><table><thead><tr><th><input type="checkbox" id="mvSelAll" onchange="toggleAllMv(this.checked)" title="전체 선택"></th><th>실물</th><th>부서</th><th>품목</th><th class="num">수량</th><th>출고창고</th><th>비고</th><th>전산이동</th></tr></thead><tbody id="mvBody"></tbody></table></div>
+    <div class="tbl"><table><thead><tr><th><input type="checkbox" id="mvSelAll" onchange="toggleAllMv(this.checked)" title="전체 선택"></th><th>부서</th><th>품목</th><th class="num">수량</th><th>출고창고</th><th>비고</th><th>실물</th><th>전산이동</th></tr></thead><tbody id="mvBody"></tbody></table></div>
   </div>
   <details class="card">
     <summary>벌크·라인 직납 발주 <span class="cnt">P-1000·SP-390 등 — 등록하면 ⑤특이사항·발주에 같이 기록</span></summary>
@@ -1156,11 +1156,10 @@ function toggleMove(id){const m=S.moves.find(x=>x.id===id);
   if(!m.done&&isR696(m.item)&&!m.r696){openR696(m);return;}
   m.done=!m.done;
   if(m.done){m.doneBy=whoNow();m.doneAt=realToday()+' '+new Date().toTimeString().slice(0,5);}
-  else{delete m.doneBy;delete m.doneAt;delete m.erp;delete m.erpBy;}   // 실물 취소 시 전산도 초기화
+  else{delete m.doneBy;delete m.doneAt;}
   saveDB();refreshAll();}
-/* 전산이동 — 기사 실물이동 후 자재과가 ERP 이동 입력을 마쳐야 최종 완료 */
+/* 전산이동 — 실물이동 여부와 무관하게 자재과가 독립적으로 ERP 이동 입력 처리 가능 */
 function toggleErp(id){const m=S.moves.find(x=>x.id===id);
-  if(!m.done){toast('실물이동 완료 후 전산이동을 처리하세요');return;}
   if(m.erp){delete m.erp;delete m.erpBy;}
   else{m.erp=realToday()+' '+new Date().toTimeString().slice(0,5);m.erpBy=whoNow();}
   saveDB();refreshAll();}
@@ -1250,7 +1249,7 @@ function renderMoves(){
   const allSel=mv.length>0&&mv.every(m=>selMv.has(m.id));
   const selAllEl=document.getElementById('mvSelAll');if(selAllEl)selAllEl.checked=allSel;
   document.getElementById('mvBody').innerHTML=mv.length?mv.map(m=>{const cv=convInfo(m.item,m.qty,m.unit);
-    return`<tr class="${m.done&&m.erp?'done':''}"><td><input type="checkbox" ${selMv.has(m.id)?'checked':''} onchange="toggleSelMv(${m.id},this.checked)" title="선택"></td><td><input type="checkbox" ${m.done?'checked':''} onchange="toggleMove(${m.id})" title="실물이동"></td><td>${deptChip(m.dept)}</td><td><b>${esc(m.item)}</b>${r696Badge(m)}${isThird(m.addedBy)?` <span class="chip c-ord">✋ ${esc(m.addedBy)} 등록</span>`:''}${m.done?byBadge(m.doneBy,'실물이동완료'):''}</td><td class="num">${fmtN(m.qty)} ${esc(m.unit)}${m.actKg?`<div class="tag" style="color:var(--acc)">전산 ${fmtN(m.actKg)}kg (실출고 보정)</div>`:(cv?`<div class="tag">${esc(cv)}</div>`:'')}</td><td><span class="loc">${esc(m.loc||'?')}</span></td><td class="tag">${esc(m.note)}</td><td>${m.done?(m.erp?`<span class="chip c-done">전산완료</span> <button class="btn sm ghost" onclick="toggleErp(${m.id})" title="전산 완료 취소">↩</button>`:`<span class="chip c-wait">전산 대기</span> <button class="btn sm pri" onclick="toggleErp(${m.id})">전산완료</button>`):`<span class="chip c-mut">실물 대기</span>`} <button class="btn sm" onclick="editMove(${m.id})">수정</button> <button class="btn sm" style="color:var(--red)" onclick="delMove(${m.id})">${armLbl('mv'+m.id)}</button></td></tr>`;}).join(''):'<tr><td colspan="8" class="empty">기준일 요청 없음</td></tr>';
+    return`<tr class="${m.done&&m.erp?'done':''}"><td><input type="checkbox" ${selMv.has(m.id)?'checked':''} onchange="toggleSelMv(${m.id},this.checked)" title="선택"></td><td>${deptChip(m.dept)}</td><td><b>${esc(m.item)}</b>${r696Badge(m)}${isThird(m.addedBy)?` <span class="chip c-ord">✋ ${esc(m.addedBy)} 등록</span>`:''}${m.done?byBadge(m.doneBy,'실물이동완료'):''}</td><td class="num">${fmtN(m.qty)} ${esc(m.unit)}${m.actKg?`<div class="tag" style="color:var(--acc)">전산 ${fmtN(m.actKg)}kg (실출고 보정)</div>`:(cv?`<div class="tag">${esc(cv)}</div>`:'')}</td><td><span class="loc">${esc(m.loc||'?')}</span></td><td class="tag">${esc(m.note)}</td><td><input type="checkbox" ${m.done?'checked':''} onchange="toggleMove(${m.id})" title="실물이동"></td><td>${m.erp?`<span class="chip c-done">전산완료</span> <button class="btn sm ghost" onclick="toggleErp(${m.id})" title="전산 완료 취소">↩</button>`:`<span class="chip c-wait">전산 대기</span> <button class="btn sm pri" onclick="toggleErp(${m.id})">전산완료</button>`} <button class="btn sm" onclick="editMove(${m.id})">수정</button> <button class="btn sm" style="color:var(--red)" onclick="delMove(${m.id})">${armLbl('mv'+m.id)}</button></td></tr>`;}).join(''):'<tr><td colspan="8" class="empty">기준일 요청 없음</td></tr>';
   document.getElementById('cntMv2').textContent=mv.length?`${mv.length}건`:'';
   updateMvSelCnt();
 }

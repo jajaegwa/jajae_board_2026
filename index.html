@@ -863,6 +863,7 @@ function sbQueueSave(){
       if(res&&res.error){setSave('ro','저장 실패: '+res.error.message);return;}
       setSave('ok','실시간 저장됨 '+new Date().toTimeString().slice(0,5));
       try{sbCh?.send({type:'broadcast',event:'update',payload:{by:sbClientId,ts:Date.now()}});}catch(e){}
+      sendServerPush();   // 앱을 꺼둔 기사에게도 알림
     }finally{sbPendingSave=false;}
   },600);
 }
@@ -1948,6 +1949,62 @@ async function sbSaveMasterAfterPatch(){
     if(res&&res.error)toast('발주 기준 자동 반영 저장 실패 — 네트워크 확인');
   }catch(e){toast('발주 기준 자동 반영 저장 실패 — 네트워크 확인');}
 }
+/* ═════════ 서버 푸시(Web Push) — 앱을 완전히 종료해도 오는 알림 ═════════
+   구조: 기사 폰이 구독을 Edge Function에 저장해 두고, 자재과가 저장할 때마다
+   그 함수가 각 폰의 푸시 서버로 알림을 쏨. 앱 실행 여부와 무관하게 도착함.
+   VAPID 공개키는 함수에서 받아오므로 이 파일에 키를 넣을 필요가 없음. */
+const PUSH_FN=SB_URL+'/functions/v1/notify-drivers';
+let pushCfg=null;
+async function pushConfig(){
+  if(pushCfg)return pushCfg;
+  try{
+    const r=await fetch(PUSH_FN+'?config=1');
+    if(!r.ok)return null;
+    pushCfg=await r.json();
+    return pushCfg&&pushCfg.configured?pushCfg:null;
+  }catch(e){return null;}   // 함수 미배포 — 앱 실행 중 알림만 동작
+}
+function b64ToU8(b64){
+  const s=(b64+'='.repeat((4-b64.length%4)%4)).replace(/-/g,'+').replace(/_/g,'/');
+  const raw=atob(s), out=new Uint8Array(raw.length);
+  for(let i=0;i<raw.length;i++)out[i]=raw.charCodeAt(i);
+  return out;
+}
+/* 기사 폰을 푸시 구독에 등록 — 알림 권한을 켤 때 함께 호출됨 */
+async function subscribeServerPush(){
+  const cfg=await pushConfig();
+  if(!cfg)return false;                       // 서버 미설정이면 조용히 넘어감
+  if(!sbOK||!sbPass)return false;             // 공유 연결이 있어야 인증 가능
+  try{
+    const reg=await navigator.serviceWorker.ready;
+    let sub=await reg.pushManager.getSubscription();
+    if(!sub)sub=await reg.pushManager.subscribe({userVisibleOnly:true,
+      applicationServerKey:b64ToU8(cfg.publicKey)});
+    const r=await fetch(PUSH_FN,{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({action:'subscribe',passcode:sbPass,sub:sub.toJSON(),
+        name:localStorage.getItem('jjUser')||'',clientId:sbClientId})});
+    return r.ok;
+  }catch(e){return false;}
+}
+/* 자재과가 저장한 뒤 호출 — 새로 생긴 기사 작업이 있을 때만 발송.
+   기사 기기에서는 보내지 않음(기사가 자기 완료 체크로 자신에게 알림 보내는 것 방지). */
+async function sendServerPush(){
+  if(document.body.classList.contains('driver'))return;
+  if(!sbOK||!sbPass)return;
+  const seen=notifiedSet();
+  const fresh=drvPushItems().filter(x=>!seen.has(x.k));
+  if(!fresh.length)return;
+  if(!(await pushConfig()))return;            // 서버 미설정
+  const title=fresh.length===1?fresh[0].t:`새 작업 ${fresh.length}건`;
+  const body=fresh.length===1?fresh[0].b:fresh.slice(0,4).map(f=>`· ${f.b}`).join('\n')+(fresh.length>4?`\n외 ${fresh.length-4}건`:'');
+  try{
+    await fetch(PUSH_FN,{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({action:'notify',passcode:sbPass,title,body,
+        url:location.origin+location.pathname+'#driver',exclude:sbClientId})});
+    markNotified(fresh.map(f=>f.k));   // 자재과 쪽에서도 중복 발송 방지
+  }catch(e){}
+}
+
 /* ═════════ 지게차 폰 알림 ═════════
    자재과에서 입고 예정·창고이동·전달사항을 등록하면 기사 폰에 알림을 띄움.
 
@@ -1973,9 +2030,10 @@ async function askNotifPerm(){
   const r=await Notification.requestPermission();
   if(r==='granted'){
     seedNotified();                       // 지금까지 쌓인 건 알림하지 않음(켜자마자 쏟아지는 것 방지)
+    const srv=await subscribeServerPush();    // 앱을 꺼도 오는 알림까지 등록(서버 설정돼 있을 때)
     try{(await navigator.serviceWorker.ready).showNotification('알림이 켜졌습니다',
       {body:'새 입고·창고이동·전달사항이 등록되면 알려드립니다.',icon:'icon-192.png',tag:'jajae-welcome'});}catch(e){}
-    toast('알림 켜짐');
+    toast(srv?'알림 켜짐 — 앱을 꺼도 알림이 옵니다':'알림 켜짐 (앱이 실행 중일 때)');
   }else toast('알림이 허용되지 않았습니다');
   renderDriver();
 }

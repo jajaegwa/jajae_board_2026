@@ -1736,7 +1736,7 @@ function csBulkMark(){
 function csStatus(c){if(c.action==='제외')return'제외';if(c.done)return'완료';if(c.action==='발주')return c.ordDate?(c.due&&cur>c.due?'입고지연':'입고대기'):'발주대기';if(c.action==='직접출고')return c.outDate?'출고완료':'출고대기';return'확인필요';}
 function csRow(c,board){const st=csStatus(c);const cls={'발주대기':'c-wait','출고대기':'c-wait','확인필요':'c-late','입고지연':'c-late','입고대기':'c-ord','출고완료':'c-done','완료':'c-done','제외':'c-mut'}[st];
   const act=`<span class="act-${{'발주':'order','직접출고':'direct','확인':'check','제외':'none'}[c.action]}">${c.action}</span>`;
-  const btn=c.action==='발주'&&!c.ordDate?`<button class="btn sm warn" onclick="csMark(${c.id},'ordDate')">발주 체크</button>`:(c.action==='직접출고'&&!c.outDate?`<button class="btn sm warn" onclick="csMark(${c.id},'outDate')">출고 체크</button>`:(!c.done?`<button class="btn sm" onclick="csMark(${c.id},'done')">${c.action==='발주'?'입고 완료':'완료'}</button>`:''));
+  const btn=c.action==='발주'&&!c.ordDate?`<button class="btn sm warn" onclick="csMark(${c.id},'ordDate')">발주 체크</button>`:(c.action==='직접출고'&&!c.outDate?`<button class="btn sm warn" onclick="csMark(${c.id},'outDate')">출고 체크</button>`:(c.action==='직접출고'&&c.outDate?`<button class="btn sm ghost" onclick="csUndoOut(${c.id})" title="출고 처리를 취소하고 출고 대기로 되돌림">↩ 출고 취소</button>`:(!c.done?`<button class="btn sm" onclick="csMark(${c.id},'done')">${c.action==='발주'?'입고 완료':'완료'}</button>`:'')));
   if(board)return`<tr class="${c.done?'done':''}"><td><b>${esc(c.consignee)}</b></td><td><b>${esc(c.item)}</b></td><td class="num">${fmtN(c.qty)}</td><td>${act}</td><td>${c.due?fmtK(c.due):''}</td><td><span class="chip ${cls}">${st}</span></td><td>${btn}</td></tr>`;
   return`<tr class="${c.done?'done':''}"><td><input type="checkbox" class="csSel" value="${c.id}" ${selCs.has(c.id)?'checked':''} onchange="toggleSelCs(${c.id},this.checked)"></td><td class="due-hl"><b>${c.due||''}</b></td><td><b>${esc(c.consignee)}</b></td><td><b>${esc(c.item)}</b>${c.loc?` <span class="loc">${esc(c.loc)}</span>`:''}</td><td class="num">${fmtN(c.qty)}</td><td>${act}</td><td><b>${esc(c.supplier)}</b></td><td>${c.recvDate}</td><td>${c.ordDate||''}</td><td>${c.outDate||(c.done?'✓':'')}${isThird(c.outBy)?` <span class="chip c-wait">✋ ${esc(c.outBy)}</span>`:''}</td><td><span class="chip ${cls}">${st}</span></td><td>${btn} <button class="btn sm" onclick="editCs(${c.id})">수정</button> <button class="btn sm" style="color:var(--red)" onclick="delCs(${c.id})">${armLbl('cs'+c.id)}</button></td></tr>`;}
 function csMark(id,f){const c=S.cons.find(x=>x.id===id);
@@ -1756,6 +1756,13 @@ function csMarkCore(c,f){
   if(f==='done'){c.done=true;if(c.action==='발주'&&!c.inDate)c.inDate=cur;}else{c[f]=cur;if(f==='outDate')c.done=true;}
   if(f==='outDate'||f==='done')c.outBy=whoNow();
   saveDB();refreshAll();}
+/* 직접출고 건 — 출고 체크를 잘못 눌렀거나 실제로 안 나갔을 때 출고 대기로 되돌림 */
+function csUndoOut(id){
+  const c=S.cons.find(x=>x.id===id);if(!c)return;
+  delete c.outDate;c.done=false;delete c.outBy;
+  saveDB();refreshAll();
+  toast(`${c.item} 출고 처리 취소 — 출고 대기로 되돌림`);
+}
 let csSort=null;   // null(등록순) → 'asc'(요청납기 빠른순) → 'desc'(늦은순) → null
 function csSortByDue(){csSort=csSort==='asc'?'desc':(csSort==='desc'?null:'asc');renderCs();}
 function csFilteredRows(){

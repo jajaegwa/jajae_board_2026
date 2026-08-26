@@ -1074,7 +1074,7 @@ function readInv(f){
         (rows[ri]||[]).forEach((c,ci)=>{const s=String(c).replace(/\s/g,'');
           if(qCol<0&&/현재고|가용재고|재고수량|^재고|기말재고|재고량/.test(s))qCol=ci;
           if(iCol<0&&/품목|품명|자재명|자재내역|명칭|Description/i.test(s))iCol=ci;
-          if(whCol<0&&/창고|위치|보관장소/.test(s))whCol=ci;});
+          if(whCol<0&&/창고|위치|장소/.test(s))whCol=ci;});
         if(qCol>=0)break;
       }
       if(qCol>=0){for(let ri=0;ri<rows.length;ri++){if((rows[ri]||[]).some(c=>/현재고|가용재고|재고수량|기말재고|재고량|^재고$/.test(String(c).replace(/\s/g,'')))){hRow=ri;break;}}}
@@ -1095,7 +1095,12 @@ function readInv(f){
           hit=rops.find(rp=>{const rn=norm(rp.item);return rn.length>=3&&nn.includes(rn);});
           if(hit)break;
         }
-        if(hit){stock[hit.item]=(stock[hit.item]||0)+qty;hits++;}
+        if(hit){
+          // 95T(HYDROCARB)는 P201P2·M404P2 두 창고에 나뉘어 있고 자가 발주 대상은 M404P2뿐 —
+          // 창고 컬럼 인식 여부와 무관하게 행 전체에서 P201P2가 보이면 항상 제외(이중 안전장치)
+          if(/95T|HYDROCARB/.test(norm(hit.item))&&norm(row.map(c=>String(c??'')).join(' ')).includes('P201P2'))continue;
+          stock[hit.item]=(stock[hit.item]||0)+qty;hits++;
+        }
       }
     });
     if(!hits){toast('재고 파일에서 발주 기준 품목을 못 찾음 — 품목명·재고 컬럼이 있는지 확인');return;}

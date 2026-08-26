@@ -4,6 +4,13 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>자재과 작업판</title>
+<!-- 홈 화면 바로가기를 진짜 앱(PWA)으로 만들기 — 아이폰은 홈 화면에 추가된 앱에서만 알림이 동작함 -->
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#1b3047">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="작업판">
+<link rel="apple-touch-icon" href="icon-192.png">
 </head>
 <body>
 
@@ -940,6 +947,7 @@ function refreshAll(){
   const odN=S.orders.filter(o=>!o.skip&&!o.inDate).length, mvN=S.moves.filter(m=>m.date===cur&&!m.done).length, csN=S.cons.filter(c=>!c.done&&!c.ordDate&&!c.outDate).length;
   badge('bMove',mvN);badge('bOrder',odN);badge('bCons',csN);
   updateDrvNotif();
+  pushDrvNotif();   // 기사 기기: 새로 생긴 입고·이동·전달사항을 폰 알림으로
 }
 function badge(id,n){const b=document.getElementById(id);b.hidden=!n;b.textContent=n;}
 /* 우측 상단 알림 — 지게차 기사가 새로 등록했거나(품목/수량) 실출고를 보정한 건이
@@ -1940,6 +1948,76 @@ async function sbSaveMasterAfterPatch(){
     if(res&&res.error)toast('발주 기준 자동 반영 저장 실패 — 네트워크 확인');
   }catch(e){toast('발주 기준 자동 반영 저장 실패 — 네트워크 확인');}
 }
+/* ═════════ 지게차 폰 알림 ═════════
+   자재과에서 입고 예정·창고이동·전달사항을 등록하면 기사 폰에 알림을 띄움.
+
+   동작 범위(중요) — 앱이 실행 중(화면을 열어뒀거나 백그라운드에 살아있음)일 때만 뜸.
+   실시간 동기화(Supabase)로 새 내용을 받은 순간 알림을 만드는 방식이라, 앱을 완전히
+   종료한 상태에서는 뜨지 않음. 완전 종료 상태까지 받으려면 푸시 서버(Web Push)가
+   따로 필요함 — sw.js에 push 핸들러는 미리 만들어 둠.
+
+   아이폰은 new Notification()을 지원하지 않으므로 반드시 서비스워커의
+   showNotification()을 써야 하고, 홈 화면에 추가된 앱에서만 동작함(iOS 16.4+). */
+let swReg=null;
+function initPush(){
+  if(!('serviceWorker' in navigator))return;
+  navigator.serviceWorker.register('sw.js').then(r=>{swReg=r;}).catch(()=>{});
+}
+function notifSupported(){return 'Notification' in window && 'serviceWorker' in navigator;}
+// 알림 권한은 반드시 사용자가 버튼을 눌러야 요청할 수 있음(브라우저 정책)
+async function askNotifPerm(){
+  if(!notifSupported()){toast('이 브라우저는 알림을 지원하지 않습니다');return;}
+  if(Notification.permission==='denied'){
+    toast('알림이 차단돼 있습니다 — 폰 설정 > 이 앱 > 알림에서 허용해 주세요');return;
+  }
+  const r=await Notification.requestPermission();
+  if(r==='granted'){
+    seedNotified();                       // 지금까지 쌓인 건 알림하지 않음(켜자마자 쏟아지는 것 방지)
+    try{(await navigator.serviceWorker.ready).showNotification('알림이 켜졌습니다',
+      {body:'새 입고·창고이동·전달사항이 등록되면 알려드립니다.',icon:'icon-192.png',tag:'jajae-welcome'});}catch(e){}
+    toast('알림 켜짐');
+  }else toast('알림이 허용되지 않았습니다');
+  renderDriver();
+}
+// 기사에게 알릴 대상 — 오늘 자 미완료 건만
+function drvPushItems(){
+  const out=[];
+  S.orders.filter(o=>!o.skip&&o.type==='self'&&o.eta&&o.eta<=cur&&!o.inDate)
+    .forEach(o=>out.push({k:'in:'+o.id,t:'오늘 들어오는 것',b:`${short(o.item)} ${fmtN(o.qty)}${o.unit||''} · ${o.loc||'창고 확인'}`}));
+  S.moves.filter(m=>m.date===cur&&!m.done)
+    .forEach(m=>out.push({k:'mv:'+m.id,t:'창고 → 라인 이동',b:`${m.item} ${fmtN(m.qty)}${m.unit||''} · ${m.dept} 라인`}));
+  (S.notes||[]).filter(n=>n.date===cur&&!n.done)
+    .forEach(n=>out.push({k:'note:'+n.id,t:'📌 전달사항',b:n.text}));
+  return out;
+}
+const NOTIF_KEY='jjNotified';
+function notifiedSet(){try{return new Set(JSON.parse(localStorage.getItem(NOTIF_KEY)||'[]'));}catch(e){return new Set();}}
+function markNotified(keys){
+  const s=notifiedSet();keys.forEach(k=>s.add(k));
+  // 오래된 키가 무한정 쌓이지 않게 최근 300개만 유지
+  try{localStorage.setItem(NOTIF_KEY,JSON.stringify([...s].slice(-300)));}catch(e){}
+}
+function seedNotified(){markNotified(drvPushItems().map(x=>x.k));}
+/* 새로 생긴 건에 대해서만 알림. 여러 건이면 하나로 묶어 보냄(알림 폭탄 방지). */
+async function pushDrvNotif(){
+  if(!document.body.classList.contains('driver'))return;   // 기사 기기에서만
+  if(!notifSupported()||Notification.permission!=='granted')return;
+  if(localStorage.getItem(NOTIF_KEY)===null){seedNotified();return;}  // 첫 실행은 기준만 잡고 넘어감
+  const seen=notifiedSet();
+  const fresh=drvPushItems().filter(x=>!seen.has(x.k));
+  if(!fresh.length)return;
+  let reg=swReg;
+  try{if(!reg)reg=await navigator.serviceWorker.ready;}catch(e){return;}
+  if(!reg||!reg.showNotification)return;
+  const title=fresh.length===1?fresh[0].t:`새 작업 ${fresh.length}건`;
+  const body=fresh.length===1?fresh[0].b:fresh.slice(0,4).map(f=>`· ${f.b}`).join('\n')+(fresh.length>4?`\n외 ${fresh.length-4}건`:'');
+  try{
+    await reg.showNotification(title,{body,icon:'icon-192.png',badge:'icon-192.png',
+      tag:'jajae-drv',renotify:true,data:{url:location.href}});
+    markNotified(fresh.map(f=>f.k));
+  }catch(e){}
+}
+
 /* ═════════ 특이사항 자유 메모 ═════════
    부서 고정칸(경질·DBP·타일·창호)으로 안 잡히는 전달사항을 날짜별로 자유롭게 적는 곳.
    지게차 화면에도 그대로 표시되고 기사가 완료 체크할 수 있음.
@@ -2028,7 +2106,7 @@ function renderDriver(){
   const cb=(fn,done)=>`<label><input type="checkbox" ${done?'checked':''} ${ro&&!cap?'':''} onchange="${fn}">완료</label>`;
   const meName=localStorage.getItem('jjUser')||'';
   const insLeft=ins.filter(o=>!o.inDate).length;
-  let h=`<div class="banner"><div><b>${fmtK(cur)}</b> 지게차 작업 <span style="opacity:.7;font-size:13px">(${cur})</span><input type="date" class="drv-date" value="${cur}" onchange="setDate(this.value)"></div><div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">입고 ${insLeft} · 창고이동 ${mv.filter(m=>!m.done).length} · 사급출고 ${outs.length}${todayNotes().filter(n=>!n.done).length?' · 전달사항 '+todayNotes().filter(n=>!n.done).length:''}<button class="btn sm" style="background:transparent;color:var(--navy-ink);border-color:#4a5b6c" onclick="askName()">👤 ${esc(meName)||'이름 입력'}</button><button class="btn sm" style="background:transparent;color:var(--navy-ink);border-color:#4a5b6c" onclick="location.reload()">새로고침</button></div></div>`;
+  let h=`<div class="banner"><div><b>${fmtK(cur)}</b> 지게차 작업 <span style="opacity:.7;font-size:13px">(${cur})</span><input type="date" class="drv-date" value="${cur}" onchange="setDate(this.value)"></div><div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">입고 ${insLeft} · 창고이동 ${mv.filter(m=>!m.done).length} · 사급출고 ${outs.length}${todayNotes().filter(n=>!n.done).length?' · 전달사항 '+todayNotes().filter(n=>!n.done).length:''}${notifSupported()&&Notification.permission!=='granted'?`<button class="btn sm warn" onclick="askNotifPerm()" title="폰 알림 받기">🔔 알림 켜기</button>`:(notifSupported()?`<span class="chip c-done" title="새 작업이 등록되면 폰 알림이 옵니다">🔔 알림 켜짐</span>`:'')}<button class="btn sm" style="background:transparent;color:var(--navy-ink);border-color:#4a5b6c" onclick="askName()">👤 ${esc(meName)||'이름 입력'}</button><button class="btn sm" style="background:transparent;color:var(--navy-ink);border-color:#4a5b6c" onclick="location.reload()">새로고침</button></div></div>`;
   if(cur!==localISO(new Date()))h+=`<div class="card" style="margin-top:10px;font-size:13px;color:var(--amber)">⚠ 오늘(${fmtK(localISO(new Date()))}) 날짜가 아닙니다 · <b onclick="setDate('${localISO(new Date())}')" style="cursor:pointer;text-decoration:underline">오늘로 돌아가기</b></div>`;
   if(spTxt)h+=`<div class="card" style="margin-top:10px;font-size:15px"><b>특이사항</b> ${esc(spTxt)}</div>`;
   // 자유 메모 — 부서칸으로 안 잡히는 전달사항. 기사가 바로 읽고 완료 체크할 수 있게 크게 표시.
@@ -2630,6 +2708,7 @@ document.getElementById('curDate').value=cur;
 const drvHash=location.hash==='#driver'||location.hash==='#%EA%B8%B0%EC%82%AC'||decodeURIComponent(location.hash)==='#기사';
 if(drvHash)localStorage.setItem('jjDrvDevice','1');
 if(drvHash||localStorage.getItem('jjDrvDevice')==='1')enterDriver();
+initPush();
 loadDB();
 </script>
 

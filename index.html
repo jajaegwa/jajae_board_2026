@@ -49,6 +49,7 @@ nav button .b{display:inline-block;min-width:18px;padding:0 5px;border-radius:10
 main{max-width:1280px;margin:18px auto;padding:0 20px 60px}
 .grid{display:grid;gap:14px}
 .g2{grid-template-columns:repeat(auto-fit,minmax(340px,1fr));align-items:start}
+#boardCards{grid-template-columns:1fr}
 .card .tbl.scroll{max-height:440px;overflow:auto}
 .card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:16px}
 .card h2{font-size:14.5px;font-weight:700;display:flex;align-items:center;gap:8px;margin-bottom:10px}
@@ -86,7 +87,6 @@ label{font-size:11.5px;color:var(--mut);font-weight:600;display:block;margin-bot
 .d-경질{background:var(--dept-gj)}.d-창호{background:var(--dept-ch)}.d-타일{background:var(--dept-tl)}.d-DBP{background:var(--dept-dbp)}.d-기타{background:var(--mut)}
 .loc{font-family:'IBM Plex Mono',monospace;font-size:12px;font-weight:600;padding:1px 6px;border:1px solid var(--line);border-radius:4px;white-space:nowrap}
 .stat{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:14px}
-#stats{grid-template-columns:1fr}
 .stat .s{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:12px 14px;cursor:pointer}
 .stat .s .v{font-size:26px;font-weight:700;font-family:'IBM Plex Mono',monospace;line-height:1.1}
 .stat .s .l{font-size:12px;color:var(--mut);font-weight:600;margin-top:3px}
@@ -174,7 +174,7 @@ details.card summary .cnt{font-size:12px;color:var(--mut);font-weight:500}
 <!-- ═══════ 오늘 작업판 ═══════ -->
 <section id="tab-board">
   <div class="stat" id="stats"></div>
-  <div class="grid g2">
+  <div class="grid g2" id="boardCards">
     <div class="card">
       <h2>① 오늘 입고 예정 <span class="cnt" id="cntIn"></span></h2>
       <div class="tbl"><table><thead><tr><th>창고</th><th>품목</th><th class="num">수량</th><th>부서</th><th>업체</th><th>비고</th><th></th></tr></thead><tbody id="boardIn"></tbody></table></div>

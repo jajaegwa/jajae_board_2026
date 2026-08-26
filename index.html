@@ -576,11 +576,12 @@ const short=s=>String(s||'').replace(/^.*?_(?=[^_]+$)/,'');  // 'TiO2_TIONA-696'
 /* 발주점(재고 임계치) 수정 요청 반영 — 리드타임·1회 발주량은 기존 값 유지, rop만 갱신 */
 (function(){
   const ROP_UPDATES={
-    'PSGNT1TPZ':5000,   // GPPS(재생) — 약 5톤
-    'ROSIN C-9':1400,   // C-9
-    'SL-64':2000,       // 2톤
-    'DS356S1':2010,     // DS356
-    'DS-356T':2010,     // DS356T
+    'PSGNT1TPZ':5000,      // GPPS(재생) — 약 5톤
+    'ROSIN C-9':1400,      // C-9
+    'SL-64':2000,          // 2톤
+    'DS356S1':2010,        // DS356
+    'DS-356T':2010,        // DS356T
+    'HYDROCARB-95T':6000,  // 95T — 6톤
   };
   Object.entries(ROP_UPDATES).forEach(([key,rop])=>{
     const k=norm(key);

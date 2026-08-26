@@ -66,8 +66,8 @@ tr:hover td{background:var(--row-hover)}
 tr.done td{color:var(--mut);text-decoration:line-through}
 tr.done td .btn{text-decoration:none;color:var(--ink);opacity:1}
 tr.done td .chip,tr.done td .loc,tr.done td input{text-decoration:none}
-th.due-hl,td.due-hl{background:var(--navy);color:var(--navy-ink)}
-tr:hover td.due-hl,tr.done td.due-hl{background:var(--navy);color:var(--navy-ink)}
+th.due-hl,td.due-hl{background:var(--head);color:var(--ink)}
+tr:hover td.due-hl,tr.done td.due-hl{background:var(--head);color:var(--ink)}
 .tbl{overflow-x:auto}
 .btn{border:1px solid var(--line);background:var(--card);color:var(--ink);border-radius:2px;padding:5px 10px;font:inherit;font-size:12.5px;font-weight:500;cursor:pointer}
 .btn:hover{border-color:var(--acc);color:var(--acc)}
@@ -363,7 +363,7 @@ details.card summary .cnt{font-size:11.5px;color:var(--mut);font-weight:500}
       <button class="btn sm pri" onclick="csBulkMark()">선택 입고완료 처리</button>
       <span class="tag" id="csSelCnt"></span>
     </div>
-    <div class="tbl"><table><thead><tr><th><input type="checkbox" id="csSelAll" onchange="toggleAllCs(this.checked)" title="전체 선택"></th><th>접수일</th><th>사급처</th><th>품목</th><th class="num">수량</th><th>처리</th><th>공급사</th><th class="due-hl">요청납기</th><th>발주일</th><th>출고/입고일</th><th>상태</th><th></th></tr></thead><tbody id="csBody"></tbody></table></div>
+    <div class="tbl"><table><thead><tr><th><input type="checkbox" id="csSelAll" onchange="toggleAllCs(this.checked)" title="전체 선택"></th><th class="due-hl">요청납기</th><th>사급처</th><th>품목</th><th class="num">수량</th><th>처리</th><th>공급사</th><th>접수일</th><th>발주일</th><th>출고/입고일</th><th>상태</th><th></th></tr></thead><tbody id="csBody"></tbody></table></div>
   </div>
 </section>
 
@@ -1666,7 +1666,7 @@ function csRow(c,board){const st=csStatus(c);const cls={'발주대기':'c-wait',
   const act=`<span class="act-${{'발주':'order','직접출고':'direct','확인':'check','제외':'none'}[c.action]}">${c.action}</span>`;
   const btn=c.action==='발주'&&!c.ordDate?`<button class="btn sm warn" onclick="csMark(${c.id},'ordDate')">발주 체크</button>`:(c.action==='직접출고'&&!c.outDate?`<button class="btn sm warn" onclick="csMark(${c.id},'outDate')">출고 체크</button>`:(!c.done?`<button class="btn sm" onclick="csMark(${c.id},'done')">${c.action==='발주'?'입고 완료':'완료'}</button>`:''));
   if(board)return`<tr class="${c.done?'done':''}"><td><b>${esc(c.consignee)}</b></td><td><b>${esc(c.item)}</b></td><td class="num">${fmtN(c.qty)}</td><td>${act}</td><td>${c.due?fmtK(c.due):''}</td><td><span class="chip ${cls}">${st}</span></td><td>${btn}</td></tr>`;
-  return`<tr class="${c.done?'done':''}"><td><input type="checkbox" class="csSel" value="${c.id}" ${selCs.has(c.id)?'checked':''} onchange="toggleSelCs(${c.id},this.checked)"></td><td>${c.recvDate}</td><td><b>${esc(c.consignee)}</b></td><td><b>${esc(c.item)}</b>${c.loc?` <span class="loc">${esc(c.loc)}</span>`:''}</td><td class="num">${fmtN(c.qty)}</td><td>${act}</td><td><b>${esc(c.supplier)}</b></td><td class="due-hl">${c.due||''}</td><td>${c.ordDate||''}</td><td>${c.outDate||(c.done?'✓':'')}${isThird(c.outBy)?` <span class="chip c-wait">✋ ${esc(c.outBy)}</span>`:''}</td><td><span class="chip ${cls}">${st}</span></td><td>${btn} <button class="btn sm" onclick="editCs(${c.id})">수정</button> <button class="btn sm" style="color:var(--red)" onclick="delCs(${c.id})">${armLbl('cs'+c.id)}</button></td></tr>`;}
+  return`<tr class="${c.done?'done':''}"><td><input type="checkbox" class="csSel" value="${c.id}" ${selCs.has(c.id)?'checked':''} onchange="toggleSelCs(${c.id},this.checked)"></td><td class="due-hl">${c.due||''}</td><td><b>${esc(c.consignee)}</b></td><td><b>${esc(c.item)}</b>${c.loc?` <span class="loc">${esc(c.loc)}</span>`:''}</td><td class="num">${fmtN(c.qty)}</td><td>${act}</td><td><b>${esc(c.supplier)}</b></td><td>${c.recvDate}</td><td>${c.ordDate||''}</td><td>${c.outDate||(c.done?'✓':'')}${isThird(c.outBy)?` <span class="chip c-wait">✋ ${esc(c.outBy)}</span>`:''}</td><td><span class="chip ${cls}">${st}</span></td><td>${btn} <button class="btn sm" onclick="editCs(${c.id})">수정</button> <button class="btn sm" style="color:var(--red)" onclick="delCs(${c.id})">${armLbl('cs'+c.id)}</button></td></tr>`;}
 function csMark(id,f){const c=S.cons.find(x=>x.id===id);
   if((f==='outDate'||f==='done')&&needName(()=>csMark(id,f)))return;
   // M-210: 월1회 입항분은 행선지 건별 확인 전 배차·출고·완료 금지

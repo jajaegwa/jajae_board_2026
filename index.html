@@ -170,6 +170,9 @@ details.card summary .cnt{font-size:11.5px;color:var(--mut);font-weight:500}
 <header>
   <h1>자재과 작업판</h1>
   <span class="sub">입고 · 창고이동 · 발주 · 사급 한 화면</span>
+  <!-- 화면이 최신 버전인지 바로 확인할 수 있게 표시 — 이 값이 다르면 브라우저가
+       예전 파일을 캐시해 둔 것이므로 강력 새로고침(Ctrl+F5 / 아이폰은 Safari 재실행) 필요 -->
+  <span class="sub" id="buildStamp" title="화면 버전 — 최신이 아니면 Ctrl+F5로 강력 새로고침">v2026-08-26b</span>
   <span class="sp"></span>
   <span class="date">기준일 <input type="date" id="curDate" onchange="setDate(this.value)"></span>
   <span class="savebox" id="saveBox"><i></i><span id="saveTxt">불러오는 중</span></span>
@@ -630,20 +633,10 @@ function applyMasterPatches(){
   // 아직 한 번도 정해진 적 없는(excluded가 null/undefined) 기존 데이터에 한해서만 최초 1회 자동 체크.
   const LEGACY_CYCLE_EXCLUDE=new Set(['CR-102','J293F-1','P3000 Bag','P3000 탱크','P3000(탱크)','P3000 Tank','LOX-203','SB-102'].map(norm));
   M.presetSelf.forEach(p=>{if(p.excluded==null&&LEGACY_CYCLE_EXCLUDE.has(norm(p.item)))p.excluded=true;});
-  // v2: CR-102·P3000 Bag·LOX-203은 자가발주가 아니라 사급으로 나가는 품목 — 이름이 정확히 안 맞아도
-  // 걸러지도록 부분일치로 강제 체크(이전 버전에서 이름 불일치로 안 걸렸을 수 있어 unconditional하게 재적용).
-  const FORCE_CYCLE_EXCLUDE_V2=['CR-102','CR102','P3000 Bag','P3000BAG','LOX-203','LOX203'].map(norm);
-  M.presetSelf.forEach(p=>{
-    const hay=norm(p.item)+norm(p.label||'');
-    if(FORCE_CYCLE_EXCLUDE_V2.some(k=>hay.includes(k)))p.excluded=true;
-  });
-  // v3: 실제로는 "P3000 Bag"이 아니라 그냥 "BAG"으로만 등록돼 있어 v2가 못 걸렀을 수 있음 —
-  // 정규화(공백 제거) 전 원문에 단어 경계로 매칭해서 BAG 단독 표기까지 확실히 잡음.
-  const FORCE_CYCLE_EXCLUDE_V3=[/\bBAG\b/i,/LOX-?203/i,/\bCR-?102\b/i];
-  M.presetSelf.forEach(p=>{
-    const raw=String(p.item||'')+' '+String(p.label||'');
-    if(FORCE_CYCLE_EXCLUDE_V3.some(re=>re.test(raw)))p.excluded=true;
-  });
+  // BAG·LOX-203·CR-102를 여기서 플래그로 찍던 v2·v3 패치는 삭제함 — 이 함수 자체가
+  // _patchVersion으로 한 번만 실행되도록 잠겨 있어서, 서버 마스터가 이미 최신 버전이면
+  // 영원히 다시 실행되지 않는 게 문제였음. 지금은 isCycleExcluded()가 렌더링할 때마다
+  // 이름으로 걸러내므로 저장된 플래그나 패치 버전과 무관하게 항상 제외됨.
   M._patchVersion=MASTER_PATCH_VERSION;
   if(sb&&sbOK)sbSaveMasterAfterPatch();
 }
@@ -1020,9 +1013,24 @@ function deptChip(d){return `<span class="dept d-${['경질','창호','타일','
 
 /* ═════════ 오늘 작업판 ═════════ */
 // 주기 기준은 자가만 대상 — p.excluded는 기준정보 탭 "주기 기준 대상" 표에서 직접 체크
+/* 주기 기준 하드 제외 — BAG·LOX-203·CR-102는 자가발주가 아니라 사급으로 나가는 품목이라
+   주기 제안에 뜨면 안 됨. 예전엔 applyMasterPatches()에서 excluded 플래그를 한 번 찍는
+   방식이었는데, 그 패치가 _patchVersion으로 잠겨 있어 서버 마스터가 이미 최신 버전으로
+   저장돼 있으면 두 번 다시 실행되지 않아 계속 표에 남았음(같은 증상이 반복된 근본 원인).
+   그래서 저장된 플래그와 무관하게, 그릴 때마다 품목명으로 직접 걸러냄.
+   norm()이 공백·하이픈을 지우므로 'LOX-203'·'LOX 203'·'P3000 Bag'·'BAG' 모두 잡힘.
+   단위(p.unit)는 'Bag'일 수 있으므로 절대 검사 대상에 넣지 않음. */
+const CYCLE_HARD_EXCLUDE=['BAG','LOX203','CR102'];
+function isCycleExcluded(p){
+  if(!p)return true;
+  if(p.excluded)return true;
+  // label은 '품목 | 매입처' 형태라 앞부분(품목)만 봄 — 매입처명에 우연히 걸리지 않게.
+  const name=norm(p.item)+norm(String(p.label||'').split('|')[0]);
+  return CYCLE_HARD_EXCLUDE.some(k=>name.includes(k));
+}
 function dueList(){
   // 프리셋별 마지막 발주일 → 주기 경과 시 제안 (자가만 — 사급 주기는 표시 안 함)
-  const all=M.presetSelf.filter(p=>!p.excluded).map(p=>({...p,type:'self',dest:'자가(세종·부강)'}));
+  const all=M.presetSelf.filter(p=>!isCycleExcluded(p)).map(p=>({...p,type:'self',dest:'자가(세종·부강)'}));
   const out=[];
   for(const p of all){
     const cyc=CYCLE[p.cycle]||7;
@@ -1038,7 +1046,7 @@ function dueList(){
    가장 가까운 값으로 스냅. 자동 반영은 하지 않고 제안만 — 적용은 사람이 버튼으로. */
 const CYCLE_START='2026-08-26';
 function cycleSuggestions(){
-  return M.presetSelf.filter(p=>!p.excluded).map(p=>{
+  return M.presetSelf.filter(p=>!isCycleExcluded(p)).map(p=>{
     const hist=S.orders.filter(o=>itemKey(o.item)===itemKey(p.item)&&norm(o.dest)===norm('자가(세종·부강)')&&o.ordDate>=CYCLE_START).map(o=>o.ordDate).sort();
     if(hist.length<2)return null;
     const gaps=[];for(let i=1;i<hist.length;i++)gaps.push(diffDays(hist[i],hist[i-1]));
@@ -1931,7 +1939,9 @@ function renderCycMat(){
   const cycOptsFor=cur2=>Object.keys(CYCLE).filter((v,i,a)=>a.indexOf(v)===i).map(c=>`<option ${cur2===c?'selected':''}>${c}</option>`).join('');
   box.innerHTML=rows.length?rows.map(p=>{
     const idx=M.presetSelf.indexOf(p);
-    return `<tr><td><b>${esc(p.item)}</b>${p.label&&p.label!==p.item?`<div class="tag">${esc(p.label)}</div>`:''}</td><td><select onchange="cycField(${idx},'cycle',this.value)">${cycOptsFor(p.cycle)}</select></td><td class="num"><input type="number" value="${p.qty??''}" style="width:90px;text-align:right" onchange="cycField(${idx},'qty',this.value)"></td><td><input value="${esc(p.unit||'')}" style="width:60px" onchange="cycField(${idx},'unit',this.value)"></td><td style="text-align:center"><input type="checkbox" ${p.excluded?'checked':''} onchange="cycField(${idx},'excluded',this.checked)"></td></tr>`;
+    // BAG·LOX-203 등 하드 제외 품목은 체크박스를 켠 채 잠금 — 표시와 실제 동작을 일치시킴
+    const hard=!p.excluded&&isCycleExcluded(p);
+    return `<tr><td><b>${esc(p.item)}</b>${p.label&&p.label!==p.item?`<div class="tag">${esc(p.label)}</div>`:''}</td><td><select onchange="cycField(${idx},'cycle',this.value)">${cycOptsFor(p.cycle)}</select></td><td class="num"><input type="number" value="${p.qty??''}" style="width:90px;text-align:right" onchange="cycField(${idx},'qty',this.value)"></td><td><input value="${esc(p.unit||'')}" style="width:60px" onchange="cycField(${idx},'unit',this.value)"></td><td style="text-align:center"><input type="checkbox" ${p.excluded||hard?'checked':''} ${hard?'disabled title="사급 품목이라 주기 기준에서 항상 제외됨"':''} onchange="cycField(${idx},'excluded',this.checked)">${hard?'<div class="tag">항상 제외</div>':''}</td></tr>`;
   }).join(''):'<tr><td colspan="5" class="empty">등록된 자가 발주 품목 없음</td></tr>';
   document.getElementById('cntCycMat').textContent=`${M.presetSelf.length}개`;
 }

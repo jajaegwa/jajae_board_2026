@@ -1717,7 +1717,34 @@ function renderCs(){
   const th=document.getElementById('csDueTh');if(th)th.textContent='요청납기'+(csSort==='asc'?' ▲':csSort==='desc'?' ▼':'');
   updateCsSelCnt();
 }
-function editCs(id){const c=S.cons.find(x=>x.id===id);openDlg('사급 요청 수정',[['recvDate','접수일','date'],['consignee','사급처'],['item','품목'],['qty','수량(kg)','number'],['due','요청납기','date'],['action','처리(발주/직접출고/확인)'],['supplier','공급사'],['loc','출고창고'],['ordDate','발주일','date'],['outDate','출고일','date'],['note','비고']],c,()=>{saveDB();refreshAll();},()=>{S.cons=S.cons.filter(x=>x.id!==id);saveDB();refreshAll();});}
+/* 발주 = 사급처 직납(요청납기만 의미 있음, 출고일 없음) · 직접출고 = 14동 출고(출고일만 의미 있음)
+   → 처리를 바꾸면 그에 맞는 날짜 칸만 켜지게 처리 */
+function csEditActionSync(sel){
+  const due=document.getElementById('csEditDue'),out=document.getElementById('csEditOutDate');
+  if(!due||!out)return;
+  due.disabled=sel.value==='직접출고';
+  out.disabled=sel.value==='발주';
+}
+function editCs(id){
+  const c=S.cons.find(x=>x.id===id);
+  dlgTitle.textContent='사급 요청 수정';
+  const actOpts=['발주','직접출고','확인','제외'].map(a=>`<option ${c.action===a?'selected':''}>${a}</option>`).join('');
+  dlgBody.innerHTML=`<div><label>접수일</label><input data-k="recvDate" type="date" value="${esc(c.recvDate??'')}"></div>
+    <div><label>사급처</label><input data-k="consignee" value="${esc(c.consignee??'')}"></div>
+    <div><label>품목</label><input data-k="item" value="${esc(c.item??'')}"></div>
+    <div><label>수량(kg)</label><input data-k="qty" type="number" value="${c.qty??''}"></div>
+    <div><label>처리</label><select data-k="action" onchange="csEditActionSync(this)">${actOpts}</select></div>
+    <div><label>공급사</label><input data-k="supplier" value="${esc(c.supplier??'')}"></div>
+    <div><label>출고창고</label><input data-k="loc" value="${esc(c.loc??'')}"></div>
+    <div><label>요청납기</label><input data-k="due" id="csEditDue" type="date" value="${esc(c.due??'')}"></div>
+    <div><label>발주일</label><input data-k="ordDate" type="date" value="${esc(c.ordDate??'')}"></div>
+    <div><label>출고일</label><input data-k="outDate" id="csEditOutDate" type="date" value="${esc(c.outDate??'')}"></div>
+    <div style="grid-column:1/-1"><label>비고</label><input data-k="note" value="${esc(c.note??'')}"></div>`;
+  csEditActionSync(dlgBody.querySelector('[data-k="action"]'));
+  const db2=document.getElementById('dlgDelBtn');db2.style.display='';db2.dataset.arm='';db2.textContent='삭제';
+  dlgCtx={obj:c,onSave:()=>{saveDB();refreshAll();},onDel:()=>{S.cons=S.cons.filter(x=>x.id!==id);saveDB();refreshAll();}};
+  dlg.showModal();
+}
 
 /* ═════════ 기준정보 ═════════ */
 function renderMaster(){

@@ -1328,7 +1328,7 @@ function bulkMarkIn(){
 }
 function renderOrders(){
   const f=odFlt.value,q=odSearch.value.trim().toUpperCase(),hide=odHide.checked;
-  const rows=S.orders.filter(o=>!o.skip).filter(o=>{const st=orderStatus(o);if(f&&st!==f)return false;if(hide&&o.inDate&&diffDays(cur,o.inDate)>7)return false;if(q&&!(o.item+o.vendor+o.dest).toUpperCase().includes(q))return false;return true;}).sort((a,b)=>(b.ordDate+b.id)<(a.ordDate+a.id)?-1:1);
+  const rows=S.orders.filter(o=>!o.skip).filter(o=>{const st=orderStatus(o);if(f&&st!==f)return false;if(hide&&o.inDate&&diffDays(cur,o.inDate)>7)return false;if(q&&!(o.item+o.vendor+o.dest).toUpperCase().includes(q))return false;return true;}).sort((a,b)=>(!!a.inDate-!!b.inDate)||((b.ordDate+b.id)<(a.ordDate+a.id)?-1:1));
   const allSel=rows.length>0&&rows.every(o=>selOd.has(o.id));
   const selAllEl=document.getElementById('odSelAll');if(selAllEl)selAllEl.checked=allSel;
   document.getElementById('odBody').innerHTML=rows.length?rows.map(o=>{const st=orderStatus(o),d=o.eta&&!o.inDate?diffDays(o.eta,cur):null;const cls={'발주완료':'c-ord','입고지연':'c-late','입고완료':'c-done'}[st];

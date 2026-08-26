@@ -206,6 +206,8 @@ details.card summary .cnt{font-size:11.5px;color:var(--mut);font-weight:500}
       </div>
       <div class="grp-lbl" id="cycLbl">주기 기준</div>
       <div class="tbl scroll"><table><thead><tr><th>납품처</th><th>품목</th><th class="num">수량</th><th>주기</th><th>마지막 발주</th><th>경과</th><th></th></tr></thead><tbody id="boardDue"></tbody></table></div>
+      <div class="grp-lbl" id="cycSugLbl" style="display:none">발주 주기 제안 <span class="tag" style="font-weight:400">2026-08-26부터 실제 발주 간격 기준 · 적용은 직접 눌러야 반영됨</span></div>
+      <div class="tbl scroll" id="cycSugWrap" style="display:none"><table><thead><tr><th>품목</th><th>현재 주기</th><th class="num">실제 평균 간격</th><th>제안 주기</th><th></th></tr></thead><tbody id="boardCycSug"></tbody></table></div>
     </div>
     <div class="card">
       <h2>④ 사급 출고 · 사급 발주 대기 <span class="cnt" id="cntCs"></span></h2>
@@ -943,6 +945,41 @@ function dueList(){
   }
   return out.sort((a,b)=>(b.gap??999)/b.cyc-(a.gap??999)/a.cyc);
 }
+/* 발주 주기 제안 — 2026-08-26부터의 실제 자가 발주 이력(간격 평균)을 기준표(CYCLE)에서
+   가장 가까운 값으로 스냅. 자동 반영은 하지 않고 제안만 — 적용은 사람이 버튼으로. */
+const CYCLE_START='2026-08-26';
+function cycleSuggestions(){
+  return M.presetSelf.filter(p=>!SELF_CYCLE_EXCLUDE.has(norm(p.item))).map(p=>{
+    const hist=S.orders.filter(o=>norm(o.item)===norm(p.item)&&norm(o.dest)===norm('자가(세종·부강)')&&o.ordDate>=CYCLE_START).map(o=>o.ordDate).sort();
+    if(hist.length<2)return null;
+    const gaps=[];for(let i=1;i<hist.length;i++)gaps.push(diffDays(hist[i],hist[i-1]));
+    const avg=gaps.reduce((a,b)=>a+b,0)/gaps.length;
+    let sugLabel=null,bestDiff=Infinity;
+    Object.entries(CYCLE).forEach(([lbl,days])=>{const diff=Math.abs(days-avg);if(diff<bestDiff){bestDiff=diff;sugLabel=lbl;}});
+    if(sugLabel===p.cycle)return null;
+    return{item:p.item,label:p.label,curCycle:p.cycle,sugCycle:sugLabel,avgDays:Math.round(avg*10)/10,n:hist.length};
+  }).filter(Boolean);
+}
+async function sbSaveMasterPresetSelf(item,newCycle){
+  if(!sb||!sbOK)return;
+  try{
+    const{data:cur2}=await sb.rpc('get_board',{p_id:'jajae-master',p_passcode:sbPass});
+    const base=(cur2&&typeof cur2==='object'&&!Array.isArray(cur2))?cur2:{};
+    const remotePS=Array.isArray(base.presetSelf)?base.presetSelf:M.presetSelf;
+    const merged=remotePS.map(p=>norm(p.item)===norm(item)?{...p,cycle:newCycle}:p);
+    M.presetSelf=merged;
+    const payload={...base,presetSelf:merged};
+    const res=await sb.rpc('set_board',{p_id:'jajae-master',p_passcode:sbPass,p_data:payload});
+    if(res&&res.error)toast('발주 주기 저장 실패 — 네트워크 확인');
+  }catch(e){toast('발주 주기 저장 실패 — 네트워크 확인');}
+}
+function applyCycSuggest(item,newCycle){
+  const p=M.presetSelf.find(x=>norm(x.item)===norm(item));if(!p)return;
+  p.cycle=newCycle;
+  if(sb&&sbOK)sbSaveMasterPresetSelf(item,newCycle);
+  refreshAll();
+  toast(`${item} 발주 주기를 '${newCycle}'(으)로 변경함${sbOK?'':' (이 기기에만 — 공유 연결 시 전체 반영)'}`);
+}
 function orderStatus(o){if(o.skip)return'취소';if(o.inDate)return'입고완료';if(o.eta&&cur>o.eta)return'입고지연';return'발주완료';}
 function renderBoard(){
   // 입고 예정
@@ -979,6 +1016,10 @@ function renderBoard(){
   }
   document.getElementById('boardDue').innerHTML=due.length?due.map((p,i)=>`<tr><td>${p.type==='self'?'<span class="chip c-mut">자가</span>':'<span class="chip c-ord">'+esc(p.dest)+'</span>'}</td><td><b>${esc(short(p.item))}</b></td><td class="num">${fmtN(p.qty)} ${esc(p.unit)}</td><td>${esc(p.cycle)}</td><td>${p.last?fmtK(p.last):'<span class="tag">이력 없음</span>'}</td><td class="dday ${p.gap!=null&&p.gap>p.cyc+1?'late':'soon'}">${p.gap!=null?`+${p.gap}일`:'—'}</td><td><button class="btn sm warn" onclick="quickOrder('${p.type}',${p.type==='self'?M.presetSelf.indexOf(M.presetSelf.find(x=>x.label===p.label)):M.presetConsign.indexOf(M.presetConsign.find(x=>x.label===p.label))})">발주 체크</button> <button class="btn sm ghost" onclick="skipOrder('${p.type}',${p.type==='self'?M.presetSelf.indexOf(M.presetSelf.find(x=>x.label===p.label)):M.presetConsign.indexOf(M.presetConsign.find(x=>x.label===p.label))})" title="오늘은 발주 안 함 (주기 리셋)">건너뜀</button></td></tr>`).join(''):'<tr><td colspan="7" class="empty">오늘 주기 도래 품목 없음</td></tr>';
   document.getElementById('cntDue').textContent=dueN?(hasInv?`재고부족 ${rop.filter(r=>r.stk<=r.rop).length} · 주기 ${due.length}건`:`${due.length}건`):'';
+  const cycSug=cycleSuggestions();
+  document.getElementById('cycSugLbl').style.display=cycSug.length?'':'none';
+  document.getElementById('cycSugWrap').style.display=cycSug.length?'':'none';
+  document.getElementById('boardCycSug').innerHTML=cycSug.map(s=>`<tr><td><b>${esc(short(s.item))}</b></td><td>${esc(s.curCycle)}</td><td class="num">${s.avgDays}일 (발주 ${s.n}건)</td><td><b style="color:var(--acc)">${esc(s.sugCycle)}</b></td><td><button class="btn sm pri" onclick="applyCycSuggest('${esc(s.item).replace(/'/g,"\\'")}','${esc(s.sugCycle)}')">적용</button></td></tr>`).join('');
   // 사급
   const cs=S.cons.filter(c=>!c.done);
   document.getElementById('boardCs').innerHTML=cs.length?cs.map(c=>csRow(c,true)).join(''):'<tr><td colspan="7" class="empty">대기 중인 사급 요청 없음</td></tr>';
@@ -1017,16 +1058,19 @@ function readInv(f){
     const rops=[...M.rop].sort((a,b)=>String(b.item).length-String(a.item).length);
     wb.SheetNames.forEach(n=>{
       const rows=XLSX.utils.sheet_to_json(wb.Sheets[n],{header:1,raw:true,defval:''});
-      let qCol=-1,iCol=-1,hRow=-1;
+      let qCol=-1,iCol=-1,hRow=-1,whCol=-1;
       for(let ri=0;ri<Math.min(rows.length,20);ri++){
         (rows[ri]||[]).forEach((c,ci)=>{const s=String(c).replace(/\s/g,'');
           if(qCol<0&&/현재고|가용재고|재고수량|^재고|기말재고|재고량/.test(s))qCol=ci;
-          if(iCol<0&&/품목|품명|자재명|자재내역|명칭|Description/i.test(s))iCol=ci;});
+          if(iCol<0&&/품목|품명|자재명|자재내역|명칭|Description/i.test(s))iCol=ci;
+          if(whCol<0&&/창고|위치|보관장소/.test(s))whCol=ci;});
         if(qCol>=0)break;
       }
       if(qCol>=0){for(let ri=0;ri<rows.length;ri++){if((rows[ri]||[]).some(c=>/현재고|가용재고|재고수량|기말재고|재고량|^재고$/.test(String(c).replace(/\s/g,'')))){hRow=ri;break;}}}
       for(let ri=hRow+1;ri<rows.length;ri++){
         const row=rows[ri];if(!row||!row.length)continue;
+        // M창고(경질창고, M로 시작하는 위치코드) 재고만 반영 — 창고/위치 컬럼이 있고 값이 있는데 M으로 시작 안 하면 다른 창고 재고이므로 제외
+        if(whCol>=0){const wv=String(row[whCol]||'').trim();if(wv&&!/^M/i.test(wv))continue;}
         let qty=null;
         if(qCol>=0){const v=row[qCol];qty=typeof v==='number'?v:parseFloat(String(v).replace(/,/g,''));}
         else{const nums=row.filter(c=>typeof c==='number'&&c>=0);qty=nums.length?nums[nums.length-1]:null;}
@@ -1059,6 +1103,7 @@ function ropDue(){
   if(!S.inv||!S.inv.stock)return[];
   const seen=new Set();
   return M.rop.filter(r=>S.inv.stock[r.item]!=null)
+    .filter(r=>norm(r.loc)!=='M301P2')   // M301P2(주택용·장판) — 이제 자가 입고 안 함, 발주점 산정 제외
     .map(r=>{
       const rr={...r,stk:S.inv.stock[r.item]};
       // GPPS 정책: 신재(125EB)는 상시 2,000kg 유지 기준 — 재생(PSGNT1TPZ)과 합산·대체 금지 (매입처명은 SENSITIVE 참조)

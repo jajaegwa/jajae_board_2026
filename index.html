@@ -58,6 +58,7 @@ table{width:100%;border-collapse:collapse}
 th{background:var(--head);color:var(--ink);font-size:11.5px;font-weight:700;text-align:left;padding:6px 8px;border:1px solid var(--line);white-space:nowrap;letter-spacing:0}
 td{padding:6px 8px;border:1px solid var(--line2);font-size:12.5px;vertical-align:middle}
 td.num,th.num{text-align:right}
+td b{font-weight:600}
 tr:hover td{background:var(--row-hover)}
 tr.done td{color:var(--mut);text-decoration:line-through}
 tr.done td .btn{text-decoration:none;color:var(--ink);opacity:1}
@@ -877,7 +878,7 @@ function renderBoard(){
   const late=S.orders.filter(o=>!o.inDate&&o.eta&&o.eta<cur&&o.type==='self');
   const tb=document.getElementById('boardIn');
   const rows=[...late.map(o=>({...o,_late:true})),...ins];
-  tb.innerHTML=rows.length?rows.map(o=>`<tr class="${o.inDate?'done':''}"><td><span class="loc">${esc(o.loc||'?')}</span></td><td><b>${esc(o.item)}</b>${o._late?` <span class="chip c-late">지연 ${fmtK(o.eta)}</span>`:''}</td><td class="num">${fmtN(o.qty)} ${esc(o.unit)}</td><td>${deptChip(o.dept)}</td><td>${esc(o.vendor)}</td><td class="tag">${esc(o.note)}</td><td>${o.inDate?`<span class="chip c-done">입고${isThird(o.inBy)?' ✋'+esc(o.inBy):''}</span>`:`<button class="btn sm" onclick="markIn(${o.id})">입고 체크</button>`}</td></tr>`).join(''):'<tr><td colspan="7" class="empty">오늘 입고 예정 없음 — [발주·입고] 탭에서 발주를 등록하면 착일 기준으로 표시됨</td></tr>';
+  tb.innerHTML=rows.length?rows.map(o=>`<tr class="${o.inDate?'done':''}"><td><span class="loc">${esc(o.loc||'?')}</span></td><td><b>${esc(o.item)}</b>${o._late?` <span class="chip c-late">지연 ${fmtK(o.eta)}</span>`:''}</td><td class="num">${fmtN(o.qty)} ${esc(o.unit)}</td><td>${deptChip(o.dept)}</td><td><b>${esc(o.vendor)}</b></td><td class="tag">${esc(o.note)}</td><td>${o.inDate?`<span class="chip c-done">입고${isThird(o.inBy)?' ✋'+esc(o.inBy):''}</span>`:`<button class="btn sm" onclick="markIn(${o.id})">입고 체크</button>`}</td></tr>`).join(''):'<tr><td colspan="7" class="empty">오늘 입고 예정 없음 — [발주·입고] 탭에서 발주를 등록하면 착일 기준으로 표시됨</td></tr>';
   document.getElementById('cntIn').textContent=rows.length?`${rows.filter(o=>!o.inDate).length}건 대기`:'';
   // 창고이동
   const mv=S.moves.filter(m=>m.date===cur);
@@ -900,7 +901,7 @@ function renderBoard(){
     const ordered=it=>S.orders.some(o=>!o.skip&&!o.inDate&&norm(o.item)===norm(it));
     document.getElementById('boardRop').innerHTML=rop.length?rop.map(r=>{
       const shortStk=r.stk<=r.rop;
-      return `<tr><td><b>${esc(r.item)}</b> ${shortStk?'<span class="chip c-late">부족 '+fmtN(Math.max(0,Math.round(r.rop-r.stk)))+'kg</span>':'<span class="chip c-wait">임박</span>'}${r.flag?' <span class="tag">'+esc(r.flag)+'</span>':''}${r.gpps?'<div class="tag">⚠ '+esc(r.gpps)+' · 발주 여부는 검토 후 확정</div>':''}</td><td class="num">${fmtN(Math.round(r.stk))}</td><td class="num">${fmtN(r.rop)}</td><td class="num">${fmtN(r.qty)} kg</td><td>${r.lt}일</td><td>${esc(r.vendor)}</td><td>${ordered(r.item)?'<span class="chip c-ord">발주됨</span>':`<button class="btn sm warn" onclick="ropOrder('${esc(r.item)}')">발주 체크</button>`}</td></tr>`;
+      return `<tr><td><b>${esc(r.item)}</b> ${shortStk?'<span class="chip c-late">부족 '+fmtN(Math.max(0,Math.round(r.rop-r.stk)))+'kg</span>':'<span class="chip c-wait">임박</span>'}${r.flag?' <span class="tag">'+esc(r.flag)+'</span>':''}${r.gpps?'<div class="tag">⚠ '+esc(r.gpps)+' · 발주 여부는 검토 후 확정</div>':''}</td><td class="num">${fmtN(Math.round(r.stk))}</td><td class="num">${fmtN(r.rop)}</td><td class="num">${fmtN(r.qty)} kg</td><td>${r.lt}일</td><td><b>${esc(r.vendor)}</b></td><td>${ordered(r.item)?'<span class="chip c-ord">발주됨</span>':`<button class="btn sm warn" onclick="ropOrder('${esc(r.item)}')">발주 체크</button>`}</td></tr>`;
     }).join(''):'<tr><td colspan="7" class="empty">발주점 도달 품목 없음 — 전 품목 재고 여유</td></tr>';
     document.getElementById('cntRop').textContent=rop.length?`부족 ${rop.filter(r=>r.stk<=r.rop).length} · 임박 ${rop.filter(r=>r.stk>r.rop).length}`:'';
   }
@@ -1331,7 +1332,7 @@ function renderOrders(){
   const allSel=rows.length>0&&rows.every(o=>selOd.has(o.id));
   const selAllEl=document.getElementById('odSelAll');if(selAllEl)selAllEl.checked=allSel;
   document.getElementById('odBody').innerHTML=rows.length?rows.map(o=>{const st=orderStatus(o),d=o.eta&&!o.inDate?diffDays(o.eta,cur):null;const cls={'발주완료':'c-ord','입고지연':'c-late','입고완료':'c-done'}[st];
-    return `<tr class="${o.inDate?'done':''}"><td><input type="checkbox" ${selOd.has(o.id)?'checked':''} onchange="toggleSelOd(${o.id},this.checked)" title="선택"></td><td>${o.ordDate}</td><td>${o.type==='self'?'자가':'사급'}</td><td>${esc(o.vendor)}</td><td><b>${esc(o.item)}</b>${o.note?`<div class="tag">${esc(o.note)}</div>`:''}</td><td>${esc(o.dest)}</td><td class="num">${fmtN(o.qty)} ${esc(o.unit)}</td><td>${o.eta||''}</td><td class="dday ${d!=null&&d<0?'late':(d===0?'soon':'')}">${d==null?(o.inDate?'입고 '+o.inDate:''):(d<0?`D+${-d}`:`D-${d}`)}</td><td>${o.loc?`<span class="loc">${esc(o.loc)}</span>`:''}</td><td><span class="chip ${cls}">${st}</span></td><td>${!o.inDate?`<button class="btn sm" onclick="markIn(${o.id})">입고</button> `:''}<button class="btn sm" onclick="editOrder(${o.id})">수정</button> <button class="btn sm" style="color:var(--red)" onclick="delOrder(${o.id})">${armLbl('od'+o.id)}</button></td></tr>`;}).join(''):'<tr><td colspan="12" class="empty">발주 건 없음</td></tr>';
+    return `<tr class="${o.inDate?'done':''}"><td><input type="checkbox" ${selOd.has(o.id)?'checked':''} onchange="toggleSelOd(${o.id},this.checked)" title="선택"></td><td>${o.ordDate}</td><td>${o.type==='self'?'자가':'사급'}</td><td><b>${esc(o.vendor)}</b></td><td><b>${esc(o.item)}</b>${o.note?`<div class="tag">${esc(o.note)}</div>`:''}</td><td>${esc(o.dest)}</td><td class="num">${fmtN(o.qty)} ${esc(o.unit)}</td><td>${o.eta||''}</td><td class="dday ${d!=null&&d<0?'late':(d===0?'soon':'')}">${d==null?(o.inDate?'입고 '+o.inDate:''):(d<0?`D+${-d}`:`D-${d}`)}</td><td>${o.loc?`<span class="loc">${esc(o.loc)}</span>`:''}</td><td><span class="chip ${cls}">${st}</span></td><td>${!o.inDate?`<button class="btn sm" onclick="markIn(${o.id})">입고</button> `:''}<button class="btn sm" onclick="editOrder(${o.id})">수정</button> <button class="btn sm" style="color:var(--red)" onclick="delOrder(${o.id})">${armLbl('od'+o.id)}</button></td></tr>`;}).join(''):'<tr><td colspan="12" class="empty">발주 건 없음</td></tr>';
   document.getElementById('cntOd').textContent=`${rows.length}건`;
   updateOdSelCnt();
 }
@@ -1487,8 +1488,8 @@ function csStatus(c){if(c.action==='제외')return'제외';if(c.done)return'완�
 function csRow(c,board){const st=csStatus(c);const cls={'발주대기':'c-wait','출고대기':'c-wait','확인필요':'c-late','입고지연':'c-late','입고대기':'c-ord','출고완료':'c-done','완료':'c-done','제외':'c-mut'}[st];
   const act=`<span class="act-${{'발주':'order','직접출고':'direct','확인':'check','제외':'none'}[c.action]}">${c.action}</span>`;
   const btn=c.action==='발주'&&!c.ordDate?`<button class="btn sm warn" onclick="csMark(${c.id},'ordDate')">발주 체크</button>`:(c.action==='직접출고'&&!c.outDate?`<button class="btn sm warn" onclick="csMark(${c.id},'outDate')">출고 체크</button>`:(!c.done?`<button class="btn sm" onclick="csMark(${c.id},'done')">${c.action==='발주'?'입고 완료':'완료'}</button>`:''));
-  if(board)return`<tr class="${c.done?'done':''}"><td><b>${esc(c.consignee)}</b></td><td>${esc(c.item)}</td><td class="num">${fmtN(c.qty)}</td><td>${act}</td><td>${c.due?fmtK(c.due):''}</td><td><span class="chip ${cls}">${st}</span></td><td>${btn}</td></tr>`;
-  return`<tr class="${c.done?'done':''}"><td><input type="checkbox" class="csSel" value="${c.id}" ${selCs.has(c.id)?'checked':''} onchange="toggleSelCs(${c.id},this.checked)"></td><td>${c.recvDate}</td><td><b>${esc(c.consignee)}</b></td><td>${esc(c.item)}${c.loc?` <span class="loc">${esc(c.loc)}</span>`:''}</td><td class="num">${fmtN(c.qty)}</td><td>${act}</td><td>${esc(c.supplier)}</td><td>${c.due||''}</td><td>${c.ordDate||''}</td><td>${c.outDate||(c.done?'✓':'')}${isThird(c.outBy)?` <span class="chip c-wait">✋ ${esc(c.outBy)}</span>`:''}</td><td><span class="chip ${cls}">${st}</span></td><td>${btn} <button class="btn sm" onclick="editCs(${c.id})">수정</button> <button class="btn sm" style="color:var(--red)" onclick="delCs(${c.id})">${armLbl('cs'+c.id)}</button></td></tr>`;}
+  if(board)return`<tr class="${c.done?'done':''}"><td><b>${esc(c.consignee)}</b></td><td><b>${esc(c.item)}</b></td><td class="num">${fmtN(c.qty)}</td><td>${act}</td><td>${c.due?fmtK(c.due):''}</td><td><span class="chip ${cls}">${st}</span></td><td>${btn}</td></tr>`;
+  return`<tr class="${c.done?'done':''}"><td><input type="checkbox" class="csSel" value="${c.id}" ${selCs.has(c.id)?'checked':''} onchange="toggleSelCs(${c.id},this.checked)"></td><td>${c.recvDate}</td><td><b>${esc(c.consignee)}</b></td><td><b>${esc(c.item)}</b>${c.loc?` <span class="loc">${esc(c.loc)}</span>`:''}</td><td class="num">${fmtN(c.qty)}</td><td>${act}</td><td><b>${esc(c.supplier)}</b></td><td>${c.due||''}</td><td>${c.ordDate||''}</td><td>${c.outDate||(c.done?'✓':'')}${isThird(c.outBy)?` <span class="chip c-wait">✋ ${esc(c.outBy)}</span>`:''}</td><td><span class="chip ${cls}">${st}</span></td><td>${btn} <button class="btn sm" onclick="editCs(${c.id})">수정</button> <button class="btn sm" style="color:var(--red)" onclick="delCs(${c.id})">${armLbl('cs'+c.id)}</button></td></tr>`;}
 function csMark(id,f){const c=S.cons.find(x=>x.id===id);
   if((f==='outDate'||f==='done')&&needName(()=>csMark(id,f)))return;
   // M-210: 월1회 입항분은 행선지 건별 확인 전 배차·출고·완료 금지
@@ -1524,7 +1525,7 @@ function editCs(id){const c=S.cons.find(x=>x.id===id);openDlg('사급 요청 수
 function renderMaster(){
   const q=(document.getElementById('matSearch').value||'').trim().toUpperCase();
   const rows=M.materials.filter(m=>!q||(m.name+m.vendor+m.loc+m.use+m.kind).toUpperCase().includes(q));
-  document.getElementById('matBody').innerHTML=rows.map(m=>`<tr><td><b>${esc(m.name)}</b></td><td>${esc(m.kind)}</td><td>${esc(m.pack)}</td><td class="num">${fmtN(m.unitKg)}</td><td>${esc(m.vendor)}</td><td>${esc(m.use)}</td><td>${m.loc?`<span class="loc">${esc(m.loc)}</span>`:''}</td><td class="tag">${esc(m.note)}</td></tr>`).join('');
+  document.getElementById('matBody').innerHTML=rows.map(m=>`<tr><td><b>${esc(m.name)}</b></td><td>${esc(m.kind)}</td><td>${esc(m.pack)}</td><td class="num">${fmtN(m.unitKg)}</td><td><b>${esc(m.vendor)}</b></td><td>${esc(m.use)}</td><td>${m.loc?`<span class="loc">${esc(m.loc)}</span>`:''}</td><td class="tag">${esc(m.note)}</td></tr>`).join('');
   document.getElementById('cntMat').textContent=`${rows.length}개`;
   document.getElementById('respBody').innerHTML=M.consigneeResponse.map(r=>{
     const dir=r.directItems.filter(x=>!orderResp(x)),ex=r.directItems.filter(x=>orderResp(x));

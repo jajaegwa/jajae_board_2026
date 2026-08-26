@@ -174,13 +174,13 @@ details.card summary .cnt{font-size:11.5px;color:var(--mut);font-weight:500}
   <input type="file" id="impFile" accept=".json" style="display:none" onchange="importJSON(event)">
 </header>
 <nav id="nav">
-  <button data-t="board" class="on" onclick="showTab('board')">오늘 작업판</button>
-  <button data-t="move" onclick="showTab('move')">창고이동 요청<span class="b" id="bMove" hidden></span></button>
+  <button data-t="board" class="on" onclick="showTab('board')">현황</button>
+  <button data-t="move" onclick="showTab('move')">배합실요청<span class="b" id="bMove" hidden></span></button>
   <button data-t="order" onclick="showTab('order')">발주 · 입고<span class="b" id="bOrder" hidden></span></button>
-  <button data-t="consign" onclick="showTab('consign')">사급 발주서<span class="b" id="bCons" hidden></span></button>
+  <button data-t="consign" onclick="showTab('consign')">사급발주<span class="b" id="bCons" hidden></span></button>
   <button data-t="master" onclick="showTab('master')">기준정보</button>
   <button data-t="stats" onclick="showTab('stats')">통계</button>
-  <button data-t="fc" onclick="showTab('fc')">생산예측</button>
+  <button data-t="fc" onclick="showTab('fc')">원료예측</button>
 </nav>
 <main>
 <div id="roBanner" class="card" style="display:none;border-color:var(--amber);background:var(--amber-soft);color:var(--amber);font-size:13px;padding:10px 14px;margin-bottom:12px">읽기 전용 화면입니다. 체크·입력은 편집 권한이 있는 계정에서만 저장됩니다.</div>
@@ -497,10 +497,10 @@ details.card summary .cnt{font-size:11.5px;color:var(--mut);font-weight:500}
   <div class="sec">
     <label>이 판 쓰는 법 (처음 보는 분용)</label>
     <div class="hint" style="line-height:1.8">
-      <b>오늘 작업판</b> : 아침에 여기만 보면 됨 — 오늘 입고 예정 · 창고이동 요청 · 발주할 것 · 사급 대기 한 화면. ③에 DW 재고 파일을 끌어다 놓으면 발주점 기준으로 발주할 품목이 자동 계산됨.<br>
-      <b>창고이동 요청</b> : 전화 모드에서 부서 → 품목 → 수량 탭 세 번으로 등록 → 기사 화면에 자동 표시.<br>
+      <b>현황</b> : 아침에 여기만 보면 됨 — 오늘 입고 예정 · 창고이동 요청 · 발주할 것 · 사급 대기 한 화면. ③에 DW 재고 파일을 끌어다 놓으면 발주점 기준으로 발주할 품목이 자동 계산됨.<br>
+      <b>배합실요청</b> : 전화 모드에서 부서 → 품목 → 수량 탭 세 번으로 등록 → 기사 화면에 자동 표시.<br>
       <b>발주 · 입고</b> : 프리셋 골라 발주 등록 → 착일(입고예정일) 자동 계산 → 입고 체크로 마감.<br>
-      <b>사급 발주서</b> : 업체가 보낸 발주서 엑셀을 끌어다 놓으면 자동 인식 → 발주/직접출고 판정 → 발주 메일 자동 작성(복사해서 발송).
+      <b>사급발주</b> : 업체가 보낸 발주서 엑셀을 끌어다 놓으면 자동 인식 → 발주/직접출고 판정 → 발주 메일 자동 작성(복사해서 발송).
     </div>
   </div>
 </div>
@@ -999,7 +999,7 @@ function renderBoard(){
   const order={'경질':0,'창호':1,'타일':2,'DBP':3};
   mv.sort((a,b)=>(order[a.dept]??9)-(order[b.dept]??9));
   document.getElementById('boardMv').innerHTML=mv.length?mv.map(m=>{const cv=convInfo(m.item,m.qty,m.unit);
-    return`<tr class="${m.done&&m.erp?'done':''}"><td>${deptChip(m.dept)}</td><td><b>${esc(m.item)}</b>${r696Badge(m)}${isThird(m.addedBy)?` <span class="chip c-ord">✋ ${esc(m.addedBy)} 등록</span>`:''}${m.done?byBadge(m.doneBy):''}</td><td class="num">${fmtN(m.qty)} ${esc(m.unit)}${cv?`<div class="tag">${esc(cv)}</div>`:''}</td><td><span class="loc">${esc(m.loc||'?')}</span></td><td class="tag">${esc(m.note)}</td><td>${!m.done?`<button class="btn sm" onclick="toggleMove(${m.id})">실물완료</button>`:(!m.erp?`<span class="chip c-wait">전산 대기</span> <button class="btn sm pri" onclick="toggleErp(${m.id})">전산완료</button> <button class="btn sm ghost" onclick="toggleMove(${m.id})" title="실물 완료 취소">↩</button>`:`<span class="chip c-done">전산완료</span> <button class="btn sm ghost" onclick="toggleErp(${m.id})" title="전산 완료 취소">↩</button>`)}</td></tr>`;}).join(''):'<tr><td colspan="6" class="empty">요청 없음 — [창고이동 요청] 탭에서 입력</td></tr>';
+    return`<tr class="${m.done&&m.erp?'done':''}"><td>${deptChip(m.dept)}</td><td><b>${esc(m.item)}</b>${r696Badge(m)}${isThird(m.addedBy)?` <span class="chip c-ord">✋ ${esc(m.addedBy)} 등록</span>`:''}${m.done?byBadge(m.doneBy):''}</td><td class="num">${fmtN(m.qty)} ${esc(m.unit)}${cv?`<div class="tag">${esc(cv)}</div>`:''}</td><td><span class="loc">${esc(m.loc||'?')}</span></td><td class="tag">${esc(m.note)}</td><td>${!m.done?`<button class="btn sm" onclick="toggleMove(${m.id})">실물완료</button>`:(!m.erp?`<span class="chip c-wait">전산 대기</span> <button class="btn sm pri" onclick="toggleErp(${m.id})">전산완료</button> <button class="btn sm ghost" onclick="toggleMove(${m.id})" title="실물 완료 취소">↩</button>`:`<span class="chip c-done">전산완료</span> <button class="btn sm ghost" onclick="toggleErp(${m.id})" title="전산 완료 취소">↩</button>`)}</td></tr>`;}).join(''):'<tr><td colspan="6" class="empty">요청 없음 — [배합실요청] 탭에서 입력</td></tr>';
   document.getElementById('cntMv').textContent=mv.length?`실물 ${mv.filter(m=>!m.done).length} · 전산 ${mv.filter(m=>m.done&&!m.erp).length}건 남음`:'';
   // 발주할 것 — 재고(ROP) 기준 + 주기 기준
   const rop=ropDue();
@@ -1989,7 +1989,7 @@ function renderStTrend(){
   if(!hist.length){
     sel.innerHTML='<option value="">품목 없음</option>';
     document.getElementById('stInvInfo').textContent='';
-    box.innerHTML='<div class="empty">[오늘 작업판] ③에서 DW 재고 파일을 올리면 날짜별 스냅샷이 쌓여 추이가 표시됩니다</div>';return;
+    box.innerHTML='<div class="empty">[현황] ③에서 DW 재고 파일을 올리면 날짜별 스냅샷이 쌓여 추이가 표시됩니다</div>';return;
   }
   const latest=hist[hist.length-1];
   const keys=[...new Set(hist.flatMap(h=>Object.keys(h.stock)))].sort((a,b)=>(latest.stock[b]||0)-(latest.stock[a]||0));
@@ -2287,7 +2287,7 @@ function renderFcResult(){
     const ordName=r.invKey||short(r.n)||r.c;
     return`<tr><td><b>${esc(r.c)}</b></td><td>${esc(r.n)}${r.invKey?`<div class="tag">재고키: ${esc(r.invKey)}</div>`:''}</td><td>${esc(r.u)}</td><td class="num">${fmtN(Math.round(r.v*10)/10)}</td><td class="num">${r.stk!=null?fmtN(Math.round(r.stk)):(r.isKg?'<span class="tag">재고 미매칭</span>':'')}</td><td class="num">${r.lack>0?`<span class="chip c-late">부족 ${fmtN(Math.round(r.lack))}</span>`:(r.stk!=null?'—':'')}</td><td>${r.lack>0?`<button class="btn sm warn" data-n="${esc(ordName)}" onclick="fcToOrder(this.dataset.n)">발주 탭으로</button>`:''}</td></tr>`;
   }).join(''):'<tr><td colspan="7" class="empty">검색 결과 없음</td></tr>';
-  hint.textContent=(S.inv&&S.inv.stock)?`현재고 기준: ${S.inv.ts}`:'DW 재고 미업로드 — [오늘 작업판]에서 재고 파일을 올리면 현재고·부족분이 표시됩니다';
+  hint.textContent=(S.inv&&S.inv.stock)?`현재고 기준: ${S.inv.ts}`:'DW 재고 미업로드 — [현황]에서 재고 파일을 올리면 현재고·부족분이 표시됩니다';
 }
 /* 부족 자재 → 발주 탭 연계 */
 function fcToOrder(name){

@@ -112,6 +112,9 @@ label{font-size:11px;color:var(--mut);font-weight:500;display:block;margin-botto
 .dropzone{border:1px dashed var(--line);border-radius:2px;padding:20px;text-align:center;color:var(--mut);font-size:12.5px;cursor:pointer}
 .dropzone.over{border-color:var(--acc);background:var(--acc-soft)}
 pre.mail{background:var(--head);border:1px solid var(--line);border-radius:2px;padding:12px;font-family:Consolas,'Courier New',monospace;font-size:12px;white-space:pre-wrap;line-height:1.55;max-height:420px;overflow:auto}
+textarea.mail{background:var(--head);border:1px solid var(--line);border-radius:2px;padding:12px;font-family:Consolas,'Courier New',monospace;font-size:12px;line-height:1.55;min-height:220px}
+textarea.mail:read-only{color:var(--ink);cursor:default}
+textarea.mail:not(:read-only){background:var(--card);border-color:var(--acc)}
 .toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:var(--navy);color:#fff;padding:8px 15px;border-radius:2px;font-size:12.5px;opacity:0;transition:opacity .2s;pointer-events:none;z-index:50}
 .toast.show{opacity:1}
 .act-order{color:var(--acc);font-weight:700}.act-direct{color:var(--amber);font-weight:700}.act-check{color:var(--red);font-weight:700}.act-none{color:var(--mut);font-weight:700}
@@ -1577,6 +1580,42 @@ function commitCs(){
   saveDB();refreshAll();buildMails(ids);toast(`${valid.length}건 등록${excl.length?` · ${excl.length}건 제외(우리 출고 아님)`:''}`);
 }
 function contactOf(name){const cn=norm(name);return M.contacts.find(c=>norm(c.name).includes(cn.slice(0,2))||cn.includes(norm(c.name)))||null;}
+/* 사급 출고 지시서 — 텍스트 생성. 자재과가 [수정]→[저장 및 전송]으로 확정하면
+   S.csInstr[사급처]에 저장되어 지게차 화면에서 그대로 보임(자동 생성본과 별개로 보존). */
+function csInstrText(consignee,list){
+  const ct=contactOf(consignee);
+  const due=list.map(c=>c.due).filter(Boolean).sort()[0]||addDays(today(),1);
+  const plt=Math.max(1,Math.ceil(list.reduce((a,c)=>a+c.qty,0)/1000));
+  return`${consignee}   ${fmtK(due)} 출고\n약 ${plt} 파렛트\n\n${list.map(c=>`${c.item.padEnd(18)} ${String(fmtN(c.qty)).padStart(8)} kg   ${c.loc||'14동'}`).join('\n')}\n${'계'.padEnd(18)} ${String(fmtN(list.reduce((a,c)=>a+c.qty,0))).padStart(8)} kg\n\n입고처 : ${ct&&ct.addr?ct.addr:'(주소 확인)'}\n        ${consignee}${ct?`  ${ct.contact||''} ${ct.phone||''}`:''}\n현대엘앤씨 자재과  김성진 선임 010-5730-6623`;
+}
+function editCsInstrToggle(btn){
+  const block=btn.closest('.csInstrBlock'),ta=block.querySelector('textarea');
+  ta.readOnly=false;ta.focus();
+  block.querySelector('.csInstrSaveBtn').style.display='';
+}
+function saveCsInstr(btn){
+  const block=btn.closest('.csInstrBlock'),consignee=block.dataset.consignee,ta=block.querySelector('textarea');
+  S.csInstr=S.csInstr||{};
+  S.csInstr[consignee]={text:ta.value,savedAt:realToday()+' '+new Date().toTimeString().slice(0,5),savedBy:whoNow()};
+  ta.readOnly=true;btn.style.display='none';
+  saveDB();refreshAll();
+  toast(`${consignee} 사급 출고 지시서 저장·전송됨 — 지게차 화면에서 확인 가능`);
+}
+/* 지게차 화면 — 사급출고 품목 탭하면 지시서 표시. 자재과가 저장한 내용이 있으면 그걸,
+   없으면 현재 등록된 직접출고 건으로 즉석 생성해서 보여줌(안내용, 저장되지 않음). */
+function showCsInstr(consignee){
+  const rec=S.csInstr&&S.csInstr[consignee];
+  let text=rec?rec.text:'';
+  if(!text){
+    const list=S.cons.filter(c=>c.consignee===consignee&&c.action==='직접출고'&&!c.done);
+    text=list.length?csInstrText(consignee,list):'등록된 출고 품목이 없습니다.';
+  }
+  dlgTitle.textContent=`📦 사급 출고 지시서 — ${consignee}`;
+  dlgBody.innerHTML=`<div style="grid-column:1/-1"><textarea class="mail" readonly style="min-height:260px">${esc(text)}</textarea>${rec?`<div class="tag" style="margin-top:6px">최종 저장 ${esc(rec.savedAt||'')} ${esc(rec.savedBy||'')}</div>`:'<div class="tag" style="margin-top:6px;color:var(--amber)">⚠ 자재과에서 저장한 지시서가 아직 없음 — 자동 생성된 내용입니다</div>'}</div>`;
+  document.getElementById('dlgDelBtn').style.display='none';
+  dlgCtx={obj:{},fields:[],onDel:()=>{},onSave:()=>{}};
+  dlg.showModal();
+}
 function buildMails(ids){
   const items=S.cons.filter(c=>ids.includes(c.id));if(!items.length)return;
   const card=document.getElementById('csMailCard'),box=document.getElementById('csMails');box.innerHTML='';card.style.display='';
@@ -1590,13 +1629,11 @@ function buildMails(ids){
     const body=`${sup} 담당자님, 안녕하세요.\n현대L&C 자재과 김성진입니다.\n아래와 같이 발주 드리오니 납기 맞춰 출고 부탁드립니다.\n\n■ 납품처 : ${consignee}${ct&&ct.addr?`\n■ 주소 : ${ct.addr}`:''}${ct?`\n■ 수신 담당 : ${ct.contact||''} ${ct.phone||''}`:''}\n■ 요청 납기 : ${due?fmtK(due)+' 도착':'협의'}\n\n■ 발주 내역\n${list.map((c,i)=>`  ${i+1}. ${c.item}  ${fmtN(c.qty)} kg${c.pack?` (${c.pack} 포장)`:''}${c.due&&c.due!==due?`  납기 ${fmtK(c.due)}`:''}`).join('\n')}\n  합계 ${fmtN(list.reduce((a,c)=>a+c.qty,0))} kg\n\n감사합니다.\n\n현대L&C 물류팀 자재과 김성진 선임 / 010-5730-6623`;
     box.insertAdjacentHTML('beforeend',`<div class="mailBlock"><div class="row" style="justify-content:space-between;margin-bottom:6px;align-items:center"><b>발주 메일 → ${esc(sup)}</b><div class="row" style="gap:6px"><button class="btn sm" onclick="copyText(this.closest('.mailBlock').querySelector('.mailSubj').textContent)">제목 복사</button><button class="btn sm" onclick="copyText(this.closest('.mailBlock').querySelector('.mailBody').textContent)">본문 복사</button></div></div><div class="tag" style="margin-bottom:6px"><b>제목</b> : <span class="mailSubj">${esc(subj)}</span></div><pre class="mail mailBody">${esc(body)}</pre></div>`);
   }
-  // 출고 지시서 (직접출고)
+  // 출고 지시서 (직접출고) — 수정 후 [저장 및 전송]을 눌러야 지게차 화면에 반영됨
   const direct=items.filter(c=>c.action==='직접출고');
   if(direct.length){
-    const due=direct.map(c=>c.due).filter(Boolean).sort()[0]||addDays(today(),1);
-    const plt=Math.max(1,Math.ceil(direct.reduce((a,c)=>a+c.qty,0)/1000));
-    const txt=`${consignee}   ${fmtK(due)} 출고\n약 ${plt} 파렛트\n\n${direct.map(c=>`${c.item.padEnd(18)} ${String(fmtN(c.qty)).padStart(8)} kg   ${c.loc||'14동'}`).join('\n')}\n${'계'.padEnd(18)} ${String(fmtN(direct.reduce((a,c)=>a+c.qty,0))).padStart(8)} kg\n\n입고처 : ${ct&&ct.addr?ct.addr:'(주소 확인)'}\n        ${consignee}${ct?`  ${ct.contact||''} ${ct.phone||''}`:''}\n현대엘앤씨 자재과  김성진 선임 010-5730-6623`;
-    box.insertAdjacentHTML('beforeend',`<div><div class="row" style="justify-content:space-between;margin-bottom:6px"><b>사급 출고 지시서 (지게차·기사용)</b><button class="btn sm" onclick="copyText(this.parentNode.nextSibling.textContent)">복사</button></div><pre class="mail">${esc(txt)}</pre></div>`);
+    const txt=csInstrText(consignee,direct);
+    box.insertAdjacentHTML('beforeend',`<div class="csInstrBlock" data-consignee="${esc(consignee)}"><div class="row" style="justify-content:space-between;margin-bottom:6px"><b>사급 출고 지시서 (지게차·기사용)</b><div class="row" style="gap:6px"><button class="btn sm" onclick="copyText(this.closest('.csInstrBlock').querySelector('textarea').value)">복사</button><button class="btn sm" onclick="editCsInstrToggle(this)">수정</button></div></div><textarea class="mail" readonly>${esc(txt)}</textarea><div class="row" style="margin-top:6px;justify-content:flex-end"><button class="btn sm pri csInstrSaveBtn" style="display:none" onclick="saveCsInstr(this)">저장 및 전송</button></div></div>`);
   }
   const chk=items.filter(c=>c.action==='확인');
   if(chk.length)box.insertAdjacentHTML('beforeend',`<div><b>확인 필요 ${chk.length}건</b><div class="hint">${chk.map(c=>esc(c.item)).join(', ')} — 과거 대응 이력이 없어 발주/직접출고를 직접 정한 뒤 [선택 건 메일 다시 만들기]</div></div>`);
@@ -1713,7 +1750,8 @@ function renderDriver(){
   h+=`<div class="tag" style="margin:-4px 0 8px">⚠ 찢어진 지대는 사급 출고 금지 — 자재과 협의 후 자사 생산 투입 · 전산 재고 차감은 배차완료(실물 출고) 시점</div>`;
   const outsGroup=list=>{
     const byC={};list.forEach(c=>(byC[c.consignee]=byC[c.consignee]||[]).push(c));
-    return list.length?Object.entries(byC).map(([k,l])=>`<div class="grp">${esc(k)} 행 ${l[0].due?' · 납기 '+fmtK(l.map(c=>c.due).filter(Boolean).sort()[0]):''} · 약 ${Math.max(1,Math.ceil(l.reduce((a,c)=>a+c.qty,0)/1000))} PLT</div>`+l.map(c=>`<div class="item"><div><div class="name">${esc(c.item)} <span class="loc">${esc(c.loc||'14동')}</span></div><div class="meta">${esc(c.consignee)}${c.pack?' · '+esc(c.pack):''}</div></div><div><div class="qty">${fmtN(c.qty)} kg</div>${cb(`csMark(${c.id},'outDate')`,false)}</div></div>`).join('')).join(''):'<div class="empty">없음</div>';
+    return list.length?Object.entries(byC).map(([k,l])=>{const kj=esc(k).replace(/'/g,"\\'");
+      return `<div class="grp" style="cursor:pointer" onclick="showCsInstr('${kj}')">${esc(k)} 행 ${l[0].due?' · 납기 '+fmtK(l.map(c=>c.due).filter(Boolean).sort()[0]):''} · 약 ${Math.max(1,Math.ceil(l.reduce((a,c)=>a+c.qty,0)/1000))} PLT · 📦 지시서 보기</div>`+l.map(c=>`<div class="item"><div><div class="name" style="cursor:pointer" onclick="showCsInstr('${kj}')">${esc(c.item)} <span class="loc">${esc(c.loc||'14동')}</span></div><div class="meta">${esc(c.consignee)}${c.pack?' · '+esc(c.pack):''}</div></div><div><div class="qty">${fmtN(c.qty)} kg</div>${cb(`csMark(${c.id},'outDate')`,false)}</div></div>`).join('');}).join(''):'<div class="empty">없음</div>';
   };
   const outsToday=outs.filter(c=>!c.due||c.due<=cur);
   const outsTomorrow=outs.filter(c=>c.due===addDays(cur,1));

@@ -213,13 +213,7 @@ details.card summary .cnt{font-size:11.5px;color:var(--mut);font-weight:500}
     </div>
   </div>
   <div class="card" style="margin-top:14px">
-    <h2>⑤ 특이사항 — 벌크·라인 직납 발주 <span class="cnt">전화 받으면서: 부서 → 품목 → 대수 탭</span></h2>
-    <div class="row" style="align-items:flex-end;margin-bottom:10px">
-      <div><label>부서</label><select id="spDept" onchange="spSt.sp.sel='';renderSpQuick()"><option>경질</option><option>창호</option><option>타일</option><option>DBP</option></select></div>
-      <div style="flex:2;min-width:220px"><label>품목 (탭해서 선택)</label><div class="quick" id="spItems" style="margin:0"></div></div>
-      <div style="flex:2;min-width:260px"><label>납품 날짜(선택 · 주말 포함) → 수량 탭 = 바로 기록</label><div class="quick" id="spWhen" style="margin:0 0 4px"></div><div class="quick" id="spQty" style="margin:0"></div></div>
-      <label style="display:flex;align-items:center;gap:5px;margin:0 0 4px;font-size:12.5px;color:var(--ink)"><input type="checkbox" id="spOrd" checked>발주도 같이 등록</label>
-    </div>
+    <h2>⑤ 특이사항 <span class="cnt">부서별 자유 메모 — 지게차 화면에도 표시됨</span></h2>
     <div class="special">
       <div><label>경질</label><input data-sp="경질" placeholder="예) P1000 1대, 10시"></div>
       <div><label>DBP</label><input data-sp="DBP" placeholder="예) P700 2대"></div>
@@ -235,6 +229,16 @@ details.card summary .cnt{font-size:11.5px;color:var(--mut);font-weight:500}
     <h2>📞 전화 모드 <span class="cnt">부서 먼저 탭 → 이동 요청 또는 벌크·라인 직납 발주 품목 탭</span></h2>
     <div class="qm-dept" id="qmDeptBox"></div>
     <div class="qm-group">
+      <div class="grp-lbl">📦 벌크·라인 직납 발주</div>
+      <div class="quick qm-items" id="sp2Items" style="margin:0 0 8px"></div>
+      <div id="sp2Extra" style="display:none">
+        <div class="tag" style="margin-bottom:4px">납품 날짜(선택 · 주말 포함) → 수량 탭 = 기록</div>
+        <div class="quick" id="sp2When" style="margin:0 0 8px"></div>
+        <div class="quick qm-qty" id="sp2Qty" style="margin:0 0 10px"></div>
+        <label style="display:flex;align-items:center;gap:5px;font-size:12.5px;color:var(--ink)"><input type="checkbox" id="sp2Ord" checked>발주도 같이 등록</label>
+      </div>
+    </div>
+    <div class="qm-group" style="margin-top:16px">
       <div class="grp-lbl">🚚 이동 요청</div>
       <div class="quick qm-items" id="qmItems" style="margin:0 0 6px"></div>
       <div id="qmQtyBox" style="display:none">
@@ -249,16 +253,6 @@ details.card summary .cnt{font-size:11.5px;color:var(--mut);font-weight:500}
           <button class="btn pri sm" type="submit">추가</button>
           <span class="tag">숫자를 탭하면 바로 등록됨 · 같은 품목 연속 등록 가능</span>
         </form>
-      </div>
-    </div>
-    <div class="qm-group" style="margin-top:16px">
-      <div class="grp-lbl">📦 벌크·라인 직납 발주</div>
-      <div class="quick qm-items" id="sp2Items" style="margin:0 0 8px"></div>
-      <div id="sp2Extra" style="display:none">
-        <div class="tag" style="margin-bottom:4px">납품 날짜(선택 · 주말 포함) → 수량 탭 = 기록</div>
-        <div class="quick" id="sp2When" style="margin:0 0 8px"></div>
-        <div class="quick qm-qty" id="sp2Qty" style="margin:0 0 10px"></div>
-        <label style="display:flex;align-items:center;gap:5px;font-size:12.5px;color:var(--ink)"><input type="checkbox" id="sp2Ord" checked>발주도 같이 등록</label>
       </div>
     </div>
   </div>
@@ -933,9 +927,11 @@ function autoLoc(p){const v=document.getElementById(p+'Item').value;const m=matc
 function deptChip(d){return `<span class="dept d-${['경질','창호','타일','DBP'].includes(d)?d:'기타'}">${esc(d)}</span>`;}
 
 /* ═════════ 오늘 작업판 ═════════ */
+// 주기 기준은 자가만 대상 — 아래 품목은 실제로는 자가 발주가 아니므로 제외
+const SELF_CYCLE_EXCLUDE=new Set(['CR-102','J293F-1','P3000 Bag','NR-950','LOX-203','SB-102'].map(norm));
 function dueList(){
-  // 프리셋별 마지막 발주일 → 주기 경과 시 제안
-  const all=[...M.presetSelf.map(p=>({...p,type:'self',dest:'자가(세종·부강)'})),...M.presetConsign.map(p=>({...p,type:'consign',dest:p.consignee}))];
+  // 프리셋별 마지막 발주일 → 주기 경과 시 제안 (자가만 — 사급 주기는 표시 안 함)
+  const all=M.presetSelf.filter(p=>!SELF_CYCLE_EXCLUDE.has(norm(p.item))).map(p=>({...p,type:'self',dest:'자가(세종·부강)'}));
   const out=[];
   for(const p of all){
     const cyc=CYCLE[p.cycle]||7;
@@ -972,7 +968,7 @@ function renderBoard(){
   document.getElementById('invInfo').textContent=hasInv?`재고 기준: ${S.inv.ts} · ${Object.keys(S.inv.stock).length}개 품목 반영`:'DW 재고 파일을 올리면(또는 이 카드에 끌어다 놓으면) 발주점 기준으로 자동 계산됨';
   document.getElementById('invClear').style.display=hasInv?'':'none';
   document.getElementById('ropWrap').style.display=hasInv?'':'none';
-  document.getElementById('cycLbl').textContent=hasInv?'주기 기준 (벌크·직납 등 재고 파일에 없는 품목)':'주기 기준 — 권장 주기와 마지막 발주일로 계산. [발주 체크] 시 착일 자동 생성.';
+  document.getElementById('cycLbl').textContent=hasInv?'주기 기준 (자가 — 벌크·직납 등 재고 파일에 없는 품목)':'주기 기준 (자가) — 권장 주기와 마지막 발주일로 계산. [발주 체크] 시 착일 자동 생성.';
   if(hasInv){
     const ordered=it=>S.orders.some(o=>!o.skip&&!o.inDate&&norm(o.item)===norm(it));
     document.getElementById('boardRop').innerHTML=rop.length?rop.map(r=>{
@@ -1088,37 +1084,36 @@ const SP_ITEMS={
  'DBP':['P-700','SP-390']};
 const SP_BULK=new Set(['P-1000','P-800','P-1000F','P-700','SP-390','DOTP(드럼)']);
 const SP_ROPKEY={'TIONA-696(백)':'TIONA-696','TIONA-696(지대)':'TIONA-666(696)','K-2450(백)':'Kronos2450','K-2450(지대)':'Kronos2450','GPPS(재생)':'PSGNT1TPZ','GPPS(유니드글로벌)':'125EB','DHA-100':'DHA-100','ROSIN C-9':'ROSIN C-9','NR-950':'NR-950','CPE':'CPE H-135','DWC4Z':'DWC4Z','DWC6Z':'DWC6Z','SJ-01':'SJ-01','SP-390':'DOTP'};
-const spSt={sp:{sel:'',when:-1},sp2:{sel:'',when:-1}};
-function spDeptOf(p){return p==='sp2'?qmDept:document.getElementById(p+'Dept').value;}
+let spSel='',spWhen=-1;
 function spWhens(){
   const a=[{label:'오전',date:cur},{label:'오후',date:cur}];
   for(let i=1;i<=4;i++){const d=addDays(cur,i);a.push({label:(i===1?'내일 ':'')+fmtK(d),date:d});}
   return a;
 }
-function renderSpQuick(){['sp','sp2'].forEach(p=>{if(document.getElementById(p+'Items'))renderSp(p);});}
-function renderSp(p){
-  const st=spSt[p],d=spDeptOf(p);
-  if(st.sel&&!(SP_ITEMS[d]||[]).includes(st.sel))st.sel='';
-  document.getElementById(p+'Items').innerHTML=(SP_ITEMS[d]||[]).map((it,i)=>`<button class="${st.sel===it?'sel':''}" onclick="spPick('${p}',${i})">${it}</button>`).join('');
-  if(p==='sp2'){const ex=document.getElementById('sp2Extra');if(ex)ex.style.display=st.sel?'':'none';}
-  document.getElementById(p+'When').innerHTML=spWhens().map((w,i)=>`<button class="${st.when===i?'sel':''}" onclick="spWhenSet('${p}',${i})">${w.label}</button>`).join('');
-  document.getElementById(p+'Qty').innerHTML=st.sel?(SP_BULK.has(st.sel)
-    ?[1,2,3].map(n2=>`<button onclick="spAdd('${p}',${n2},true)"><b>${n2}대</b></button>`).join('')
-    :[500,1000,2000,3000,4000,5000,8000,10000].map(n2=>`<button onclick="spAdd('${p}',${n2},false)">${n2>=1000?(n2/1000)+'t':n2+'kg'}</button>`).join('')
+function renderSpQuick(){
+  if(!document.getElementById('sp2Items'))return;
+  const d=qmDept;
+  if(spSel&&!(SP_ITEMS[d]||[]).includes(spSel))spSel='';
+  document.getElementById('sp2Items').innerHTML=(SP_ITEMS[d]||[]).map((it,i)=>`<button class="${spSel===it?'sel':''}" onclick="spPick(${i})">${it}</button>`).join('');
+  const ex=document.getElementById('sp2Extra');if(ex)ex.style.display=spSel?'':'none';
+  document.getElementById('sp2When').innerHTML=spWhens().map((w,i)=>`<button class="${spWhen===i?'sel':''}" onclick="spWhenSet(${i})">${w.label}</button>`).join('');
+  document.getElementById('sp2Qty').innerHTML=spSel?(SP_BULK.has(spSel)
+    ?[1,2,3].map(n2=>`<button onclick="spAdd(${n2},true)"><b>${n2}대</b></button>`).join('')
+    :[500,1000,2000,3000,4000,5000,8000,10000].map(n2=>`<button onclick="spAdd(${n2},false)">${n2>=1000?(n2/1000)+'t':n2+'kg'}</button>`).join('')
   ):'<span class="tag">품목을 먼저 탭</span>';
 }
-function spPick(p,i){const d=spDeptOf(p);spSt[p].sel=(SP_ITEMS[d]||[])[i];renderSpQuick();}
-function spWhenSet(p,i){spSt[p].when=spSt[p].when===i?-1:i;renderSpQuick();}
-function spAdd(p,n,isDae){
-  const st=spSt[p];if(!st.sel){toast('품목을 먼저 탭하세요');return;}
-  const d=spDeptOf(p);
-  const w=st.when>=0?spWhens()[st.when]:null;
-  const entry=`${st.sel} ${isDae?n+'대':fmtN(n)+'kg'}${w?' '+w.label:''}`;
+function spPick(i){spSel=(SP_ITEMS[qmDept]||[])[i];renderSpQuick();}
+function spWhenSet(i){spWhen=spWhen===i?-1:i;renderSpQuick();}
+function spAdd(n,isDae){
+  if(!spSel){toast('품목을 먼저 탭하세요');return;}
+  const d=qmDept;
+  const w=spWhen>=0?spWhens()[spWhen]:null;
+  const entry=`${spSel} ${isDae?n+'대':fmtN(n)+'kg'}${w?' '+w.label:''}`;
   S.specials[cur]=S.specials[cur]||{};
   S.specials[cur][d]=(S.specials[cur][d]?S.specials[cur][d]+', ':'')+entry;
-  const doOrd=document.getElementById(p+'Ord').checked;
-  if(doOrd)spRegisterOrder(st.sel,n,d,isDae,w&&w.date!==cur?w.date:'');
-  st.when=-1;
+  const doOrd=document.getElementById('sp2Ord').checked;
+  if(doOrd)spRegisterOrder(spSel,n,d,isDae,w&&w.date!==cur?w.date:'');
+  spWhen=-1;
   saveDB();refreshAll();toast(`${d}: ${entry}${doOrd?' + 발주 등록':''}`);
 }
 function spRegisterOrder(name,n,dept,isDae,etaOv){
@@ -1224,7 +1219,7 @@ function qmGrouped(dept){
   return [...groups.values()].flat();
 }
 function renderQm(){
-  document.getElementById('qmDeptBox').innerHTML=['경질','창호','타일','DBP'].map(d=>`<button class="${qmDept===d?'on':''}" onclick="qmDept='${d}';qmItem='';spSt.sp2.sel='';renderQm();renderSpQuick()">${d}</button>`).join('');
+  document.getElementById('qmDeptBox').innerHTML=['경질','창호','타일','DBP'].map(d=>`<button class="${qmDept===d?'on':''}" onclick="qmDept='${d}';qmItem='';spSel='';renderQm();renderSpQuick()">${d}</button>`).join('');
   document.getElementById('qmItems').innerHTML=qmGrouped(qmDept).map(it=>`<button class="${qmItem===it?'sel':''}" onclick="qmPick('${it.replace(/'/g,"\\'")}')">${it}</button>`).join('');
   const box=document.getElementById('qmQtyBox');
   if(qmItem){
@@ -1669,8 +1664,14 @@ function renderDriver(){
   </div>`;
   h+=`<h2>③ 사급 출고 (오늘·내일 나갈 것) <span class="cnt">${outs.length}건</span></h2>`;
   h+=`<div class="tag" style="margin:-4px 0 8px">⚠ 찢어진 지대는 사급 출고 금지 — 자재과 협의 후 자사 생산 투입 · 전산 재고 차감은 배차완료(실물 출고) 시점</div>`;
-  const byC={};outs.forEach(c=>(byC[c.consignee]=byC[c.consignee]||[]).push(c));
-  h+=outs.length?Object.entries(byC).map(([k,list])=>`<div class="grp">${esc(k)} 행 ${list[0].due?' · 납기 '+fmtK(list.map(c=>c.due).filter(Boolean).sort()[0]):''} · 약 ${Math.max(1,Math.ceil(list.reduce((a,c)=>a+c.qty,0)/1000))} PLT</div>`+list.map(c=>`<div class="item"><div><div class="name">${esc(c.item)} <span class="loc">${esc(c.loc||'14동')}</span></div><div class="meta">${esc(c.consignee)}${c.pack?' · '+esc(c.pack):''}</div></div><div><div class="qty">${fmtN(c.qty)} kg</div>${cb(`csMark(${c.id},'outDate')`,false)}</div></div>`).join('')).join(''):'<div class="empty">사급 출고 없음</div>';
+  const outsGroup=list=>{
+    const byC={};list.forEach(c=>(byC[c.consignee]=byC[c.consignee]||[]).push(c));
+    return list.length?Object.entries(byC).map(([k,l])=>`<div class="grp">${esc(k)} 행 ${l[0].due?' · 납기 '+fmtK(l.map(c=>c.due).filter(Boolean).sort()[0]):''} · 약 ${Math.max(1,Math.ceil(l.reduce((a,c)=>a+c.qty,0)/1000))} PLT</div>`+l.map(c=>`<div class="item"><div><div class="name">${esc(c.item)} <span class="loc">${esc(c.loc||'14동')}</span></div><div class="meta">${esc(c.consignee)}${c.pack?' · '+esc(c.pack):''}</div></div><div><div class="qty">${fmtN(c.qty)} kg</div>${cb(`csMark(${c.id},'outDate')`,false)}</div></div>`).join('')).join(''):'<div class="empty">없음</div>';
+  };
+  const outsToday=outs.filter(c=>!c.due||c.due<=cur);
+  const outsTomorrow=outs.filter(c=>c.due===addDays(cur,1));
+  h+=`<div class="grp-lbl">오늘 나갈 것 <span class="cnt">${outsToday.length}건</span></div>`+outsGroup(outsToday);
+  h+=`<div class="grp-lbl" style="margin-top:12px">내일 나갈 것 <span class="cnt">${outsTomorrow.length}건</span></div>`+outsGroup(outsTomorrow);
   h+=`<div class="tag" style="margin-top:20px">${ro?'보기 전용 — 체크는 자재과 화면에서 저장됩니다.':'체크하면 자재과 화면에도 반영됩니다.'} · 문의: 자재과 김성진 010-5730-6623</div>`;
   el.innerHTML=h;
 }

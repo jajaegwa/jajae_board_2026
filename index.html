@@ -338,14 +338,14 @@ details.card summary .cnt{font-size:11.5px;color:var(--mut);font-weight:500}
     </div>
     <div class="card">
       <h2>② 인식 결과, 수동입력</h2>
-      <div class="row" style="margin-bottom:8px">
+      <div class="row" style="margin-bottom:10px">
         <div><label>사급처</label><input id="csVendor" list="consList" placeholder="예: ○○엔지니어링" onchange="judgeAll()"></div>
         <div><label>의뢰일</label><input id="csDate" type="date"></div>
         <div><label>공통 요청납기</label><input id="csDue" type="date"></div>
         <div><label>&nbsp;</label><button class="btn" onclick="addCsLine()">+ 수동 행</button></div>
       </div>
       <div class="tbl"><table><thead><tr><th>품목</th><th class="num">수량(kg)</th><th>요청납기</th><th>처리</th><th>공급사</th><th></th></tr></thead><tbody id="csDraft"></tbody></table></div>
-      <div class="hint" style="margin-top:8px"><span class="act-order">발주</span> = 공급사에 대리발주(사급처 직납)<br><span class="act-direct">직접출고</span> = 14동 재고 까대기 → 지게차 출고<br><span class="act-check">확인</span> = 과거 이력 없음, 직접 판단<br><span class="act-none">제외</span> = 우리 대응 아님(필요 시 수동 선택 — 등록 시 자동 제외)</div>
+      <div class="hint" style="margin-top:10px"><span class="act-order">발주</span> = 공급사에 대리발주(사급처 직납)<br><span class="act-direct">직접출고</span> = 14동 재고 까대기 → 지게차 출고<br><span class="act-check">확인</span> = 과거 이력 없음, 직접 판단<br><span class="act-none">제외</span> = 우리 대응 아님(필요 시 수동 선택 — 등록 시 자동 제외)</div>
       <div class="row" style="justify-content:flex-end;margin-top:8px"><button class="btn pri" onclick="commitCs()">등록 (발주 메일·출고지시 생성)</button></div>
     </div>
   </div>

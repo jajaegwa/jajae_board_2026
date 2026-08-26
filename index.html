@@ -230,13 +230,20 @@ details.card summary .cnt{font-size:11.5px;color:var(--mut);font-weight:500}
     </div>
   </div>
   <div class="card" style="margin-top:14px">
-    <h2>특이사항 <span class="cnt">부서별 자유 메모 — 지게차 화면에도 표시됨</span></h2>
+    <h2>특이사항 <span class="cnt">부서별 메모 · 자유 메모 — 모두 지게차 화면에 표시됨</span></h2>
     <div class="special">
       <div><label>경질</label><input data-sp="경질" placeholder="예) P1000 1대, 10시"></div>
       <div><label>DBP</label><input data-sp="DBP" placeholder="예) P700 2대"></div>
       <div><label>타일</label><input data-sp="타일" placeholder="예) P700 오후 1대"></div>
       <div><label>창호</label><input data-sp="창호" placeholder="예) P1000F 1대 내일 오전"></div>
     </div>
+    <div class="grp-lbl" style="margin-top:12px">자유 메모 <span class="cnt" id="cntNote"></span></div>
+    <div class="hint" style="margin-bottom:8px">부서와 상관없는 전달사항을 자유롭게 적으세요. 지게차 화면에 크게 표시되고, 기사가 [완료] 체크할 수 있습니다.<br>예) 31동 창고에 PMS-1803 800kg(배합실 사용분) 올려둠 — 가져다 주세요</div>
+    <form class="row" onsubmit="event.preventDefault();addNote()">
+      <input id="noteTxt" placeholder="예) 31동 창고 PMS-1803 800kg 가져다 주세요" style="flex:1;min-width:220px" maxlength="300">
+      <button class="btn sm pri" type="submit">메모 추가</button>
+    </form>
+    <div class="tbl scroll" style="margin-top:8px"><table><thead><tr><th>메모</th><th>등록</th><th>상태</th><th></th></tr></thead><tbody id="noteBody"></tbody></table></div>
   </div>
 </section>
 
@@ -662,7 +669,7 @@ function deptOf(m){if(!m)return '';const u=m.use||'';if(/창호/.test(u))return'
 
 /* ═════════ 저장소 ═════════ */
 const KEY='jajae-board-v1';
-let S={moves:[],orders:[],cons:[],specials:{},seq:1,invHist:[],fcPlan:[]};
+let S={moves:[],orders:[],cons:[],specials:{},notes:[],seq:1,invHist:[],fcPlan:[]};
 const localISO=x=>`${x.getFullYear()}-${String(x.getMonth()+1).padStart(2,'0')}-${String(x.getDate()).padStart(2,'0')}`;
 let cap=null,readOnly=false,mode='local',cur=localISO(new Date());
 const today=()=>cur, realToday=()=>localISO(new Date());
@@ -691,7 +698,7 @@ function makeDummyState(){
     cons:[
       {id:5,recvDate:d,consignee:'(샘플) 사급처A',item:'(샘플) 품목E',qty:150,action:'발주',supplier:'(샘플) 공급사',due:d,ordDate:'',outDate:'',done:false}
     ],
-    specials:{},seq:100,invHist:[],fcPlan:[]};
+    specials:{},notes:[],seq:100,invHist:[],fcPlan:[]};
 }
 async function loadDB(){
   let loaded=false;
@@ -747,6 +754,7 @@ function sbNormalize(d){
   const arrOfObj=v=>Array.isArray(v)?v.filter(isObj):[];
   return{moves:arrOfObj(d.moves),orders:arrOfObj(d.orders),cons:arrOfObj(d.cons),
     specials:isObj(d.specials)?d.specials:{},
+    notes:arrOfObj(d.notes),
     seq:Number.isFinite(d.seq)?d.seq:1,
     fcPlan:arrOfObj(d.fcPlan),invHist:arrOfObj(d.invHist),
     inv:isObj(d.inv)?d.inv:undefined};
@@ -811,7 +819,7 @@ async function sbConnect(pass){
   if(data&&Object.keys(data).length){
     if(!sbApply(data)){toast('서버 데이터 형식이 올바르지 않아 로컬 데이터를 유지합니다');}
   }else{
-    if(S._sample)S={moves:[],orders:[],cons:[],specials:{},seq:1,invHist:[],fcPlan:[]};   // 샘플 데이터가 최초 업로드로 올라가지 않게 방지
+    if(S._sample)S={moves:[],orders:[],cons:[],specials:{},notes:[],seq:1,invHist:[],fcPlan:[]};   // 샘플 데이터가 최초 업로드로 올라가지 않게 방지
     let seedRes;try{seedRes=await sb.rpc('set_board',{p_id:SB_BOARD,p_passcode:sbPass,p_data:S});}catch(e){seedRes=null;}
     if(!seedRes||seedRes.error){toast('최초 업로드 실패 — 잠시 후 다시 시도하세요');sbOK=false;sbShowGate();return;}
     refreshAll();   // M 병합 결과(기준정보) 반영 — S는 그대로라 sbApply를 거치지 않음
@@ -1124,6 +1132,7 @@ function renderBoard(){
   // 특이사항
   const sp=S.specials[cur]||{};
   document.querySelectorAll('[data-sp]').forEach(i=>{i.value=sp[i.dataset.sp]||'';i.onchange=()=>{S.specials[cur]=S.specials[cur]||{};S.specials[cur][i.dataset.sp]=i.value;saveDB();renderDriver();};});
+  renderNotes();
   // 통계
   const lateN=S.orders.filter(o=>orderStatus(o)==='입고지연').length;
   document.getElementById('stats').innerHTML=`
@@ -1931,6 +1940,47 @@ async function sbSaveMasterAfterPatch(){
     if(res&&res.error)toast('발주 기준 자동 반영 저장 실패 — 네트워크 확인');
   }catch(e){toast('발주 기준 자동 반영 저장 실패 — 네트워크 확인');}
 }
+/* ═════════ 특이사항 자유 메모 ═════════
+   부서 고정칸(경질·DBP·타일·창호)으로 안 잡히는 전달사항을 날짜별로 자유롭게 적는 곳.
+   지게차 화면에도 그대로 표시되고 기사가 완료 체크할 수 있음.
+   S.notes에 저장 — Supabase 동기화 화이트리스트(sbNormalize)에도 notes를 넣어야
+   다른 사람 화면까지 전달됨. */
+function todayNotes(){return (S.notes||[]).filter(n=>n.date===cur);}
+function addNote(){
+  const el=document.getElementById('noteTxt');
+  const text=(el.value||'').trim();
+  if(!text){toast('메모 내용을 입력하세요');return;}
+  S.notes=S.notes||[];
+  S.notes.push({id:S.seq++,date:cur,text,by:localStorage.getItem('jjUser')||'',done:false,doneBy:''});
+  el.value='';
+  saveDB();refreshAll();
+  toast('메모 추가됨 — 지게차 화면에도 표시됩니다');
+}
+function delNote(id){
+  if(!armDel('note'+id))return;
+  S.notes=(S.notes||[]).filter(n=>n.id!==id);
+  saveDB();refreshAll();
+}
+function toggleNote(id){
+  const n=(S.notes||[]).find(x=>x.id===id);if(!n)return;
+  n.done=!n.done;
+  n.doneBy=n.done?(localStorage.getItem('jjUser')||''):'';
+  saveDB();refreshAll();
+}
+function renderNotes(){
+  const box=document.getElementById('noteBody');if(!box)return;
+  const list=todayNotes();
+  box.innerHTML=list.length?list.map(n=>
+    `<tr class="${n.done?'done':''}"><td style="white-space:normal"><b>${esc(n.text)}</b></td>`+
+    `<td class="tag">${esc(n.by)||'—'}</td>`+
+    `<td>${n.done?`<span class="chip c-done">완료${n.doneBy?' · '+esc(n.doneBy):''}</span>`:'<span class="chip c-wait">전달 대기</span>'}</td>`+
+    `<td><button class="btn sm ghost" onclick="toggleNote(${n.id})">${n.done?'↩ 되돌리기':'완료'}</button> `+
+    `<button class="btn sm" style="color:var(--red)" onclick="delNote(${n.id})">${armLbl('note'+n.id)}</button></td></tr>`
+  ).join(''):'<tr><td colspan="4" class="empty">자유 메모 없음 — 위에 입력하면 지게차 화면에도 표시됩니다</td></tr>';
+  const cnt=document.getElementById('cntNote');
+  if(cnt)cnt.textContent=list.length?`${list.filter(n=>!n.done).length}건 대기 / 총 ${list.length}건`:'';
+}
+
 /* ═════════ 주기 기준 대상(M.presetSelf) 직접 관리 ═════════ */
 function renderCycMat(){
   const box=document.getElementById('cycMatBody');if(!box)return;
@@ -1978,9 +2028,15 @@ function renderDriver(){
   const cb=(fn,done)=>`<label><input type="checkbox" ${done?'checked':''} ${ro&&!cap?'':''} onchange="${fn}">완료</label>`;
   const meName=localStorage.getItem('jjUser')||'';
   const insLeft=ins.filter(o=>!o.inDate).length;
-  let h=`<div class="banner"><div><b>${fmtK(cur)}</b> 지게차 작업 <span style="opacity:.7;font-size:13px">(${cur})</span><input type="date" class="drv-date" value="${cur}" onchange="setDate(this.value)"></div><div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">입고 ${insLeft} · 창고이동 ${mv.filter(m=>!m.done).length} · 사급출고 ${outs.length}<button class="btn sm" style="background:transparent;color:var(--navy-ink);border-color:#4a5b6c" onclick="askName()">👤 ${esc(meName)||'이름 입력'}</button><button class="btn sm" style="background:transparent;color:var(--navy-ink);border-color:#4a5b6c" onclick="location.reload()">새로고침</button></div></div>`;
+  let h=`<div class="banner"><div><b>${fmtK(cur)}</b> 지게차 작업 <span style="opacity:.7;font-size:13px">(${cur})</span><input type="date" class="drv-date" value="${cur}" onchange="setDate(this.value)"></div><div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">입고 ${insLeft} · 창고이동 ${mv.filter(m=>!m.done).length} · 사급출고 ${outs.length}${todayNotes().filter(n=>!n.done).length?' · 전달사항 '+todayNotes().filter(n=>!n.done).length:''}<button class="btn sm" style="background:transparent;color:var(--navy-ink);border-color:#4a5b6c" onclick="askName()">👤 ${esc(meName)||'이름 입력'}</button><button class="btn sm" style="background:transparent;color:var(--navy-ink);border-color:#4a5b6c" onclick="location.reload()">새로고침</button></div></div>`;
   if(cur!==localISO(new Date()))h+=`<div class="card" style="margin-top:10px;font-size:13px;color:var(--amber)">⚠ 오늘(${fmtK(localISO(new Date()))}) 날짜가 아닙니다 · <b onclick="setDate('${localISO(new Date())}')" style="cursor:pointer;text-decoration:underline">오늘로 돌아가기</b></div>`;
   if(spTxt)h+=`<div class="card" style="margin-top:10px;font-size:15px"><b>특이사항</b> ${esc(spTxt)}</div>`;
+  // 자유 메모 — 부서칸으로 안 잡히는 전달사항. 기사가 바로 읽고 완료 체크할 수 있게 크게 표시.
+  const notes=todayNotes();
+  if(notes.length){
+    h+=`<h2>📌 전달사항 <span class="cnt">${notes.filter(n=>!n.done).length}건 남음</span></h2>`;
+    h+=notes.map(n=>`<div class="item ${n.done?'done':''}"><div><div class="name" style="white-space:normal">${esc(n.text)}</div><div class="meta">${n.by?'✋ '+esc(n.by)+' 등록':'자재과 등록'}${n.done&&n.doneBy?' · 완료: '+esc(n.doneBy):''}</div></div><div>${cb(`toggleNote(${n.id})`,n.done)}</div></div>`).join('');
+  }
   h+=`<h2>① 오늘 들어오는 것 <span class="cnt">${insLeft}건 남음</span></h2>`;
   h+=ins.length?ins.map(o=>`<div class="item ${o.inDate?'done':''}"><div><div class="name">${esc(o.item)} <span class="loc">${esc(o.loc||'창고 확인')}</span></div><div class="meta">${esc(o.vendor)} · ${esc(o.dept)}${o.eta<cur?' · <b style="color:var(--red)">'+fmtK(o.eta)+' 예정분 지연</b>':''}${o.note?' · '+esc(o.note):''}</div></div><div><div class="qty">${fmtN(o.qty)} ${esc(o.unit)}</div>${cb(`markInDrv(${o.id})`,!!o.inDate)}</div></div>`).join(''):'<div class="empty">오늘 입고 예정 없음</div>';
   h+=`<h2>② 창고 → 라인 이동 <span class="cnt">${mv.filter(m=>!m.done).length}건 남음</span></h2>`;

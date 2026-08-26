@@ -974,7 +974,6 @@ function skipOrder(type,i){const p=type==='self'?M.presetSelf[i]:M.presetConsign
 function invDeptOf(d){d=d||'';if(d.startsWith('창호'))return'창호';if(d.startsWith('경질'))return'경질';if(/^디럭스|^타일/.test(d))return'타일';if(d.startsWith('데코'))return'DBP';return'전사';}
 function readInv(f){
   if(!f)return;
-  if(!sbOK){toast('실시간 공유 연결 후 이용 가능합니다');return;}
   const r=new FileReader();
   r.onload=e=>{try{
     const wb=XLSX.read(new Uint8Array(e.target.result),{type:'array'});
@@ -1408,7 +1407,6 @@ function findDate(t,y){let m=t.match(/(20\d{2})[.\-\/년\s]+(\d{1,2})[.\-\/월\s
   m=t.match(/(\d{1,2})\s*월\s*(\d{1,2})\s*일/);if(m)return`${y||new Date().getFullYear()}-${String(m[1]).padStart(2,'0')}-${String(m[2]).padStart(2,'0')}`;return'';}
 function readXls(f){
   if(!f)return;
-  if(!sbOK){toast('실시간 공유 연결 후 이용 가능합니다');return;}
   const r=new FileReader();
   r.onload=e=>{try{const wb=XLSX.read(new Uint8Array(e.target.result),{type:'array',cellDates:true});
     let txt='';wb.SheetNames.forEach(n=>{const ws=wb.Sheets[n];const rows=XLSX.utils.sheet_to_json(ws,{header:1,raw:false,dateNF:'yyyy-mm-dd',defval:''});rows.forEach(row=>{const l=row.map(c=>String(c).trim()).join('\t').replace(/\t+$/,'');if(l.trim())txt+=l+'\n';});});
@@ -1684,7 +1682,6 @@ async function exportJSON(){
   dlgCtx={obj:{},fields:[],onDel:()=>{},onSave:()=>{}};dlg.showModal();
 }
 function importJSON(ev){const f=ev.target.files[0];if(!f)return;
-  if(!sbOK){toast('실시간 공유 연결 후 이용 가능합니다');ev.target.value='';return;}
   const r=new FileReader();r.onload=()=>{try{const d=JSON.parse(r.result);if(d.moves){S=d;saveDB();refreshAll();toast('복원 완료');}else toast('올바른 백업 파일이 아닙니다');}catch(e){toast('파일을 읽을 수 없습니다');}};r.readAsText(f);ev.target.value='';}
 
 /* ═════════ 통계 탭 ═════════ */
@@ -1935,7 +1932,6 @@ function ingestBomBuffer(buf){
 }
 function readBomFile(f){
   if(!f)return;
-  if(!sbOK){toast('실시간 공유 연결 후 이용 가능합니다');return;}
   if(!/\.xlsx?$/i.test(f.name)){toast('BOM은 xlsx 파일만 지원합니다');return;}
   toast('BOM 파싱 중… 17만 행 기준 수십 초 걸릴 수 있습니다');
   const r=new FileReader();
@@ -1962,7 +1958,6 @@ function renderBomStatus(){
 /* ── 생산계획 인식 ── */
 function readPlanFile(f){
   if(!f)return;
-  if(!sbOK){toast('실시간 공유 연결 후 이용 가능합니다');return;}
   const r=new FileReader();
   r.onload=e=>{try{
     const wb=XLSX.read(new Uint8Array(e.target.result),{type:'array',cellDates:true});

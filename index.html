@@ -231,6 +231,15 @@ details.card summary .cnt{font-size:11.5px;color:var(--mut);font-weight:500}
 <!-- ═══════ 창고이동 요청 ═══════ -->
 <section id="tab-move" style="display:none">
   <div class="card">
+    <h2>벌크·라인 직납 발주 <span class="cnt">전화 받으면 보통 이것부터 — P-1000·SP-390 등, 등록하면 ⑤특이사항·발주에 같이 기록</span></h2>
+    <div class="row" style="align-items:flex-end;margin-top:12px">
+      <div><label>부서</label><select id="sp2Dept" onchange="spSt.sp2.sel='';renderSpQuick()"><option>경질</option><option>창호</option><option>타일</option><option>DBP</option></select></div>
+      <div style="flex:2;min-width:220px"><label>품목 (탭해서 선택)</label><div class="quick" id="sp2Items" style="margin:0"></div></div>
+      <div style="flex:2;min-width:260px"><label>납품 날짜(선택 · 주말 포함) → 수량 탭 = 기록</label><div class="quick" id="sp2When" style="margin:0 0 4px"></div><div class="quick" id="sp2Qty" style="margin:0"></div></div>
+      <label style="display:flex;align-items:center;gap:5px;margin:0 0 4px;font-size:12.5px;color:var(--ink)"><input type="checkbox" id="sp2Ord" checked>발주도 같이 등록</label>
+    </div>
+  </div>
+  <div class="card">
     <h2>📞 전화 모드 <span class="cnt">부서 → 품목 → 수량, 탭 세 번으로 등록 끝</span></h2>
     <div class="qm-dept" id="qmDeptBox"></div>
     <div class="quick qm-items" id="qmItems" style="margin:0 0 6px"></div>
@@ -253,15 +262,6 @@ details.card summary .cnt{font-size:11.5px;color:var(--mut);font-weight:500}
     <div class="row" style="margin-bottom:10px"><button class="btn sm pri" onclick="bulkDoneMv()">선택 실물이동완료 처리</button><span class="tag" id="mvSelCnt"></span></div>
     <div class="tbl"><table><thead><tr><th><input type="checkbox" id="mvSelAll" onchange="toggleAllMv(this.checked)" title="전체 선택"></th><th>부서</th><th>품목</th><th class="num">수량</th><th>출고창고</th><th>비고</th><th>실물</th><th>전산이동</th></tr></thead><tbody id="mvBody"></tbody></table></div>
   </div>
-  <details class="card">
-    <summary>벌크·라인 직납 발주 <span class="cnt">P-1000·SP-390 등 — 등록하면 ⑤특이사항·발주에 같이 기록</span></summary>
-    <div class="row" style="align-items:flex-end;margin-top:12px">
-      <div><label>부서</label><select id="sp2Dept" onchange="spSt.sp2.sel='';renderSpQuick()"><option>경질</option><option>창호</option><option>타일</option><option>DBP</option></select></div>
-      <div style="flex:2;min-width:220px"><label>품목 (탭해서 선택)</label><div class="quick" id="sp2Items" style="margin:0"></div></div>
-      <div style="flex:2;min-width:260px"><label>납품 날짜(선택 · 주말 포함) → 수량 탭 = 기록</label><div class="quick" id="sp2When" style="margin:0 0 4px"></div><div class="quick" id="sp2Qty" style="margin:0"></div></div>
-      <label style="display:flex;align-items:center;gap:5px;margin:0 0 4px;font-size:12.5px;color:var(--ink)"><input type="checkbox" id="sp2Ord" checked>발주도 같이 등록</label>
-    </div>
-  </details>
   <details class="card">
     <summary>상세 등록 <span class="cnt">전 품목 자동완성 · 단위·창고·비고 직접 입력</span></summary>
     <div class="hint" style="margin-top:10px">전화 모드에 없는 품목이나 비고가 필요할 때 사용. 품목을 고르면 보관창고가 자동으로 붙음.</div>

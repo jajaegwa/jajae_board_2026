@@ -138,9 +138,6 @@ dialog::backdrop{background:rgba(10,18,26,.5)}
 .dlg .grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
 .dlg-foot{padding:12px 18px;border-top:1px solid var(--line);display:flex;justify-content:flex-end;gap:8px}
 /* 전화 모드 · 원터치 입력 */
-.qm-mode{display:flex;gap:8px;margin-bottom:14px}
-.qm-mode button{flex:1;padding:10px 0;font:inherit;font-size:13.5px;font-weight:700;border-radius:3px;border:1.5px solid var(--line);background:var(--card);color:var(--ink);cursor:pointer}
-.qm-mode button.on{background:var(--acc);border-color:var(--acc);color:#fff}
 .qm-dept{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px}
 .qm-dept button{flex:1;min-width:88px;padding:12px 0;font:inherit;font-size:15.5px;font-weight:700;border-radius:3px;border:1.5px solid var(--line);background:var(--card);color:var(--ink);cursor:pointer}
 .qm-dept button.on{background:var(--acc);border-color:var(--acc);color:#fff}
@@ -235,13 +232,10 @@ details.card summary .cnt{font-size:11.5px;color:var(--mut);font-weight:500}
 <!-- ═══════ 창고이동 요청 ═══════ -->
 <section id="tab-move" style="display:none">
   <div class="card">
-    <h2>📞 전화 모드 <span class="cnt" id="qmModeHint">부서 → 품목 → 수량, 탭 세 번으로 등록 끝</span></h2>
-    <div class="qm-mode">
-      <button id="qmModeMove" class="on" onclick="setQmSection('move')">🚚 이동 요청</button>
-      <button id="qmModeDirect" onclick="setQmSection('direct')">📦 벌크·라인 직납 발주</button>
-    </div>
-    <div id="qmSectionMove">
-      <div class="qm-dept" id="qmDeptBox"></div>
+    <h2>📞 전화 모드 <span class="cnt">부서 먼저 탭 → 이동 요청 또는 벌크·라인 직납 발주 품목 탭</span></h2>
+    <div class="qm-dept" id="qmDeptBox"></div>
+    <div class="qm-group">
+      <div class="grp-lbl">🚚 이동 요청</div>
       <div class="quick qm-items" id="qmItems" style="margin:0 0 6px"></div>
       <div id="qmQtyBox" style="display:none">
         <div class="row" style="align-items:center;margin-top:6px">
@@ -257,13 +251,15 @@ details.card summary .cnt{font-size:11.5px;color:var(--mut);font-weight:500}
         </form>
       </div>
     </div>
-    <div id="qmSectionDirect" style="display:none">
-      <div class="qm-dept" id="sp2DeptBox"></div>
+    <div class="qm-group" style="margin-top:16px">
+      <div class="grp-lbl">📦 벌크·라인 직납 발주</div>
       <div class="quick qm-items" id="sp2Items" style="margin:0 0 8px"></div>
-      <div class="tag" style="margin-bottom:4px">납품 날짜(선택 · 주말 포함) → 수량 탭 = 기록</div>
-      <div class="quick" id="sp2When" style="margin:0 0 8px"></div>
-      <div class="quick qm-qty" id="sp2Qty" style="margin:0 0 10px"></div>
-      <label style="display:flex;align-items:center;gap:5px;font-size:12.5px;color:var(--ink)"><input type="checkbox" id="sp2Ord" checked>발주도 같이 등록</label>
+      <div id="sp2Extra" style="display:none">
+        <div class="tag" style="margin-bottom:4px">납품 날짜(선택 · 주말 포함) → 수량 탭 = 기록</div>
+        <div class="quick" id="sp2When" style="margin:0 0 8px"></div>
+        <div class="quick qm-qty" id="sp2Qty" style="margin:0 0 10px"></div>
+        <label style="display:flex;align-items:center;gap:5px;font-size:12.5px;color:var(--ink)"><input type="checkbox" id="sp2Ord" checked>발주도 같이 등록</label>
+      </div>
     </div>
   </div>
   <div class="card">
@@ -340,7 +336,7 @@ details.card summary .cnt{font-size:11.5px;color:var(--mut);font-weight:500}
       </div>
     </div>
     <div class="card">
-      <h2>② 인식 결과 · 처리 판정</h2>
+      <h2>② 인식 결과, 수동입력</h2>
       <div class="row" style="margin-bottom:8px">
         <div><label>사급처</label><input id="csVendor" list="consList" placeholder="예: ○○엔지니어링" onchange="judgeAll()"></div>
         <div><label>의뢰일</label><input id="csDate" type="date"></div>
@@ -1092,21 +1088,19 @@ const SP_ITEMS={
  'DBP':['P-700','SP-390']};
 const SP_BULK=new Set(['P-1000','P-800','P-1000F','P-700','SP-390','DOTP(드럼)']);
 const SP_ROPKEY={'TIONA-696(백)':'TIONA-696','TIONA-696(지대)':'TIONA-666(696)','K-2450(백)':'Kronos2450','K-2450(지대)':'Kronos2450','GPPS(재생)':'PSGNT1TPZ','GPPS(유니드글로벌)':'125EB','DHA-100':'DHA-100','ROSIN C-9':'ROSIN C-9','NR-950':'NR-950','CPE':'CPE H-135','DWC4Z':'DWC4Z','DWC6Z':'DWC6Z','SJ-01':'SJ-01','SP-390':'DOTP'};
-const spSt={sp:{sel:'',when:-1},sp2:{sel:'',when:-1,dept:'경질'}};
-function spDeptOf(p){return p==='sp2'?spSt.sp2.dept:document.getElementById(p+'Dept').value;}
+const spSt={sp:{sel:'',when:-1},sp2:{sel:'',when:-1}};
+function spDeptOf(p){return p==='sp2'?qmDept:document.getElementById(p+'Dept').value;}
 function spWhens(){
   const a=[{label:'오전',date:cur},{label:'오후',date:cur}];
   for(let i=1;i<=4;i++){const d=addDays(cur,i);a.push({label:(i===1?'내일 ':'')+fmtK(d),date:d});}
   return a;
 }
-function renderSpQuick(){
-  if(document.getElementById('sp2DeptBox'))document.getElementById('sp2DeptBox').innerHTML=['경질','창호','타일','DBP'].map(d=>`<button class="${spSt.sp2.dept===d?'on':''}" onclick="spSt.sp2.dept='${d}';spSt.sp2.sel='';renderSpQuick()">${d}</button>`).join('');
-  ['sp','sp2'].forEach(p=>{if(document.getElementById(p+'Items'))renderSp(p);});
-}
+function renderSpQuick(){['sp','sp2'].forEach(p=>{if(document.getElementById(p+'Items'))renderSp(p);});}
 function renderSp(p){
   const st=spSt[p],d=spDeptOf(p);
   if(st.sel&&!(SP_ITEMS[d]||[]).includes(st.sel))st.sel='';
   document.getElementById(p+'Items').innerHTML=(SP_ITEMS[d]||[]).map((it,i)=>`<button class="${st.sel===it?'sel':''}" onclick="spPick('${p}',${i})">${it}</button>`).join('');
+  if(p==='sp2'){const ex=document.getElementById('sp2Extra');if(ex)ex.style.display=st.sel?'':'none';}
   document.getElementById(p+'When').innerHTML=spWhens().map((w,i)=>`<button class="${st.when===i?'sel':''}" onclick="spWhenSet('${p}',${i})">${w.label}</button>`).join('');
   document.getElementById(p+'Qty').innerHTML=st.sel?(SP_BULK.has(st.sel)
     ?[1,2,3].map(n2=>`<button onclick="spAdd('${p}',${n2},true)"><b>${n2}대</b></button>`).join('')
@@ -1217,16 +1211,7 @@ function convInfo(item,qty,unit){
   }
   return'';
 }
-let qmDept='경질',qmItem='',qmSection='move';
-/* 전화 모드 안에서 이동 요청 ↔ 벌크·라인 직납 발주 전환 — 카드 하나에 합치되 탭으로 구분 */
-function setQmSection(s){
-  qmSection=s;
-  document.getElementById('qmModeMove').classList.toggle('on',s==='move');
-  document.getElementById('qmModeDirect').classList.toggle('on',s==='direct');
-  document.getElementById('qmSectionMove').style.display=s==='move'?'':'none';
-  document.getElementById('qmSectionDirect').style.display=s==='direct'?'':'none';
-  document.getElementById('qmModeHint').textContent=s==='move'?'부서 → 품목 → 수량, 탭 세 번으로 등록 끝':'전화 받으면 보통 이것부터 — P-1000·SP-390 등, 등록하면 ⑤특이사항·발주에 같이 기록';
-}
+let qmDept='경질',qmItem='';
 /* 같은 매입처(업체) 품목끼리 옆에 붙어 보이도록 그룹핑 — 매입처가 안 잡히는 품목은 원래 순서 유지 */
 function qmGrouped(dept){
   const items=QM_ITEMS[dept]||[];
@@ -1239,7 +1224,7 @@ function qmGrouped(dept){
   return [...groups.values()].flat();
 }
 function renderQm(){
-  document.getElementById('qmDeptBox').innerHTML=['경질','창호','타일','DBP'].map(d=>`<button class="${qmDept===d?'on':''}" onclick="qmDept='${d}';qmItem='';renderQm()">${d}</button>`).join('');
+  document.getElementById('qmDeptBox').innerHTML=['경질','창호','타일','DBP'].map(d=>`<button class="${qmDept===d?'on':''}" onclick="qmDept='${d}';qmItem='';spSt.sp2.sel='';renderQm();renderSpQuick()">${d}</button>`).join('');
   document.getElementById('qmItems').innerHTML=qmGrouped(qmDept).map(it=>`<button class="${qmItem===it?'sel':''}" onclick="qmPick('${it.replace(/'/g,"\\'")}')">${it}</button>`).join('');
   const box=document.getElementById('qmQtyBox');
   if(qmItem){
@@ -1536,7 +1521,7 @@ function renderDraft(){
   const tb=document.getElementById('csDraft');
   tb.innerHTML=draft.length?draft.map((d,i)=>`<tr><td><input value="${esc(d.item)}" list="itemList" oninput="draft[${i}].item=this.value" style="width:150px"><div class="tag">${esc(d.pack)}${d.loc?' · '+esc(d.loc):''}</div></td><td class="num"><input type="number" step="any" value="${d.qty??''}" oninput="draft[${i}].qty=+this.value" style="width:90px;text-align:right"></td><td><input type="date" value="${d.due||''}" oninput="draft[${i}].due=this.value"></td><td><select onchange="draft[${i}].action=this.value;draft[${i}]._manual=true" class="act-${{'발주':'order','직접출고':'direct','확인':'check','제외':'none'}[d.action]}"><option ${d.action==='발주'?'selected':''}>발주</option><option ${d.action==='직접출고'?'selected':''}>직접출고</option><option ${d.action==='확인'?'selected':''}>확인</option><option ${d.action==='제외'?'selected':''}>제외</option></select></td><td><input value="${esc(d.supplier)}" list="vendorList" oninput="draft[${i}].supplier=this.value;draft[${i}]._manual=true" style="width:110px"></td><td><button class="btn sm" onclick="draft.splice(${i},1);renderDraft()">삭제</button></td></tr>`).join(''):'<tr><td colspan="6" class="empty">인식된 품목 없음</td></tr>';
 }
-function addCsLine(){draft.push({item:'',pack:'',qty:null,due:'',action:'확인',supplier:''});renderDraft();}
+function addCsLine(){draft.push({item:'',pack:'',qty:null,due:document.getElementById('csDue').value||'',action:'확인',supplier:''});renderDraft();}
 function commitCs(){
   const v=csVendor.value.trim();if(!v){toast('사급처를 입력하세요');return;}
   const excl=draft.filter(d=>d.item&&d.action==='제외');

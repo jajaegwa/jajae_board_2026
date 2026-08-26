@@ -727,6 +727,34 @@ function sbQueueSave(){
     try{sbCh?.send({type:'broadcast',event:'update',payload:{by:sbClientId,ts:Date.now()}});}catch(e){}
   },600);
 }
+/* 발주·창고이동 입력 중 신규 품목을 기준정보(M.materials)에 자동 등록 —
+   read-modify-write로 jajae-master의 다른 키(statRules·notes 등)는 건드리지 않음. */
+async function sbSaveMasterMaterials(){
+  if(!sb||!sbOK)return;
+  try{
+    const{data:cur}=await sb.rpc('get_board',{p_id:'jajae-master',p_passcode:sbPass});
+    const base=(cur&&typeof cur==='object'&&!Array.isArray(cur))?cur:{};
+    // 다른 기기가 그 사이에 추가한 품목을 덮어쓰지 않도록 원격 최신 목록에 병합
+    const remoteMats=Array.isArray(base.materials)?base.materials:[];
+    const merged=[...remoteMats];
+    const have=new Set(remoteMats.map(m=>norm(m.name)));
+    M.materials.forEach(m=>{const n=norm(m.name);if(!have.has(n)){merged.push(m);have.add(n);}});
+    M.materials=merged;fillLists();
+    const payload={...base,materials:merged};
+    const res=await sb.rpc('set_board',{p_id:'jajae-master',p_passcode:sbPass,p_data:payload});
+    if(res&&res.error)toast('신규 품목 공유 저장 실패 — 네트워크 확인');
+  }catch(e){toast('신규 품목 공유 저장 실패 — 네트워크 확인');}
+}
+function ensureMaterial(item,extra){
+  const name=String(item||'').trim();
+  if(!name)return false;
+  const n=norm(name);
+  if(M.materials.some(m=>norm(m.name)===n))return false;
+  M.materials.push({name,kind:'',pack:'',unitKg:null,vendor:(extra&&extra.vendor)||'',use:(extra&&extra.use)||'',loc:(extra&&extra.loc)||'',note:'자동 등록'});
+  fillLists();
+  if(sb&&sbOK)sbSaveMasterMaterials();
+  return true;
+}
 function toast(m){const t=document.getElementById('toast');t.textContent=m;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),1800);}
 /* 공유 링크 — 지금 열려 있는 주소 기준(클로드 아티팩트/GitHub Pages 어디서 열어도 자동으로 맞는 링크 표시) */
 function curUrl(){return location.origin+location.pathname;}
@@ -1134,8 +1162,10 @@ function qmAdd(n){
 function addMove(){
   const item=mvItem.value.trim(),qty=+mvQty.value;
   if(!item||!qty){toast('품목과 수량을 입력하세요');return;}
+  const isNew=ensureMaterial(item,{loc:mvLoc.value.trim()});
   S.moves.push({id:S.seq++,date:cur,dept:mvDept.value,item,qty,unit:mvUnit.value,loc:mvLoc.value.trim()||locOf(item),note:mvNote.value.trim(),done:false});
   mvItem.value='';mvQty.value='';mvLoc.value='';mvNote.value='';saveDB();refreshAll();mvItem.focus();
+  if(isNew)toast(`신규 품목 '${item}' 기준정보에 추가됨${sbOK?'':' (이 기기에만 — 공유 연결 시 전체 반영)'}`);
 }
 /* 누가 체크·등록했는지 기록 — 기기별 이름(localStorage). 자재과 본인이 아니면 제3자 표시 */
 function askName(cb){
@@ -1268,8 +1298,10 @@ function applyPreset(){
 }
 function addOrder(){
   const item=odItem.value.trim();if(!item){toast('품목을 입력하세요');return;}
+  const isNew=ensureMaterial(item,{vendor:odVendor.value.trim(),loc:odLoc.value.trim()});
   S.orders.push({id:S.seq++,type:odType.value,ordDate:odDate.value||cur,vendor:odVendor.value.trim(),item,dest:odDest.value.trim(),qty:+odQty.value||0,unit:odUnit.value,eta:odEta.value,inDate:'',loc:odLoc.value.trim(),dept:odDept.value,note:odNote.value.trim()});
-  odPreset.value='';odItem.value='';odQty.value='';odNote.value='';odLoc.value='';saveDB();refreshAll();toast('발주 등록됨');
+  odPreset.value='';odItem.value='';odQty.value='';odNote.value='';odLoc.value='';saveDB();refreshAll();
+  toast(isNew?`발주 등록됨 · 신규 품목 '${item}' 기준정보에 추가됨${sbOK?'':' (이 기기에만 — 공유 연결 시 전체 반영)'}`:'발주 등록됨');
 }
 function markIn(id){const o=S.orders.find(x=>x.id===id);o.inDate=cur;o.inBy=whoNow();saveDB();refreshAll();toast('입고 처리됨 (오늘 날짜) — 날짜 변경은 [수정]에서');}
 let selOd=new Set();
@@ -1565,8 +1597,9 @@ function drvAddCustom(){
 function drvAddCustomDo(it,q,d){
   const who=whoNow();
   const m=matchItem(it);
+  const isNew=!m&&ensureMaterial(it,{});   // 비슷한 기존 품목이 있으면 새로 만들지 않음(오타·줄임말 방지)
   S.moves.push({id:S.seq++,date:cur,dept:d,item:it,qty:q,unit:'kg',loc:m?m.loc.replace('(경질창고)',''):'',note:'기사 등록',addedBy:who,done:false});
-  saveDB();refreshAll();toast(`${it} ${fmtN(q)}kg 등록됨 (${who})`);
+  saveDB();refreshAll();toast(`${it} ${fmtN(q)}kg 등록됨 (${who})${isNew?' · 기준정보에 신규 등록':''}`);
 }
 
 /* ═════════ 수정 다이얼로그 ═════════ */

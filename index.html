@@ -11,6 +11,9 @@
 <!-- 실시간 공유 동기화(Supabase) — 클로드 아티팩트 등 외부망 차단 환경에서는 로드 실패 → 자동으로 로컬 저장 모드 유지 -->
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
 <style>
+@font-face{font-family:'KoPub Dotum';src:url('fonts/KoPubDotumLight.woff2') format('woff2');font-weight:300;font-style:normal;font-display:swap}
+@font-face{font-family:'KoPub Dotum';src:url('fonts/KoPubDotumMedium.woff2') format('woff2');font-weight:500;font-style:normal;font-display:swap}
+@font-face{font-family:'KoPub Dotum';src:url('fonts/KoPubDotumBold.woff2') format('woff2');font-weight:700;font-style:normal;font-display:swap}
 :root{
   --bg:#eef0f2;--card:#ffffff;--ink:#20262b;--mut:#6b7480;--line:#b9c0c6;--line2:#d8dde1;
   --acc:#2f6f61;--acc-soft:#e6efec;--amber:#a15a1c;--amber-soft:#f2e6d8;--red:#a83a2e;--red-soft:#f4e0dd;
@@ -30,11 +33,11 @@
   --dept-gj:#7fb2e3;--dept-ch:#b49be8;--dept-tl:#f0a64a;--dept-dbp:#72c4b3;
 }
 *{box-sizing:border-box;margin:0;padding:0}
-body{background:var(--bg);color:var(--ink);font-family:'Malgun Gothic','맑은 고딕','Apple SD Gothic Neo','Dotum',sans-serif;font-size:13px;line-height:1.45;font-weight:500}
+body{background:var(--bg);color:var(--ink);font-family:'KoPub Dotum','Malgun Gothic','맑은 고딕','Apple SD Gothic Neo','Dotum',sans-serif;font-size:13px;line-height:1.45;font-weight:500}
 .num,.mono{font-family:Consolas,'Courier New',monospace;font-variant-numeric:tabular-nums}
 header{background:var(--card);color:var(--ink);border-bottom:1px solid var(--line);padding:8px 16px;display:flex;align-items:center;gap:12px;flex-wrap:wrap}
 header h1{font-size:15px;font-weight:700;letter-spacing:-.1px}
-header .sub{font-size:11.5px;color:var(--mut)}
+header .sub{font-size:11.5px;color:var(--mut);font-weight:300}
 header .sp{flex:1}
 header .date{font-size:12.5px;display:flex;align-items:center;gap:6px}
 header input[type=date]{background:var(--card);color:var(--ink);border:1px solid var(--line);border-radius:2px;padding:3px 6px;font-family:inherit;color-scheme:light}
@@ -42,7 +45,7 @@ header input[type=date]{background:var(--card);color:var(--ink);border:1px solid
 .savebox i{width:7px;height:7px;border-radius:50%;background:#98a6b3;display:inline-block}
 .savebox.ok i{background:#3a8f5a}.savebox.ro i{background:#c07a2a}.savebox.local i{background:#4d84b8}
 nav{background:var(--head);border-bottom:1px solid var(--line);padding:0 16px 0;display:flex;gap:2px;overflow-x:auto}
-nav button{background:var(--line2);border:1px solid var(--line);border-bottom:none;color:var(--mut);padding:8px 14px;font:inherit;font-size:12.5px;font-weight:600;cursor:pointer;white-space:nowrap;border-radius:2px 2px 0 0;margin-top:4px}
+nav button{background:var(--line2);border:1px solid var(--line);border-bottom:none;color:var(--mut);padding:8px 14px;font:inherit;font-size:12.5px;font-weight:500;cursor:pointer;white-space:nowrap;border-radius:2px 2px 0 0;margin-top:4px}
 nav button.on{color:#fff;background:var(--acc);border-color:var(--acc)}
 nav button .b{display:inline-block;min-width:16px;padding:0 4px;border-radius:2px;background:var(--amber);color:#fff;font-size:10.5px;margin-left:5px;text-align:center;font-weight:700}
 main{max-width:1280px;margin:14px auto;padding:0 16px 60px}
@@ -53,18 +56,18 @@ main{max-width:1280px;margin:14px auto;padding:0 16px 60px}
 .card{background:var(--card);border:1px solid var(--line);border-radius:2px;padding:14px}
 .card h2{font-size:13.5px;font-weight:700;display:flex;align-items:center;gap:8px;margin-bottom:9px;padding-bottom:7px;border-bottom:1px solid var(--line2)}
 .card h2 .cnt{font-size:11.5px;color:var(--mut);font-weight:500}
-.card .hint{font-size:12px;color:var(--mut);margin-bottom:10px;line-height:1.6}
+.card .hint{font-size:12px;color:var(--mut);margin-bottom:10px;line-height:1.6;font-weight:300}
 table{width:100%;border-collapse:collapse}
 th{background:var(--head);color:var(--ink);font-size:11.5px;font-weight:700;text-align:left;padding:6px 8px;border:1px solid var(--line);white-space:nowrap;letter-spacing:0}
 td{padding:6px 8px;border:1px solid var(--line2);font-size:12.5px;vertical-align:middle}
 td.num,th.num{text-align:right}
-td b{font-weight:600}
+td b{font-weight:700}
 tr:hover td{background:var(--row-hover)}
 tr.done td{color:var(--mut);text-decoration:line-through}
 tr.done td .btn{text-decoration:none;color:var(--ink);opacity:1}
 tr.done td .chip,tr.done td .loc,tr.done td input{text-decoration:none}
 .tbl{overflow-x:auto}
-.btn{border:1px solid var(--line);background:var(--card);color:var(--ink);border-radius:2px;padding:5px 10px;font:inherit;font-size:12.5px;font-weight:600;cursor:pointer}
+.btn{border:1px solid var(--line);background:var(--card);color:var(--ink);border-radius:2px;padding:5px 10px;font:inherit;font-size:12.5px;font-weight:500;cursor:pointer}
 .btn:hover{border-color:var(--acc);color:var(--acc)}
 .btn.pri{background:var(--acc);border-color:var(--acc);color:#fff}
 .btn.pri:hover{color:#fff;opacity:.9}
@@ -76,7 +79,7 @@ tr.done td .chip,tr.done td .loc,tr.done td input{text-decoration:none}
 input,select,textarea{border:1px solid var(--line);border-radius:2px;padding:5px 7px;font:inherit;font-size:12.5px;background:var(--card);color:var(--ink)}
 input:focus,select:focus,textarea:focus{outline:1px solid var(--acc);outline-offset:-1px}
 textarea{width:100%;min-height:120px;font-family:Consolas,'Courier New',monospace;font-size:12px;resize:vertical}
-label{font-size:11px;color:var(--mut);font-weight:600;display:block;margin-bottom:2px}
+label{font-size:11px;color:var(--mut);font-weight:500;display:block;margin-bottom:2px}
 .row{display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end}
 .row>div{display:flex;flex-direction:column}
 .chip{display:inline-block;padding:1px 7px;border-radius:2px;font-size:11px;font-weight:700;white-space:nowrap;background:transparent}
@@ -87,15 +90,15 @@ label{font-size:11px;color:var(--mut);font-weight:600;display:block;margin-botto
 .c-mut{color:var(--mut);border:1px solid var(--line)}
 .dept{display:inline-block;padding:1px 7px;border-radius:2px;font-size:11px;font-weight:700;color:#fff}
 .d-경질{background:var(--dept-gj)}.d-창호{background:var(--dept-ch)}.d-타일{background:var(--dept-tl)}.d-DBP{background:var(--dept-dbp)}.d-기타{background:var(--mut)}
-.loc{font-family:Consolas,'Courier New',monospace;font-size:11.5px;font-weight:600;padding:1px 6px;border:1px solid var(--line);border-radius:2px;white-space:nowrap;background:var(--head)}
+.loc{font-family:Consolas,'Courier New',monospace;font-size:11.5px;font-weight:500;padding:1px 6px;border:1px solid var(--line);border-radius:2px;white-space:nowrap;background:var(--head)}
 .stat{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px;margin-bottom:12px}
 .stat .s{background:var(--card);border:1px solid var(--line);border-radius:2px;padding:10px 13px;cursor:pointer}
 .stat .s .v{font-size:22px;font-weight:700;font-family:Consolas,'Courier New',monospace;line-height:1.1}
-.stat .s .l{font-size:11.5px;color:var(--mut);font-weight:600;margin-top:3px}
+.stat .s .l{font-size:11.5px;color:var(--mut);font-weight:500;margin-top:3px}
 .stat .s.amber .v{color:var(--amber)}.stat .s.red .v{color:var(--red)}.stat .s.acc .v{color:var(--acc)}.stat .s.green .v{color:var(--green)}
 .empty{color:var(--mut);font-size:12px;padding:14px 0;text-align:center}
-.tag{font-size:11px;color:var(--mut)}
-.dday{font-family:Consolas,'Courier New',monospace;font-weight:600}
+.tag{font-size:11px;color:var(--mut);font-weight:300}
+.dday{font-family:Consolas,'Courier New',monospace;font-weight:500}
 .dday.late{color:var(--red)}.dday.soon{color:var(--amber)}
 .sec{margin-bottom:14px}
 .quick{display:flex;gap:6px;flex-wrap:wrap;margin:6px 0 10px}
@@ -118,7 +121,7 @@ body.driver header button:not(#btnDrv):not(#sbGateBtn){display:none}
 .drv .item{display:grid;grid-template-columns:1fr auto;gap:8px 14px;align-items:center;background:var(--card);border:1px solid var(--line);border-radius:4px;padding:14px 16px;margin-bottom:8px;font-size:17px}
 .drv .item .name{font-weight:700;font-size:19px}
 .drv .item .meta{color:var(--mut);font-size:13.5px;margin-top:2px}
-.drv .item .qty{font-family:Consolas,'Courier New',monospace;font-size:21px;font-weight:600;text-align:right}
+.drv .item .qty{font-family:Consolas,'Courier New',monospace;font-size:21px;font-weight:700;text-align:right}
 .drv .item .loc{font-size:15px;padding:4px 10px;background:var(--head)}
 .drv .item.done{opacity:.45}
 .drv .item label{display:flex;align-items:center;gap:6px;font-size:13.5px;margin:0}
@@ -259,15 +262,15 @@ details.card summary .cnt{font-size:11.5px;color:var(--mut);font-weight:500}
   <details class="card">
     <summary>상세 등록 <span class="cnt">전 품목 자동완성 · 단위·창고·비고 직접 입력</span></summary>
     <div class="hint" style="margin-top:10px">전화 모드에 없는 품목이나 비고가 필요할 때 사용. 품목을 고르면 보관창고가 자동으로 붙음.</div>
-    <div class="row">
+    <form class="row" onsubmit="event.preventDefault();addMove()">
       <div><label>부서</label><select id="mvDept"><option>경질</option><option>창호</option><option>타일</option><option>DBP</option><option>기타</option></select></div>
       <div style="flex:2;min-width:200px"><label>품목</label><input id="mvItem" list="itemList" placeholder="품목명 (자동완성)" oninput="autoLoc('mv')"></div>
       <div><label>수량</label><input id="mvQty" type="number" step="any" style="width:100px;text-align:right"></div>
       <div><label>단위</label><select id="mvUnit"><option>kg</option><option>Bag</option><option>드럼</option><option>PLT</option><option>Box</option><option>대</option></select></div>
       <div><label>출고창고</label><input id="mvLoc" style="width:120px" placeholder="자동"></div>
       <div style="flex:1;min-width:140px"><label>비고</label><input id="mvNote" placeholder="오후 / 재생 / 급함 등"></div>
-      <div><label>&nbsp;</label><button class="btn pri" onclick="addMove()">추가</button></div>
-    </div>
+      <div><label>&nbsp;</label><button class="btn pri" type="submit">추가</button></div>
+    </form>
     <div class="quick" id="mvQuick"></div>
   </details>
 </section>
@@ -276,7 +279,8 @@ details.card summary .cnt{font-size:11.5px;color:var(--mut);font-weight:500}
 <section id="tab-order" style="display:none">
   <div class="card">
     <h2>발주 등록</h2>
-    <div class="hint">빠른선택(프리셋)을 고르면 매입처·품목·수량·착일이 자동 입력됨. 프리셋 외 품목은 직접 입력. 착일 = 발주일 + 리드타임(기준표, 없으면 국산 2일).</div>
+    <div class="hint">빠른선택(프리셋)을 고르면 매입처·품목·수량·착일이 자동 입력됨.<br>프리셋 외 품목은 직접 입력.<br>착일 = 발주일 + 리드타임(기준표, 없으면 국산 2일).</div>
+    <form onsubmit="event.preventDefault();addOrder()">
     <div class="row">
       <div style="flex:2;min-width:260px"><label>빠른선택</label><select id="odPreset" onchange="applyPreset()"><option value="">— 프리셋 선택 —</option></select><div id="presetGate" style="display:none;margin-top:4px"></div></div>
       <div><label>구분</label><select id="odType"><option value="self">자가(부강 입고)</option><option value="consign">사급(업체 직납)</option></select></div>
@@ -292,8 +296,9 @@ details.card summary .cnt{font-size:11.5px;color:var(--mut);font-weight:500}
       <div><label>창고</label><input id="odLoc" style="width:110px"></div>
       <div><label>부서</label><select id="odDept"><option>경질</option><option>창호</option><option>타일</option><option>DBP</option><option>전사</option><option>사급</option></select></div>
       <div style="flex:1;min-width:120px"><label>비고</label><input id="odNote" placeholder="도착시간, 2대 등"></div>
-      <div><label>&nbsp;</label><button class="btn pri" onclick="addOrder()">발주 등록</button></div>
+      <div><label>&nbsp;</label><button class="btn pri" type="submit">발주 등록</button></div>
     </div>
+    </form>
   </div>
   <div class="card">
     <h2>발주 · 입고 추적 <span class="cnt" id="cntOd"></span></h2>
@@ -313,7 +318,7 @@ details.card summary .cnt{font-size:11.5px;color:var(--mut);font-weight:500}
   <div class="grid g2">
     <div class="card">
       <h2>① 사급 발주서 올리기</h2>
-      <div class="hint">사급업체가 보낸 발주서 엑셀(.xlsx)을 끌어다 놓거나, PDF·메일 본문 텍스트를 붙여넣고 [자동 인식]. 사급처·품목을 인식한 뒤 <b>발주 대응 / 14동 직접출고</b>를 자동 판정함.</div>
+      <div class="hint">사급업체가 보낸 발주서 엑셀(.xlsx)을 끌어다 놓거나, PDF·메일 본문 텍스트를 붙여넣고 [자동 인식].<br>사급처·품목을 인식한 뒤 <b>발주 대응 / 14동 직접출고</b>를 자동 판정함.</div>
       <div class="dropzone" id="drop" onclick="xlsFile.click()">여기에 발주서 엑셀 파일을 끌어다 놓기 (또는 클릭해서 선택)</div>
       <input type="file" id="xlsFile" accept=".xlsx,.xls,.csv" style="display:none" onchange="readXls(this.files[0])">
       <textarea id="csPaste" style="margin-top:10px" placeholder="또는 발주서 텍스트 붙여넣기&#10;예) 발 신  ○○엔지니어링㈜ ...&#10;1  IF-850  25  1500  08월18일"></textarea>
@@ -331,7 +336,7 @@ details.card summary .cnt{font-size:11.5px;color:var(--mut);font-weight:500}
         <div><label>공통 요청납기</label><input id="csDue" type="date"></div>
       </div>
       <div class="tbl"><table><thead><tr><th>품목</th><th class="num">수량(kg)</th><th>요청납기</th><th>처리</th><th>공급사</th><th></th></tr></thead><tbody id="csDraft"></tbody></table></div>
-      <div class="hint" style="margin-top:8px"><span class="act-order">발주</span> = 공급사에 대리발주(사급처 직납) · <span class="act-direct">직접출고</span> = 14동 재고 까대기 → 지게차 출고 · <span class="act-check">확인</span> = 과거 이력 없음, 직접 판단 · <span class="act-none">제외</span> = 우리 대응 아님(필요 시 수동 선택 — 등록 시 자동 제외)</div>
+      <div class="hint" style="margin-top:8px"><span class="act-order">발주</span> = 공급사에 대리발주(사급처 직납)<br><span class="act-direct">직접출고</span> = 14동 재고 까대기 → 지게차 출고<br><span class="act-check">확인</span> = 과거 이력 없음, 직접 판단<br><span class="act-none">제외</span> = 우리 대응 아님(필요 시 수동 선택 — 등록 시 자동 제외)</div>
       <div class="row" style="justify-content:flex-end;margin-top:8px"><button class="btn pri" onclick="commitCs()">등록 (발주 메일·출고지시 생성)</button></div>
     </div>
   </div>
@@ -341,7 +346,7 @@ details.card summary .cnt{font-size:11.5px;color:var(--mut);font-weight:500}
   </div>
   <div class="card">
     <h2>사급 요청 추적 <span class="cnt" id="cntCs2"></span></h2>
-    <div class="hint">운영 규칙: 전산 재고 차감은 <b>배차완료(실물 출고)</b> 시점 · 찢어진 지대는 사급 출고 금지(협의 후 자사 투입) · 업체→업체 이동은 <b>시험성적서 수령 전 입고완료 금지</b> · 당월 사용분은 이월 불가(익월분만 승인 후 이월) · M-210 월1회 입항분은 행선지 건별 확인 전 배차 금지</div>
+    <div class="hint">운영 규칙<br>· 전산 재고 차감은 <b>배차완료(실물 출고)</b> 시점<br>· 찢어진 지대는 사급 출고 금지(협의 후 자사 투입)<br>· 업체→업체 이동은 <b>거래명세서 수령 전 입고완료 금지</b><br>· 당월 사용분은 이월 불가(익월분만 승인 후 이월)<br>· M-210 월1회 입항분은 행선지 건별 확인 전 배차 금지</div>
     <div class="row" style="margin-bottom:10px">
       <select id="csFlt" onchange="renderCs()"><option value="">전체</option><option value="대기">대기(발주/출고 전)</option><option value="진행">진행(입고/출고 대기)</option><option value="완료">완료</option></select>
       <input id="csSearch" placeholder="사급처·품목 검색" oninput="renderCs()" style="flex:1;min-width:140px">
@@ -470,7 +475,7 @@ details.card summary .cnt{font-size:11.5px;color:var(--mut);font-weight:500}
       <input id="lnkDriver" readonly style="flex:1;min-width:0;font-family:Consolas,'Courier New',monospace;font-size:12px">
       <button class="btn sm pri" onclick="copyText(lnkDriver.value)">복사</button>
     </div>
-    <div class="hint" style="margin-top:4px">기사 링크로 열면 바로 큰 글씨 작업 목록만 보임 — 오늘 입고 · 창고이동 · 사급출고 3가지. 체크하면 이 화면에도 실시간 반영됨.</div>
+    <div class="hint" style="margin-top:4px">기사 링크로 열면 바로 큰 글씨 작업 목록만 보임 — 오늘 입고 · 창고이동 · 사급출고 3가지.<br>체크하면 이 화면에도 실시간 반영됨.</div>
   </div>
   <div class="sec">
     <label>핸드폰 홈 화면에 앱처럼 추가하기</label>
@@ -1559,12 +1564,12 @@ function renderDriver(){
   h+=`<div class="card" style="font-size:15px">
     <div class="quick">${DRV_ADD.map((it,i)=>`<button style="font-size:15px;padding:10px 14px;${drvSel===it?'background:var(--acc);color:#fff;border-color:var(--acc)':''}" onclick="drvPick(${i})">${it}</button>`).join('')}</div>
     <div class="quick" style="margin-top:8px">${[1,2,3,4,5].map(n2=>`<button style="font-size:16px;font-weight:700;min-width:60px;padding:10px 0" onclick="drvAdd(${n2*1000})">${n2}t</button>`).join('')}</div>
-    <div class="row" style="margin-top:8px">
+    <form class="row" style="margin-top:8px" onsubmit="event.preventDefault();drvAddCustom()">
       <select id="drvDept" style="font-size:15px"><option>창호</option><option>경질</option><option>타일</option><option>DBP</option><option>기타</option></select>
       <input id="drvItem2" placeholder="다른 품목 직접 입력" style="flex:1;min-width:130px;font-size:15px">
       <input id="drvQty2" type="number" placeholder="kg" style="width:90px;text-align:right;font-size:15px">
-      <button class="btn pri" onclick="drvAddCustom()">추가</button>
-    </div>
+      <button class="btn pri" type="submit">추가</button>
+    </form>
     <div class="tag" style="margin-top:6px">등록하면 자재과 화면에 ✋ 이름과 함께 표시됩니다.</div>
   </div>`;
   h+=`<h2>③ 사급 출고 (업체로 보낼 것) <span class="cnt">${outs.length}건</span></h2>`;
@@ -1612,6 +1617,7 @@ function openDlg(title,fields,obj,onSave,onDel){
   dlgCtx={obj,onSave,onDel,fields};dlg.showModal();
 }
 function dlgSave(){dlgBody.querySelectorAll('input,select').forEach(i=>{const k=i.dataset.k;if(!k)return;dlgCtx.obj[k]=i.type==='number'?(i.value===''?null:+i.value):i.value.trim();});if(dlgCtx.onSave(dlgCtx.obj)===false)return;dlg.close();}
+dlg.addEventListener('keydown',e=>{if(e.key==='Enter'&&e.target.tagName==='INPUT'){e.preventDefault();dlgSave();}});
 function dlgDelete(){const b=document.getElementById('dlgDelBtn');
   if(b.dataset.arm!=='1'){b.dataset.arm='1';b.textContent='정말 삭제?';setTimeout(()=>{if(dlg.open){b.dataset.arm='';b.textContent='삭제';}},3000);return;}
   b.dataset.arm='';b.textContent='삭제';dlg.close();dlgCtx.onDel();}

@@ -514,7 +514,7 @@ details.card summary .cnt{font-size:11.5px;color:var(--mut);font-weight:500}
 <dialog id="dlgShare"><div class="dlg">
   <h3>링크 공유 · 핸드폰 바로가기</h3>
   <div class="sec">
-    <label>① 자재과 관리 화면 (본인용)</label>
+    <label>① 자재과 관리 화면 (본인용) — 이 링크로 열면 항상 관리 화면</label>
     <div class="row" style="align-items:center;flex-wrap:nowrap">
       <input id="lnkAdmin" readonly style="flex:1;min-width:0;font-family:Consolas,'Courier New',monospace;font-size:12px">
       <button class="btn sm pri" onclick="copyText(lnkAdmin.value)">복사</button>
@@ -526,7 +526,7 @@ details.card summary .cnt{font-size:11.5px;color:var(--mut);font-weight:500}
       <input id="lnkDriver" readonly style="flex:1;min-width:0;font-family:Consolas,'Courier New',monospace;font-size:12px">
       <button class="btn sm pri" onclick="copyText(lnkDriver.value)">복사</button>
     </div>
-    <div class="hint" style="margin-top:4px">기사 링크로 열면 바로 큰 글씨 작업 목록만 보임 — 오늘 입고 · 창고이동 · 사급출고 3가지.<br>체크하면 이 화면에도 실시간 반영됨.</div>
+    <div class="hint" style="margin-top:4px">기사 링크로 열면 바로 큰 글씨 작업 목록만 보임 — 오늘 입고 · 창고이동 · 사급출고 3가지.<br>체크하면 이 화면에도 실시간 반영됨.<br>두 링크는 <b>끝의 #admin · #driver</b> 로 구분됨. 기사 링크로 연 기기는 계속 기사 화면으로 열리고, 관리 링크로 열면 그 고정이 풀림 — <b>기사님께는 ② 링크만</b> 전달하세요.</div>
   </div>
   <div class="sec">
     <label>핸드폰 홈 화면에 앱처럼 추가하기</label>
@@ -897,7 +897,7 @@ function ensureMaterial(item,extra){
 function toast(m){const t=document.getElementById('toast');t.textContent=m;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),1800);}
 /* 공유 링크 — 지금 열려 있는 주소 기준(클로드 아티팩트/GitHub Pages 어디서 열어도 자동으로 맞는 링크 표시) */
 function curUrl(){return location.origin+location.pathname;}
-function openShare(){document.getElementById('lnkAdmin').value=curUrl();document.getElementById('lnkDriver').value=curUrl()+'#driver';document.getElementById('dlgShare').showModal();}
+function openShare(){document.getElementById('lnkAdmin').value=curUrl()+'#admin';document.getElementById('lnkDriver').value=curUrl()+'#driver';document.getElementById('dlgShare').showModal();}
 function copyText(t){navigator.clipboard?.writeText(t).then(()=>toast('복사됨'),()=>toast('복사 실패 — 직접 드래그해 복사'));}
 
 /* ═════════ 탭 · 날짜 ═════════ */
@@ -2705,9 +2705,35 @@ function fcToOrder(name){
 
 /* ═════════ 시작 ═════════ */
 document.getElementById('curDate').value=cur;
-const drvHash=location.hash==='#driver'||location.hash==='#%EA%B8%B0%EC%82%AC'||decodeURIComponent(location.hash)==='#기사';
-if(drvHash)localStorage.setItem('jjDrvDevice','1');
-if(drvHash||localStorage.getItem('jjDrvDevice')==='1')enterDriver();
+/* 첫 화면 결정 — 링크로 명확히 구분
+     #driver (#기사)          지게차 화면. 이 기기는 이후에도 계속 기사 화면으로 열림
+     #admin  (#관리·#자재과)  자재과 관리 화면. 기사 고정도 함께 해제
+     해시 없음                 이 기기에 저장된 모드 그대로 (홈 화면 아이콘·북마크용)
+   예전에는 관리 링크가 '해시 없는 주소'였는데, 기사 고정(jjDrvDevice)이 한 번 걸린
+   기기에서는 그 주소로 열어도 계속 기사 화면이 떠서 두 링크를 구분할 수 없었음. */
+function applyHashMode(){
+  const h=decodeURIComponent(location.hash||'').toLowerCase();
+  const drv=h==='#driver'||h==='#기사';
+  const adm=h==='#admin'||h==='#관리'||h==='#자재과';
+  if(drv){
+    localStorage.setItem('jjDrvDevice','1');
+    enterDriver();
+    return;
+  }
+  if(adm){
+    localStorage.removeItem('jjDrvDevice');
+    // 주소창을 정리해 두면 이후 새로고침해도 관리 화면으로 열림
+    try{history.replaceState(null,'',location.pathname+location.search);}catch(e){}
+    enterAdmin();
+    return;
+  }
+  // 해시가 없으면 이 기기에 저장된 모드를 따름
+  if(localStorage.getItem('jjDrvDevice')==='1')enterDriver();
+}
+applyHashMode();
+/* 앱이 이미 열려 있는 상태에서 링크를 눌렀을 때도 화면이 바뀌게 함 —
+   해시만 다른 주소는 브라우저가 페이지를 다시 읽지 않아 위 코드가 실행되지 않음. */
+addEventListener('hashchange',applyHashMode);
 initPush();
 loadDB();
 </script>

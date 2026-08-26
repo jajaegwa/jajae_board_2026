@@ -573,7 +573,10 @@ const short=s=>String(s||'').replace(/^.*?_(?=[^_]+$)/,'');  // 'TiO2_TIONA-696'
     else M.rop.push({loc:loc||'14동',item:key,vendor:vendor||'',dept:'',lt,qty,rop,flag:''});
   });
 })();
-const ITEM_ALIAS={'GPPS(재생)':'PSGNT1TPZ','GPPS(유니드글로벌)':'PSGNT1TPZ','GPPS':'PSGNT1TPZ'};
+/* DWC4S·DWC6S → DWC4Z·DWC6Z 품명 변경 — 기존에 S로 등록된 발주·이동 이력도
+   새 Z 품목과 같은 품목으로 인식되게(위치 조회·발주 주기 이력 등) */
+const ITEM_ALIAS={'GPPS(재생)':'PSGNT1TPZ','GPPS(유니드글로벌)':'PSGNT1TPZ','GPPS':'PSGNT1TPZ','DWC4S':'DWC4Z','DWC6S':'DWC6Z'};
+const itemKey=s=>norm(ITEM_ALIAS[String(s||'').trim()]||s);
 function matchItem(q){ // 마스터에서 가장 비슷한 품목
   q=ITEM_ALIAS[String(q).trim()]||q;
   const n=norm(q); if(n.length<2)return null;
@@ -945,7 +948,7 @@ function dueList(){
   const out=[];
   for(const p of all){
     const cyc=CYCLE[p.cycle]||7;
-    const hist=S.orders.filter(o=>norm(o.item)===norm(p.item)&&norm(o.dest)===norm(p.dest)).map(o=>o.ordDate).sort();
+    const hist=S.orders.filter(o=>itemKey(o.item)===itemKey(p.item)&&norm(o.dest)===norm(p.dest)).map(o=>o.ordDate).sort();
     const last=hist[hist.length-1]||'';
     const gap=last?diffDays(cur,last):null;
     const due= last? gap>=cyc : true;
@@ -958,7 +961,7 @@ function dueList(){
 const CYCLE_START='2026-08-26';
 function cycleSuggestions(){
   return M.presetSelf.filter(p=>!SELF_CYCLE_EXCLUDE.has(norm(p.item))).map(p=>{
-    const hist=S.orders.filter(o=>norm(o.item)===norm(p.item)&&norm(o.dest)===norm('자가(세종·부강)')&&o.ordDate>=CYCLE_START).map(o=>o.ordDate).sort();
+    const hist=S.orders.filter(o=>itemKey(o.item)===itemKey(p.item)&&norm(o.dest)===norm('자가(세종·부강)')&&o.ordDate>=CYCLE_START).map(o=>o.ordDate).sort();
     if(hist.length<2)return null;
     const gaps=[];for(let i=1;i<hist.length;i++)gaps.push(diffDays(hist[i],hist[i-1]));
     const avg=gaps.reduce((a,b)=>a+b,0)/gaps.length;

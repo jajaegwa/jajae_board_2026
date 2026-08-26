@@ -1501,17 +1501,18 @@ function renderMaster(){
 /* ═════════ 지게차 기사 화면 ═════════ */
 function renderDriver(){
   const el=document.getElementById('tab-driver');
-  const ins=S.orders.filter(o=>!o.skip&&o.type==='self'&&!o.inDate&&o.eta&&o.eta<=cur).sort((a,b)=>(a.loc||'').localeCompare(b.loc||''));
+  const ins=S.orders.filter(o=>!o.skip&&o.type==='self'&&o.eta&&o.eta<=cur&&(!o.inDate||o.inDate===cur)).sort((a,b)=>(a.loc||'').localeCompare(b.loc||''));
   const mv=S.moves.filter(m=>m.date===cur);const order={'경질':0,'창호':1,'타일':2,'DBP':3};mv.sort((a,b)=>(order[a.dept]??9)-(order[b.dept]??9));
   const outs=S.cons.filter(c=>c.action==='직접출고'&&!c.done);
   const sp=S.specials[cur]||{};const spTxt=Object.entries(sp).filter(([k,v])=>v).map(([k,v])=>`${k}: ${v}`).join(' · ');
   const ro=readOnly||!cap;
   const cb=(fn,done)=>`<label><input type="checkbox" ${done?'checked':''} ${ro&&!cap?'':''} onchange="${fn}">완료</label>`;
   const meName=localStorage.getItem('jjUser')||'';
-  let h=`<div class="banner"><div><b>${fmtK(cur)}</b> 지게차 작업 <span style="opacity:.7;font-size:13px">(${cur})</span></div><div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">입고 ${ins.length} · 창고이동 ${mv.filter(m=>!m.done).length} · 사급출고 ${outs.length}<button class="btn sm" style="background:transparent;color:var(--navy-ink);border-color:#4a5b6c" onclick="askName()">👤 ${esc(meName)||'이름 입력'}</button><button class="btn sm" style="background:transparent;color:var(--navy-ink);border-color:#4a5b6c" onclick="location.reload()">새로고침</button></div></div>`;
+  const insLeft=ins.filter(o=>!o.inDate).length;
+  let h=`<div class="banner"><div><b>${fmtK(cur)}</b> 지게차 작업 <span style="opacity:.7;font-size:13px">(${cur})</span></div><div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">입고 ${insLeft} · 창고이동 ${mv.filter(m=>!m.done).length} · 사급출고 ${outs.length}<button class="btn sm" style="background:transparent;color:var(--navy-ink);border-color:#4a5b6c" onclick="askName()">👤 ${esc(meName)||'이름 입력'}</button><button class="btn sm" style="background:transparent;color:var(--navy-ink);border-color:#4a5b6c" onclick="location.reload()">새로고침</button></div></div>`;
   if(spTxt)h+=`<div class="card" style="margin-top:10px;font-size:15px"><b>특이사항</b> ${esc(spTxt)}</div>`;
-  h+=`<h2>① 오늘 들어오는 것 <span class="cnt">${ins.length}건 — 창고별 하차</span></h2>`;
-  h+=ins.length?ins.map(o=>`<div class="item ${o.inDate?'done':''}"><div><div class="name">${esc(o.item)} <span class="loc">${esc(o.loc||'창고 확인')}</span></div><div class="meta">${esc(o.vendor)} · ${esc(o.dept)}${o.eta<cur?' · <b style="color:var(--red)">'+fmtK(o.eta)+' 예정분 지연</b>':''}${o.note?' · '+esc(o.note):''}</div></div><div><div class="qty">${fmtN(o.qty)} ${esc(o.unit)}</div>${cb(`markInDrv(${o.id},this)`,false)}</div></div>`).join(''):'<div class="empty">오늘 입고 예정 없음</div>';
+  h+=`<h2>① 오늘 들어오는 것 <span class="cnt">${insLeft}건 남음</span></h2>`;
+  h+=ins.length?ins.map(o=>`<div class="item ${o.inDate?'done':''}"><div><div class="name">${esc(o.item)} <span class="loc">${esc(o.loc||'창고 확인')}</span></div><div class="meta">${esc(o.vendor)} · ${esc(o.dept)}${o.eta<cur?' · <b style="color:var(--red)">'+fmtK(o.eta)+' 예정분 지연</b>':''}${o.note?' · '+esc(o.note):''}</div></div><div><div class="qty">${fmtN(o.qty)} ${esc(o.unit)}</div>${cb(`markInDrv(${o.id})`,!!o.inDate)}</div></div>`).join(''):'<div class="empty">오늘 입고 예정 없음</div>';
   h+=`<h2>② 창고 → 라인 이동 <span class="cnt">${mv.filter(m=>!m.done).length}건 남음</span></h2>`;
   let lastD='';
   h+=mv.length?mv.map(m=>{let g='';if(m.dept!==lastD){g=`<div class="grp">${esc(m.dept)} 라인으로</div>`;lastD=m.dept;}
@@ -1539,7 +1540,11 @@ function renderDriver(){
   h+=`<div class="tag" style="margin-top:20px">${ro?'보기 전용 — 체크는 자재과 화면에서 저장됩니다.':'체크하면 자재과 화면에도 반영됩니다.'} · 문의: 자재과 김성진 010-5730-6623</div>`;
   el.innerHTML=h;
 }
-function markInDrv(id,cb){if(needName(()=>markInDrv(id)))return;const o=S.orders.find(x=>x.id===id);o.inDate=cur;o.inBy=whoNow();saveDB();refreshAll();}
+function markInDrv(id){const o=S.orders.find(x=>x.id===id);
+  if(!o.inDate&&needName(()=>markInDrv(id)))return;
+  if(o.inDate){delete o.inDate;delete o.inBy;}
+  else{o.inDate=cur;o.inBy=whoNow();}
+  saveDB();refreshAll();}
 /* 기사 직접 등록 — ASA 등 1,000kg 단위 (창호 M201P2) */
 const DRV_ADD=['ASA GR(네츄럴그레이)','ASA DB(브라운)','ASA BZ(브론즈)','ASA DG(다크그레이)','ASA BK(블랙)'];
 let drvSel='';

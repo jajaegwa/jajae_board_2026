@@ -304,7 +304,7 @@ details.card summary .cnt{font-size:11.5px;color:var(--mut);font-weight:500}
   <div class="card">
     <h2>발주 · 입고 추적 <span class="cnt" id="cntOd"></span></h2>
     <div class="row" style="margin-bottom:10px">
-      <select id="odFlt" onchange="renderOrders()"><option value="">상태 전체</option><option value="발주완료">발주완료(입고대기)</option><option value="입고지연">입고지연</option><option value="입고완료">입고완료</option></select>
+      <select id="odFlt" onchange="renderOrders()"><option value="">상태 전체</option><option value="발주완료">발주완료(입고대기)</option><option value="입고지연">입고지연</option><option value="입고완료">입고완료</option><option value="취소">취소</option></select>
       <input id="odSearch" placeholder="품목·업체 검색" oninput="renderOrders()" style="flex:1;min-width:140px">
       <label style="display:flex;align-items:center;gap:5px;margin:0"><input type="checkbox" id="odHide" checked onchange="renderOrders()">입고완료 7일 지난 건 숨김</label>
       <button class="btn sm pri" onclick="bulkMarkIn()">선택 입고 처리</button>
@@ -884,7 +884,7 @@ function dueList(){
   }
   return out.sort((a,b)=>(b.gap??999)/b.cyc-(a.gap??999)/a.cyc);
 }
-function orderStatus(o){if(o.inDate)return'입고완료';if(o.eta&&cur>o.eta)return'입고지연';return'발주완료';}
+function orderStatus(o){if(o.skip)return'취소';if(o.inDate)return'입고완료';if(o.eta&&cur>o.eta)return'입고지연';return'발주완료';}
 function renderBoard(){
   // 입고 예정
   const ins=S.orders.filter(o=>o.eta===cur&&o.type==='self'||(o.eta===cur&&o.type==='consign'&&false)).sort((a,b)=>(a.loc||'').localeCompare(b.loc||''));
@@ -1330,11 +1330,17 @@ function addOrder(){
   toast(isNew?`발주 등록됨 · 신규 품목 '${item}' 기준정보에 추가됨${sbOK?'':' (이 기기에만 — 공유 연결 시 전체 반영)'}`:'발주 등록됨');
 }
 function markIn(id){const o=S.orders.find(x=>x.id===id);o.inDate=cur;o.inBy=whoNow();saveDB();refreshAll();toast('입고 처리됨 (오늘 날짜) — 날짜 변경은 [수정]에서');}
+function cancelIn(id){const o=S.orders.find(x=>x.id===id);if(!o)return;delete o.inDate;delete o.inBy;saveDB();refreshAll();toast('입고 취소됨 — 발주완료 상태로 되돌아감');}
+function cancelOrder(id){const o=S.orders.find(x=>x.id===id);if(!o)return;o.skip=true;saveDB();refreshAll();toast('발주 취소됨 — 상태필터 [취소]에서 다시 볼 수 있음');}
+function restoreOrder(id){const o=S.orders.find(x=>x.id===id);if(!o)return;delete o.skip;saveDB();refreshAll();toast('발주 취소가 복구됨');}
 let selOd=new Set();
 function toggleSelOd(id,checked){checked?selOd.add(id):selOd.delete(id);const el=document.getElementById('odSelAll');if(el)el.checked=false;updateOdSelCnt();}
-function toggleAllOd(checked){
+function odFilteredRows(){
   const f=odFlt.value,q=odSearch.value.trim().toUpperCase(),hide=odHide.checked;
-  const rows=S.orders.filter(o=>!o.skip).filter(o=>{const st=orderStatus(o);if(f&&st!==f)return false;if(hide&&o.inDate&&diffDays(cur,o.inDate)>7)return false;if(q&&!(o.item+o.vendor+o.dest).toUpperCase().includes(q))return false;return true;});
+  return S.orders.filter(o=>!o.skip||f==='취소').filter(o=>{const st=orderStatus(o);if(f&&st!==f)return false;if(hide&&o.inDate&&diffDays(cur,o.inDate)>7)return false;if(q&&!(o.item+o.vendor+o.dest).toUpperCase().includes(q))return false;return true;});
+}
+function toggleAllOd(checked){
+  const rows=odFilteredRows();
   if(checked)rows.forEach(o=>selOd.add(o.id));else rows.forEach(o=>selOd.delete(o.id));
   renderOrders();
 }
@@ -1351,12 +1357,12 @@ function bulkMarkIn(){
   toast(`${done}건 입고 처리됨`);
 }
 function renderOrders(){
-  const f=odFlt.value,q=odSearch.value.trim().toUpperCase(),hide=odHide.checked;
-  const rows=S.orders.filter(o=>!o.skip).filter(o=>{const st=orderStatus(o);if(f&&st!==f)return false;if(hide&&o.inDate&&diffDays(cur,o.inDate)>7)return false;if(q&&!(o.item+o.vendor+o.dest).toUpperCase().includes(q))return false;return true;}).sort((a,b)=>(!!a.inDate-!!b.inDate)||((b.ordDate+b.id)<(a.ordDate+a.id)?-1:1));
+  const rows=odFilteredRows().sort((a,b)=>(!!a.inDate-!!b.inDate)||((b.ordDate+b.id)<(a.ordDate+a.id)?-1:1));
   const allSel=rows.length>0&&rows.every(o=>selOd.has(o.id));
   const selAllEl=document.getElementById('odSelAll');if(selAllEl)selAllEl.checked=allSel;
-  document.getElementById('odBody').innerHTML=rows.length?rows.map(o=>{const st=orderStatus(o),d=o.eta&&!o.inDate?diffDays(o.eta,cur):null;const cls={'발주완료':'c-ord','입고지연':'c-late','입고완료':'c-done'}[st];
-    return `<tr class="${o.inDate?'done':''}"><td><input type="checkbox" ${selOd.has(o.id)?'checked':''} onchange="toggleSelOd(${o.id},this.checked)" title="선택"></td><td>${o.ordDate}</td><td>${o.type==='self'?'자가':'사급'}</td><td><b>${esc(o.vendor)}</b></td><td><b>${esc(o.item)}</b>${o.note?`<div class="tag">${esc(o.note)}</div>`:''}</td><td>${esc(o.dest)}</td><td class="num">${fmtN(o.qty)} ${esc(o.unit)}</td><td>${o.eta||''}</td><td class="dday ${d!=null&&d<0?'late':(d===0?'soon':'')}">${d==null?(o.inDate?'입고 '+o.inDate:''):(d<0?`D+${-d}`:`D-${d}`)}</td><td>${o.loc?`<span class="loc">${esc(o.loc)}</span>`:''}</td><td><span class="chip ${cls}">${st}</span></td><td>${!o.inDate?`<button class="btn sm" onclick="markIn(${o.id})">입고</button> `:''}<button class="btn sm" onclick="editOrder(${o.id})">수정</button> <button class="btn sm" style="color:var(--red)" onclick="delOrder(${o.id})">${armLbl('od'+o.id)}</button></td></tr>`;}).join(''):'<tr><td colspan="12" class="empty">발주 건 없음</td></tr>';
+  document.getElementById('odBody').innerHTML=rows.length?rows.map(o=>{const st=orderStatus(o),d=o.eta&&!o.inDate?diffDays(o.eta,cur):null;const cls={'발주완료':'c-ord','입고지연':'c-late','입고완료':'c-done','취소':'c-mut'}[st];
+    const actBtns=o.skip?`<button class="btn sm pri" onclick="restoreOrder(${o.id})">복구</button> `:(!o.inDate?`<button class="btn sm" onclick="markIn(${o.id})">입고</button> <button class="btn sm ghost" onclick="cancelOrder(${o.id})">발주취소</button> `:`<button class="btn sm ghost" onclick="cancelIn(${o.id})" title="입고 취소">↩ 입고취소</button> `);
+    return `<tr class="${o.inDate||o.skip?'done':''}"><td><input type="checkbox" ${selOd.has(o.id)?'checked':''} onchange="toggleSelOd(${o.id},this.checked)" title="선택"></td><td>${o.ordDate}</td><td>${o.type==='self'?'자가':'사급'}</td><td><b>${esc(o.vendor)}</b></td><td><b>${esc(o.item)}</b>${o.note?`<div class="tag">${esc(o.note)}</div>`:''}</td><td>${esc(o.dest)}</td><td class="num">${fmtN(o.qty)} ${esc(o.unit)}</td><td>${o.eta||''}</td><td class="dday ${d!=null&&d<0?'late':(d===0?'soon':'')}">${d==null?(o.inDate?'입고 '+o.inDate:''):(d<0?`D+${-d}`:`D-${d}`)}</td><td>${o.loc?`<span class="loc">${esc(o.loc)}</span>`:''}</td><td><span class="chip ${cls}">${st}</span></td><td>${actBtns}<button class="btn sm" onclick="editOrder(${o.id})">수정</button> <button class="btn sm" style="color:var(--red)" onclick="delOrder(${o.id})">${armLbl('od'+o.id)}</button></td></tr>`;}).join(''):'<tr><td colspan="12" class="empty">발주 건 없음</td></tr>';
   document.getElementById('cntOd').textContent=`${rows.length}건`;
   updateOdSelCnt();
 }

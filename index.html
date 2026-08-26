@@ -713,7 +713,7 @@ async function sbConnect(pass){
   sbSubscribe();
   clearInterval(sbPollT);
   sbPollT=setInterval(async()=>{
-    if(sbApplying)return;
+    if(sbApplying||sbPendingSave)return;
     try{const{data:nd}=await sb.rpc('get_board',{p_id:SB_BOARD,p_passcode:sbPass});if(nd)sbApply(nd);}catch(e){}
   },20000);
 }
@@ -721,18 +721,25 @@ function sbSubscribe(){
   if(!sb||sbCh)return;
   sbCh=sb.channel('board-'+SB_BOARD).on('broadcast',{event:'update'},async({payload})=>{
     if(payload&&payload.by===sbClientId)return;
-    if(sbApplying)return;
+    if(sbApplying||sbPendingSave)return;
     try{const{data}=await sb.rpc('get_board',{p_id:SB_BOARD,p_passcode:sbPass});if(data)sbApply(data);}catch(e){}
   }).subscribe();
 }
+/* 이 기기가 아직 서버로 못 보낸 로컬 수정이 있는 동안은(디바운스 대기·전송 중)
+   다른 기기에서 온 데이터로 로컬을 덮어쓰지 않음 — 안 그러면 "수정하고 저장했는데
+   반영이 안 됨"처럼 방금 한 편집이 원격 데이터에 덮여 사라지는 경합이 생김. */
+let sbPendingSave=false;
 function sbQueueSave(){
   if(!sb||!sbOK)return;
+  sbPendingSave=true;
   clearTimeout(sbSaveT);
   sbSaveT=setTimeout(async()=>{
-    let res;try{res=await sb.rpc('set_board',{p_id:SB_BOARD,p_passcode:sbPass,p_data:S});}catch(e){setSave('ro','저장 실패 — 네트워크 확인');return;}
-    if(res&&res.error){setSave('ro','저장 실패: '+res.error.message);return;}
-    setSave('ok','실시간 저장됨 '+new Date().toTimeString().slice(0,5));
-    try{sbCh?.send({type:'broadcast',event:'update',payload:{by:sbClientId,ts:Date.now()}});}catch(e){}
+    try{
+      let res;try{res=await sb.rpc('set_board',{p_id:SB_BOARD,p_passcode:sbPass,p_data:S});}catch(e){setSave('ro','저장 실패 — 네트워크 확인');return;}
+      if(res&&res.error){setSave('ro','저장 실패: '+res.error.message);return;}
+      setSave('ok','실시간 저장됨 '+new Date().toTimeString().slice(0,5));
+      try{sbCh?.send({type:'broadcast',event:'update',payload:{by:sbClientId,ts:Date.now()}});}catch(e){}
+    }finally{sbPendingSave=false;}
   },600);
 }
 /* 발주·창고이동 입력 중 신규 품목을 기준정보(M.materials)에 자동 등록 —

@@ -581,7 +581,7 @@ const short=s=>String(s||'').replace(/^.*?_(?=[^_]+$)/,'');  // 'TiO2_TIONA-696'
    이 함수를 다시 호출해야 패치가 사라지지 않음 — sb 연결 코드에서 재호출하는 부분 참고.
    M._patchVersion으로 딱 한 번만 실행되게 막아둠 — 기준정보 탭에서 사람이 직접 고친 값을
    다음 로그인 때 또 덮어쓰지 않기 위함. 새 패치를 추가할 땐 MASTER_PATCH_VERSION을 올릴 것. */
-const MASTER_PATCH_VERSION=2;
+const MASTER_PATCH_VERSION=3;
 function applyMasterPatches(){
   if((M._patchVersion||0)>=MASTER_PATCH_VERSION)return;
   const bag=M.rop.find(r=>r.item==='BAG'&&/단석/.test(r.vendor||''));if(bag)bag.item='DS356S1';
@@ -636,6 +636,13 @@ function applyMasterPatches(){
   M.presetSelf.forEach(p=>{
     const hay=norm(p.item)+norm(p.label||'');
     if(FORCE_CYCLE_EXCLUDE_V2.some(k=>hay.includes(k)))p.excluded=true;
+  });
+  // v3: 실제로는 "P3000 Bag"이 아니라 그냥 "BAG"으로만 등록돼 있어 v2가 못 걸렀을 수 있음 —
+  // 정규화(공백 제거) 전 원문에 단어 경계로 매칭해서 BAG 단독 표기까지 확실히 잡음.
+  const FORCE_CYCLE_EXCLUDE_V3=[/\bBAG\b/i,/LOX-?203/i,/\bCR-?102\b/i];
+  M.presetSelf.forEach(p=>{
+    const raw=String(p.item||'')+' '+String(p.label||'');
+    if(FORCE_CYCLE_EXCLUDE_V3.some(re=>re.test(raw)))p.excluded=true;
   });
   M._patchVersion=MASTER_PATCH_VERSION;
   if(sb&&sbOK)sbSaveMasterAfterPatch();

@@ -573,6 +573,29 @@ const short=s=>String(s||'').replace(/^.*?_(?=[^_]+$)/,'');  // 'TiO2_TIONA-696'
     else M.rop.push({loc:loc||'14동',item:key,vendor:vendor||'',dept:'',lt,qty,rop,flag:''});
   });
 })();
+/* 발주점(재고 임계치) 수정 요청 반영 — 리드타임·1회 발주량은 기존 값 유지, rop만 갱신 */
+(function(){
+  const ROP_UPDATES={
+    'PSGNT1TPZ':5000,   // GPPS(재생) — 약 5톤
+    'ROSIN C-9':1400,   // C-9
+    'SL-64':2000,       // 2톤
+    'DS356S1':2010,     // DS356
+    'DS-356T':2010,     // DS356T
+  };
+  Object.entries(ROP_UPDATES).forEach(([key,rop])=>{
+    const k=norm(key);
+    const hit=M.rop.find(r=>norm(r.item)===k)||M.rop.find(r=>{const rn=norm(r.item);return rn.includes(k)||k.includes(rn);});
+    if(hit)hit.rop=rop;
+  });
+  // TIONA-696 백(FB, 개화)·지대(JD, 일삼시화) 매입처·로케이터 분리 — 지대는 R696 규칙에서 이미
+  // 쓰는 TIONA-666(696) 코드로 구분(r696Variant 참고). 발주점 수치는 백 값을 그대로 물려받음 —
+  // 지대 전용 발주점이 정해지면 별도로 반영 필요.
+  const bagE=M.rop.find(r=>r.item==='TIONA-696');
+  if(bagE){bagE.loc='FB';bagE.vendor='개화';}
+  let jdE=M.rop.find(r=>r.item==='TIONA-666(696)');
+  if(!jdE&&bagE){jdE={...bagE,item:'TIONA-666(696)'};M.rop.push(jdE);}
+  if(jdE){jdE.loc='JD';jdE.vendor='일삼시화';}
+})();
 /* DWC4S·DWC6S → DWC4Z·DWC6Z 품명 변경 — 기존에 S로 등록된 발주·이동 이력도
    새 Z 품목과 같은 품목으로 인식되게(위치 조회·발주 주기 이력 등) */
 const ITEM_ALIAS={'GPPS(재생)':'PSGNT1TPZ','GPPS(유니드글로벌)':'PSGNT1TPZ','GPPS':'PSGNT1TPZ','DWC4S':'DWC4Z','DWC6S':'DWC6Z'};

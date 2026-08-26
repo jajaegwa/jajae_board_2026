@@ -554,8 +554,10 @@ const SENSITIVE={
 const CYCLE={'매일':1,'주 2회':3.5,'주2회':3.5,'주 1회':7,'주1회':7,'격주':14,'3주 1회':21,'3주1회':21,'월 1회':30};
 const norm=s=>String(s||'').toUpperCase().replace(/[\s\(\)\[\]\-_.,#\/㈜주식회사]/g,'');
 const short=s=>String(s||'').replace(/^.*?_(?=[^_]+$)/,'');  // 'TiO2_TIONA-696' → 'TIONA-696'
-/* 발주기준 심플 v6 (2026-07-09 최종) 반영 — 발주점·리드타임·1회 발주량 갱신 */
-(function(){
+/* 발주기준 심플 v6(2026-07-09) + 이후 발주점 수정 요청들을 한 곳에 모아 M.rop/M.presetSelf에 적용.
+   Supabase 로그인 성공 시 M이 실제 마스터데이터로 통째로 교체되므로(M[k]=md[k]), 그 직후에도
+   이 함수를 다시 호출해야 패치가 사라지지 않음 — sb 연결 코드에서 재호출하는 부분 참고. */
+function applyMasterPatches(){
   const bag=M.rop.find(r=>r.item==='BAG'&&/단석/.test(r.vendor||''));if(bag)bag.item='DS356S1';
   const V6=[
    ['HYDROCARB-95T',4,18000,122069],['SP-390',3,25000,58579],
@@ -572,9 +574,7 @@ const short=s=>String(s||'').replace(/^.*?_(?=[^_]+$)/,'');  // 'TiO2_TIONA-696'
     if(hit){hit.lt=lt;hit.qty=qty;hit.rop=rop;if(vendor)hit.vendor=vendor;}
     else M.rop.push({loc:loc||'14동',item:key,vendor:vendor||'',dept:'',lt,qty,rop,flag:''});
   });
-})();
-/* 발주점(재고 임계치) 수정 요청 반영 — 리드타임·1회 발주량은 기존 값 유지, rop만 갱신 */
-(function(){
+  // 발주점(재고 임계치) 수정 요청 반영 — 리드타임·1회 발주량은 그대로, rop만 갱신
   const ROP_UPDATES={
     'PSGNT1TPZ':5000,      // GPPS(재생) — 약 5톤
     'ROSIN C-9':1400,      // C-9
@@ -596,7 +596,11 @@ const short=s=>String(s||'').replace(/^.*?_(?=[^_]+$)/,'');  // 'TiO2_TIONA-696'
   let jdE=M.rop.find(r=>r.item==='TIONA-666(696)');
   if(!jdE&&bagE){jdE={...bagE,item:'TIONA-666(696)'};M.rop.push(jdE);}
   if(jdE){jdE.loc='JD';jdE.vendor='일삼시화';}
-})();
+  // NR-950은 자가 발주 대상 — 1회 발주량을 20 Bag(F/B 500kg) 기준 kg으로 환산해 표시
+  const nr=M.presetSelf.find(p=>norm(p.item)==='NR950'||norm(p.label||'').includes('NR950'));
+  if(nr){nr.qty=20*500;nr.unit='kg';}
+}
+applyMasterPatches();
 /* DWC4S·DWC6S → DWC4Z·DWC6Z 품명 변경 — 기존에 S로 등록된 발주·이동 이력도
    새 Z 품목과 같은 품목으로 인식되게(위치 조회·발주 주기 이력 등) */
 const ITEM_ALIAS={'GPPS(재생)':'PSGNT1TPZ','GPPS(유니드글로벌)':'PSGNT1TPZ','GPPS':'PSGNT1TPZ','DWC4S':'DWC4Z','DWC6S':'DWC6Z'};
@@ -746,6 +750,7 @@ async function sbConnect(pass){
     const SB_MASTER_KEYS=['orderRules','presetSelf','presetConsign','consignees','materials','consigneeResponse','supplierMap','contacts','rop'];
     if(md&&typeof md==='object'&&!Array.isArray(md)){
       SB_MASTER_KEYS.forEach(k=>{if(Array.isArray(md[k]))M[k]=md[k];});
+      applyMasterPatches();   // M.rop/M.presetSelf가 실제 서버 데이터로 교체됐으므로 발주점 패치를 다시 적용
       // STAT_RULES(통계탭 계획표)는 M 소속이 아닌 별도 const 배열이라 같은 방식으로 취급 못 함 —
       // 참조를 그대로 유지해야 하는 코드가 있을 수 있어 재대입 대신 내용만 교체(splice).
       if(Array.isArray(md.statRules)&&typeof STAT_RULES!=='undefined'){
@@ -966,11 +971,6 @@ function deptChip(d){return `<span class="dept d-${['경질','창호','타일','
 /* ═════════ 오늘 작업판 ═════════ */
 // 주기 기준은 자가만 대상 — 아래 품목은 실제로는 자가 발주가 아니므로 제외
 const SELF_CYCLE_EXCLUDE=new Set(['CR-102','J293F-1','P3000 Bag','P3000 탱크','P3000(탱크)','P3000 Tank','LOX-203','SB-102'].map(norm));
-// NR-950은 자가 발주 대상 — 1회 발주량을 20 Bag(F/B 500kg) 기준 kg으로 환산해 표시
-(function(){
-  const nr=M.presetSelf.find(p=>norm(p.item)==='NR950'||norm(p.label||'').includes('NR950'));
-  if(nr){nr.qty=20*500;nr.unit='kg';}
-})();
 function dueList(){
   // 프리셋별 마지막 발주일 → 주기 경과 시 제안 (자가만 — 사급 주기는 표시 안 함)
   const all=M.presetSelf.filter(p=>!SELF_CYCLE_EXCLUDE.has(norm(p.item))).map(p=>({...p,type:'self',dest:'자가(세종·부강)'}));

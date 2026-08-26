@@ -117,6 +117,7 @@ pre.mail{background:var(--head);border:1px solid var(--line);border-radius:2px;p
 body.driver main{max-width:900px}
 body.driver header .date{display:none}
 body.driver header button:not(#btnDrv):not(#sbGateBtn){display:none}
+body.driver #drvNotif{display:none!important}
 .drv h2{font-size:19px;font-weight:700;margin:22px 0 10px;display:flex;align-items:center;gap:10px}
 .drv h2 .cnt{font-size:13.5px;color:var(--mut)}
 .drv .item{display:grid;grid-template-columns:1fr auto;gap:8px 14px;align-items:center;background:var(--card);border:1px solid var(--line);border-radius:4px;padding:14px 16px;margin-bottom:8px;font-size:17px}
@@ -159,6 +160,7 @@ details.card summary .cnt{font-size:11.5px;color:var(--mut);font-weight:500}
   <span class="sp"></span>
   <span class="date">기준일 <input type="date" id="curDate" onchange="setDate(this.value)"></span>
   <span class="savebox" id="saveBox"><i></i><span id="saveTxt">불러오는 중</span></span>
+  <span class="chip c-wait" id="drvNotif" style="display:none;cursor:pointer" onclick="clearDrvNotif()" title="눌러서 확인"></span>
   <button class="btn sm" onclick="toggleDriver()" id="btnDrv">지게차 화면</button>
   <button class="btn sm" onclick="openShare()">공유·바로가기</button>
   <button class="btn sm" onclick="exportJSON()">백업</button>
@@ -821,6 +823,7 @@ function enterAdmin(){
   document.getElementById('btnDrv').textContent='지게차 화면';
   if(location.hash)try{history.replaceState(null,'',location.pathname+location.search);}catch(e){}
   showTab('board');
+  updateDrvNotif();
 }
 function toggleDriver(){
   if(document.body.classList.contains('driver')){
@@ -844,8 +847,40 @@ function refreshAll(){
   renderBoard();renderMoves();renderOrders();renderCs();renderMaster();renderDriver();fillLists();renderSpQuick();renderQm();renderStats();renderFc();
   const odN=S.orders.filter(o=>!o.skip&&!o.inDate).length, mvN=S.moves.filter(m=>m.date===cur&&!m.done).length, csN=S.cons.filter(c=>!c.done&&!c.ordDate&&!c.outDate).length;
   badge('bMove',mvN);badge('bOrder',odN);badge('bCons',csN);
+  updateDrvNotif();
 }
 function badge(id,n){const b=document.getElementById(id);b.hidden=!n;b.textContent=n;}
+/* 우측 상단 알림 — 지게차 기사가 새로 등록했거나(품목/수량) 실출고를 보정한 건이
+   있으면 자재과 화면에 표시. 액션 하나당 고유 키를 만들어 '이미 본 것' 목록과
+   비교 — 같은 건을 여러 번 고쳐도(actKgAt이 매번 바뀜) 새 보정마다 다시 알림됨. */
+function drvNotifKeys(){
+  const keys=[];
+  S.moves.forEach(m=>{
+    if(isThird(m.addedBy))keys.push('add:'+m.id);
+    if(m.actKg!=null&&isThird(m.actKgBy)&&m.actKgAt)keys.push('actkg:'+m.id+':'+m.actKgAt);
+  });
+  return keys;
+}
+function seenDrvKeys(){try{return new Set(JSON.parse(localStorage.getItem('jjSeenDrv')||'[]'));}catch(e){return new Set();}}
+function updateDrvNotif(){
+  const el=document.getElementById('drvNotif');if(!el)return;
+  if(document.body.classList.contains('driver')){el.style.display='none';return;}
+  const seen=seenDrvKeys();
+  const unseen=drvNotifKeys().filter(k=>!seen.has(k));
+  if(unseen.length){
+    el.style.display='';
+    el.textContent=`🔔 기사 등록/보정 ${unseen.length}건`;
+    if(unseen.length>(window._prevDrvNotifN||0))toast(`기사 화면에서 새 등록/보정 ${unseen.length}건`);
+  }else{
+    el.style.display='none';
+  }
+  window._prevDrvNotifN=unseen.length;
+}
+function clearDrvNotif(){
+  try{localStorage.setItem('jjSeenDrv',JSON.stringify(drvNotifKeys()));}catch(e){}
+  showTab('move');
+  updateDrvNotif();
+}
 function fillLists(){
   const names=[...new Set(M.materials.map(m=>m.name))];
   document.getElementById('itemList').innerHTML=names.map(n=>`<option value="${esc(n)}">`).join('');
@@ -1330,7 +1365,7 @@ function renderMoves(){
   const allSel=mv.length>0&&mv.every(m=>selMv.has(m.id));
   const selAllEl=document.getElementById('mvSelAll');if(selAllEl)selAllEl.checked=allSel;
   document.getElementById('mvBody').innerHTML=mv.length?mv.map(m=>{const cv=convInfo(m.item,m.qty,m.unit);
-    return`<tr class="${m.done&&m.erp?'done':''}"><td><input type="checkbox" ${selMv.has(m.id)?'checked':''} onchange="toggleSelMv(${m.id},this.checked)" title="선택"></td><td>${deptChip(m.dept)}</td><td><b>${esc(m.item)}</b>${r696Badge(m)}${isThird(m.addedBy)?` <span class="chip c-ord">✋ ${esc(m.addedBy)} 등록</span>`:''}${m.done?byBadge(m.doneBy,'실물이동완료'):''}</td><td class="num">${fmtN(m.qty)} ${esc(m.unit)}${m.actKg?`<div class="tag" style="color:var(--acc)">전산 ${fmtN(m.actKg)}kg (실출고 보정)</div>`:(cv?`<div class="tag">${esc(cv)}</div>`:'')}</td><td><span class="loc">${esc(m.loc||'?')}</span></td><td class="tag">${esc(m.note)}</td><td><input type="checkbox" ${m.done?'checked':''} onchange="toggleMove(${m.id})" title="실물이동"></td><td>${m.erp?`<span class="chip c-done">전산완료</span> <button class="btn sm ghost" onclick="toggleErp(${m.id})" title="전산 완료 취소">↩</button>`:`<span class="chip c-wait">전산 대기</span> <button class="btn sm pri" onclick="toggleErp(${m.id})">전산완료</button>`} <button class="btn sm" onclick="editMove(${m.id})">수정</button> <button class="btn sm" style="color:var(--red)" onclick="delMove(${m.id})">${armLbl('mv'+m.id)}</button></td></tr>`;}).join(''):'<tr><td colspan="8" class="empty">기준일 요청 없음</td></tr>';
+    return`<tr class="${m.done&&m.erp?'done':''}"><td><input type="checkbox" ${selMv.has(m.id)?'checked':''} onchange="toggleSelMv(${m.id},this.checked)" title="선택"></td><td>${deptChip(m.dept)}</td><td><b>${esc(m.item)}</b>${r696Badge(m)}${isThird(m.addedBy)?` <span class="chip c-ord">✋ ${esc(m.addedBy)} 등록</span>`:''}${m.done?byBadge(m.doneBy,'실물이동완료'):''}</td><td class="num">${fmtN(m.qty)} ${esc(m.unit)}${m.actKg?`<div class="tag" style="color:var(--acc)">전산 ${fmtN(m.actKg)}kg (실출고 보정)${isThird(m.actKgBy)?` <span class="chip c-ord">✋ ${esc(m.actKgBy)} 보정</span>`:''}</div>`:(cv?`<div class="tag">${esc(cv)}</div>`:'')}</td><td><span class="loc">${esc(m.loc||'?')}</span></td><td class="tag">${esc(m.note)}</td><td><input type="checkbox" ${m.done?'checked':''} onchange="toggleMove(${m.id})" title="실물이동"></td><td>${m.erp?`<span class="chip c-done">전산완료</span> <button class="btn sm ghost" onclick="toggleErp(${m.id})" title="전산 완료 취소">↩</button>`:`<span class="chip c-wait">전산 대기</span> <button class="btn sm pri" onclick="toggleErp(${m.id})">전산완료</button>`} <button class="btn sm" onclick="editMove(${m.id})">수정</button> <button class="btn sm" style="color:var(--red)" onclick="delMove(${m.id})">${armLbl('mv'+m.id)}</button></td></tr>`;}).join(''):'<tr><td colspan="8" class="empty">기준일 요청 없음</td></tr>';
   document.getElementById('cntMv2').textContent=mv.length?`${mv.length}건`:'';
   updateMvSelCnt();
 }
@@ -1608,7 +1643,7 @@ function renderDriver(){
     const pn=packNote(m.item);
     const cv=convInfo(m.item,m.qty,m.unit);
     const hold=isR696(m.item)&&!m.r696;
-    return g+`<div class="item ${m.done?'done':''}"><div><div class="name">${esc(m.item)} <span class="loc">${esc(m.loc||'창고 확인')}</span></div><div class="meta">${deptChip(m.dept)} ${m.note?' · '+esc(m.note):''}${isThird(m.addedBy)?' · ✋ '+esc(m.addedBy)+' 등록':''}${m.done&&m.doneBy?' · 완료: '+esc(m.doneBy):''}${cv?' · '+esc(cv):''}${pn?' · ⚠ '+esc(pn):''}</div></div><div><div class="qty">${fmtN(m.qty)} ${esc(m.unit)}</div>${hold?'<span class="chip c-wait">이동 OK · 완료체크는 자재과 확인 후</span>':cb(`toggleMove(${m.id})`,m.done)}</div></div>`;}).join(''):'<div class="empty">이동 요청 없음</div>';
+    return g+`<div class="item ${m.done?'done':''}"><div><div class="name">${esc(m.item)} <span class="loc">${esc(m.loc||'창고 확인')}</span></div><div class="meta">${deptChip(m.dept)} ${m.note?' · '+esc(m.note):''}${isThird(m.addedBy)?' · ✋ '+esc(m.addedBy)+' 등록':''}${m.done&&m.doneBy?' · 완료: '+esc(m.doneBy):''}${cv?' · '+esc(cv):''}${pn?' · ⚠ '+esc(pn):''}${m.actKg?' · 실출고 '+fmtN(m.actKg)+'kg':''}</div></div><div><div class="qty">${fmtN(m.qty)} ${esc(m.unit)}</div>${hold?'<span class="chip c-wait">이동 OK · 완료체크는 자재과 확인 후</span>':cb(`toggleMove(${m.id})`,m.done)}<button class="btn sm ghost" style="margin-top:4px" onclick="editActKg(${m.id})">${m.actKg?'실출고 수정':'실출고 보정 입력'}</button></div></div>`;}).join(''):'<div class="empty">이동 요청 없음</div>';
   // 기사 직접 등록 (ASA 등 1,000kg 단위)
   h+=`<h2>➕ 이동 요청 직접 등록 <span class="cnt">품목 탭 → 톤수 탭 = 등록</span></h2>`;
   h+=`<div class="card" style="font-size:15px">
@@ -1616,7 +1651,7 @@ function renderDriver(){
     <div class="quick" style="margin-top:8px">${[1,2,3,4,5].map(n2=>`<button style="font-size:16px;font-weight:700;min-width:60px;padding:10px 0" onclick="drvAdd(${n2*1000})">${n2}t</button>`).join('')}</div>
     <form class="row" style="margin-top:8px" onsubmit="event.preventDefault();drvAddCustom()">
       <select id="drvDept" style="font-size:15px"><option>창호</option><option>경질</option><option>타일</option><option>DBP</option><option>기타</option></select>
-      <input id="drvItem2" placeholder="다른 품목 직접 입력" style="flex:1;min-width:130px;font-size:15px">
+      <input id="drvItem2" list="itemList" placeholder="다른 부서 품목 직접 입력 (비슷한 품목 자동완성)" style="flex:1;min-width:130px;font-size:15px">
       <input id="drvQty2" type="number" placeholder="kg" style="width:90px;text-align:right;font-size:15px">
       <button class="btn pri" type="submit">추가</button>
     </form>
@@ -1634,6 +1669,20 @@ function markInDrv(id){const o=S.orders.find(x=>x.id===id);
   if(o.inDate){delete o.inDate;delete o.inBy;}
   else{o.inDate=cur;o.inBy=whoNow();}
   saveDB();refreshAll();}
+/* 실출고 보정 — 기사가 실제 나간 파레트 합계로 직접 정정 (예: SL-64 540+465=1,005) */
+function editActKg(id){
+  const m=S.moves.find(x=>x.id===id);if(!m)return;
+  if(needName(()=>editActKg(id)))return;
+  const v=prompt('실출고 합계 kg (파레트 보정 — 예: SL-64 540+465=1,005)',m.actKg??'');
+  if(v===null)return;
+  const t=v.trim();
+  if(t===''){delete m.actKg;delete m.actKgBy;delete m.actKgAt;saveDB();refreshAll();toast('실출고 보정 삭제됨');return;}
+  const n=+t;
+  if(isNaN(n)||n<0){toast('숫자를 입력하세요');return;}
+  m.actKg=n;m.actKgBy=whoNow();m.actKgAt=realToday()+' '+new Date().toTimeString().slice(0,5);
+  saveDB();refreshAll();
+  toast('실출고 보정 저장됨');
+}
 /* 기사 직접 등록 — ASA 등 1,000kg 단위 (창호 M201P2) */
 const DRV_ADD=['ASA GR(네츄럴그레이)','ASA DB(브라운)','ASA BZ(브론즈)','ASA DG(다크그레이)','ASA BK(블랙)'];
 let drvSel='';

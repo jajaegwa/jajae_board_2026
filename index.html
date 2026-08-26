@@ -336,7 +336,6 @@ details.card summary .cnt{font-size:11.5px;color:var(--mut);font-weight:500}
       <textarea id="csPaste" style="margin-top:10px" placeholder="또는 발주서 텍스트 붙여넣기&#10;예) 발 신  ○○엔지니어링㈜ ...&#10;1  IF-850  25  1500  08월18일"></textarea>
       <div class="row" style="margin-top:8px">
         <button class="btn pri" onclick="parseCs()">자동 인식</button>
-        <button class="btn" onclick="addCsLine()">+ 수동 행</button>
         <span class="tag" id="csMsg"></span>
       </div>
     </div>
@@ -346,6 +345,7 @@ details.card summary .cnt{font-size:11.5px;color:var(--mut);font-weight:500}
         <div><label>사급처</label><input id="csVendor" list="consList" placeholder="예: ○○엔지니어링" onchange="judgeAll()"></div>
         <div><label>의뢰일</label><input id="csDate" type="date"></div>
         <div><label>공통 요청납기</label><input id="csDue" type="date"></div>
+        <div><label>&nbsp;</label><button class="btn" onclick="addCsLine()">+ 수동 행</button></div>
       </div>
       <div class="tbl"><table><thead><tr><th>품목</th><th class="num">수량(kg)</th><th>요청납기</th><th>처리</th><th>공급사</th><th></th></tr></thead><tbody id="csDraft"></tbody></table></div>
       <div class="hint" style="margin-top:8px"><span class="act-order">발주</span> = 공급사에 대리발주(사급처 직납)<br><span class="act-direct">직접출고</span> = 14동 재고 까대기 → 지게차 출고<br><span class="act-check">확인</span> = 과거 이력 없음, 직접 판단<br><span class="act-none">제외</span> = 우리 대응 아님(필요 시 수동 선택 — 등록 시 자동 제외)</div>
@@ -1534,7 +1534,7 @@ function judge(consignee,item){
 function judgeAll(){const v=csVendor.value.trim();draft.forEach(d=>{const j=judge(v,d.item);if(!d._manual){d.action=j.action;d.supplier=j.supplier;}d.loc=j.loc;});renderDraft();}
 function renderDraft(){
   const tb=document.getElementById('csDraft');
-  tb.innerHTML=draft.length?draft.map((d,i)=>`<tr><td><input value="${esc(d.item)}" oninput="draft[${i}].item=this.value" style="width:150px"><div class="tag">${esc(d.pack)}${d.loc?' · '+esc(d.loc):''}</div></td><td class="num"><input type="number" step="any" value="${d.qty??''}" oninput="draft[${i}].qty=+this.value" style="width:90px;text-align:right"></td><td><input type="date" value="${d.due||''}" oninput="draft[${i}].due=this.value"></td><td><select onchange="draft[${i}].action=this.value;draft[${i}]._manual=true" class="act-${{'발주':'order','직접출고':'direct','확인':'check','제외':'none'}[d.action]}"><option ${d.action==='발주'?'selected':''}>발주</option><option ${d.action==='직접출고'?'selected':''}>직접출고</option><option ${d.action==='확인'?'selected':''}>확인</option><option ${d.action==='제외'?'selected':''}>제외</option></select></td><td><input value="${esc(d.supplier)}" list="vendorList" oninput="draft[${i}].supplier=this.value;draft[${i}]._manual=true" style="width:110px"></td><td><button class="btn sm" onclick="draft.splice(${i},1);renderDraft()">삭제</button></td></tr>`).join(''):'<tr><td colspan="6" class="empty">인식된 품목 없음</td></tr>';
+  tb.innerHTML=draft.length?draft.map((d,i)=>`<tr><td><input value="${esc(d.item)}" list="itemList" oninput="draft[${i}].item=this.value" style="width:150px"><div class="tag">${esc(d.pack)}${d.loc?' · '+esc(d.loc):''}</div></td><td class="num"><input type="number" step="any" value="${d.qty??''}" oninput="draft[${i}].qty=+this.value" style="width:90px;text-align:right"></td><td><input type="date" value="${d.due||''}" oninput="draft[${i}].due=this.value"></td><td><select onchange="draft[${i}].action=this.value;draft[${i}]._manual=true" class="act-${{'발주':'order','직접출고':'direct','확인':'check','제외':'none'}[d.action]}"><option ${d.action==='발주'?'selected':''}>발주</option><option ${d.action==='직접출고'?'selected':''}>직접출고</option><option ${d.action==='확인'?'selected':''}>확인</option><option ${d.action==='제외'?'selected':''}>제외</option></select></td><td><input value="${esc(d.supplier)}" list="vendorList" oninput="draft[${i}].supplier=this.value;draft[${i}]._manual=true" style="width:110px"></td><td><button class="btn sm" onclick="draft.splice(${i},1);renderDraft()">삭제</button></td></tr>`).join(''):'<tr><td colspan="6" class="empty">인식된 품목 없음</td></tr>';
 }
 function addCsLine(){draft.push({item:'',pack:'',qty:null,due:'',action:'확인',supplier:''});renderDraft();}
 function commitCs(){

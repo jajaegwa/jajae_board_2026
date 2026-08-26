@@ -53,6 +53,12 @@ main{max-width:1280px;margin:14px auto;padding:0 16px 60px}
 .g2{grid-template-columns:repeat(auto-fit,minmax(340px,1fr));align-items:start}
 #boardCards{grid-template-columns:1fr}
 .card .tbl.scroll{max-height:440px;overflow:auto}
+/* sticky thead th는 border-collapse:collapse 테이블에서 사파리가 지원하지 않음 —
+   separate 모델로 바꾸고 각 셀 오른쪽/아래 테두리만 그려서 기존 격자 모양을 유지 */
+.tbl.scroll table{border-collapse:separate;border-spacing:0}
+.tbl.scroll th,.tbl.scroll td{border-width:0 1px 1px 0}
+.tbl.scroll thead th{border-top-width:1px}
+.tbl.scroll tr>*:first-child{border-left-width:1px}
 .tbl.scroll thead th{position:sticky;top:0;z-index:1}
 .card{background:var(--card);border:1px solid var(--line);border-radius:2px;padding:14px}
 .card h2{font-size:13.5px;font-weight:700;display:flex;align-items:center;gap:8px;margin-bottom:9px;padding-bottom:7px;border-bottom:1px solid var(--line2)}

@@ -278,7 +278,7 @@ details.card summary .cnt{font-size:11.5px;color:var(--mut);font-weight:500}
       <div><label>단위</label><select id="mvUnit"><option>kg</option><option>Bag</option><option>드럼</option><option>PLT</option><option>Box</option><option>대</option></select></div>
       <div><label>출고창고</label><input id="mvLoc" style="width:120px" placeholder="자동"></div>
       <div style="flex:1;min-width:140px"><label>비고</label><input id="mvNote" placeholder="오후 / 재생 / 급함 등"></div>
-      <div><label>&nbsp;</label><button class="btn pri" type="submit">추가</button></div>
+      <div><label>&nbsp;</label><button class="btn sm pri" type="submit">추가</button></div>
     </form>
     <div class="quick" id="mvQuick"></div>
   </details>
@@ -305,7 +305,7 @@ details.card summary .cnt{font-size:11.5px;color:var(--mut);font-weight:500}
       <div><label>창고</label><input id="odLoc" style="width:110px"></div>
       <div><label>부서</label><select id="odDept"><option>경질</option><option>창호</option><option>타일</option><option>DBP</option><option>전사</option><option>사급</option></select></div>
       <div style="flex:1;min-width:120px"><label>비고</label><input id="odNote" placeholder="도착시간, 2대 등"></div>
-      <div><label>&nbsp;</label><button class="btn pri" type="submit">발주 등록</button></div>
+      <div><label>&nbsp;</label><button class="btn sm pri" type="submit">발주 등록</button></div>
     </div>
     </form>
   </div>
@@ -332,7 +332,7 @@ details.card summary .cnt{font-size:11.5px;color:var(--mut);font-weight:500}
       <input type="file" id="xlsFile" accept=".xlsx,.xls,.csv" style="display:none" onchange="readXls(this.files[0])">
       <textarea id="csPaste" style="margin-top:10px" placeholder="또는 발주서 텍스트 붙여넣기&#10;예) 발 신  ○○엔지니어링㈜ ...&#10;1  IF-850  25  1500  08월18일"></textarea>
       <div class="row" style="margin-top:8px">
-        <button class="btn pri" onclick="parseCs()">자동 인식</button>
+        <button class="btn sm pri" onclick="parseCs()">자동 인식</button>
         <span class="tag" id="csMsg"></span>
       </div>
     </div>
@@ -342,11 +342,11 @@ details.card summary .cnt{font-size:11.5px;color:var(--mut);font-weight:500}
         <div><label>사급처</label><input id="csVendor" list="consList" placeholder="예: ○○엔지니어링" onchange="judgeAll()"></div>
         <div><label>의뢰일</label><input id="csDate" type="date"></div>
         <div><label>공통 요청납기</label><input id="csDue" type="date" onchange="applyCommonDue()"></div>
-        <div><label>&nbsp;</label><button class="btn" onclick="addCsLine()">+ 수동 행</button></div>
+        <div><label>&nbsp;</label><button class="btn sm" onclick="addCsLine()">+ 수동 행</button></div>
       </div>
       <div class="tbl"><table><thead><tr><th>품목</th><th class="num">수량(kg)</th><th>요청납기</th><th>처리</th><th>공급사</th><th></th></tr></thead><tbody id="csDraft"></tbody></table></div>
       <div class="hint" style="margin-top:10px"><span class="act-order">발주</span> = 공급사에 대리발주(사급처 직납)<br><span class="act-direct">직접출고</span> = 14동 재고 까대기 → 지게차 출고<br><span class="act-check">확인</span> = 과거 이력 없음, 직접 판단<br><span class="act-none">제외</span> = 우리 대응 아님(필요 시 수동 선택 — 등록 시 자동 제외)</div>
-      <div class="row" style="justify-content:flex-end;margin-top:8px"><button class="btn pri" onclick="commitCs()">등록 (발주 메일·출고지시 생성)</button></div>
+      <div class="row" style="justify-content:flex-end;margin-top:8px"><button class="btn sm pri" onclick="commitCs()">등록 (발주 메일·출고지시 생성)</button></div>
     </div>
   </div>
   <div class="card" id="csMailCard" style="display:none">
@@ -362,7 +362,7 @@ details.card summary .cnt{font-size:11.5px;color:var(--mut);font-weight:500}
       <div><label>납기 날짜</label><input type="date" id="csDueDateFlt" onchange="renderCs()"></div>
       <div><label>납기 월</label><input type="month" id="csDueMonthFlt" onchange="renderCs()"></div>
       <button class="btn sm ghost" onclick="csDueDateFlt.value='';csDueMonthFlt.value='';renderCs()">납기 필터 지우기</button>
-      <button class="btn" onclick="mailForSelected()">선택 건 메일 다시 만들기</button>
+      <button class="btn sm" onclick="mailForSelected()">선택 건 메일 다시 만들기</button>
       <button class="btn sm pri" onclick="csBulkMark()">선택 입고완료 처리</button>
       <span class="tag" id="csSelCnt"></span>
     </div>
@@ -451,7 +451,7 @@ details.card summary .cnt{font-size:11.5px;color:var(--mut);font-weight:500}
   <div class="card">
     <h2>예측 대시보드</h2>
     <div class="row" style="align-items:center;margin-bottom:8px">
-      <button class="btn" onclick="fcCalc()">예측 계산</button>
+      <button class="btn sm pri" onclick="fcCalc()">예측 계산</button>
       <input id="fcSearch" placeholder="자재 검색…" oninput="renderFcResult()" style="min-width:200px">
       <span class="hint" id="fcCalcHint" style="flex:1;min-width:160px"></span>
     </div>
@@ -965,7 +965,12 @@ function deptChip(d){return `<span class="dept d-${['경질','창호','타일','
 
 /* ═════════ 오늘 작업판 ═════════ */
 // 주기 기준은 자가만 대상 — 아래 품목은 실제로는 자가 발주가 아니므로 제외
-const SELF_CYCLE_EXCLUDE=new Set(['CR-102','J293F-1','P3000 Bag','NR-950','LOX-203','SB-102'].map(norm));
+const SELF_CYCLE_EXCLUDE=new Set(['CR-102','J293F-1','P3000 Bag','P3000 탱크','P3000(탱크)','P3000 Tank','LOX-203','SB-102'].map(norm));
+// NR-950은 자가 발주 대상 — 1회 발주량을 20 Bag(F/B 500kg) 기준 kg으로 환산해 표시
+(function(){
+  const nr=M.presetSelf.find(p=>norm(p.item)==='NR950'||norm(p.label||'').includes('NR950'));
+  if(nr){nr.qty=20*500;nr.unit='kg';}
+})();
 function dueList(){
   // 프리셋별 마지막 발주일 → 주기 경과 시 제안 (자가만 — 사급 주기는 표시 안 함)
   const all=M.presetSelf.filter(p=>!SELF_CYCLE_EXCLUDE.has(norm(p.item))).map(p=>({...p,type:'self',dest:'자가(세종·부강)'}));

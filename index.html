@@ -806,8 +806,8 @@ function toggleDriver(){
 function refreshAll(){
   document.getElementById('curDate').value=cur;
   renderBoard();renderMoves();renderOrders();renderCs();renderMaster();renderDriver();fillLists();renderSpQuick();renderQm();renderStats();renderFc();
-  const dueN=window._dueN??dueList().length, mvN=S.moves.filter(m=>m.date===cur&&!m.done).length, csN=S.cons.filter(c=>!c.done&&!c.ordDate&&!c.outDate).length;
-  badge('bMove',mvN);badge('bOrder',dueN);badge('bCons',csN);
+  const odN=S.orders.filter(o=>!o.skip&&!o.inDate).length, mvN=S.moves.filter(m=>m.date===cur&&!m.done).length, csN=S.cons.filter(c=>!c.done&&!c.ordDate&&!c.outDate).length;
+  badge('bMove',mvN);badge('bOrder',odN);badge('bCons',csN);
 }
 function badge(id,n){const b=document.getElementById(id);b.hidden=!n;b.textContent=n;}
 function fillLists(){

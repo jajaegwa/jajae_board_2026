@@ -179,11 +179,12 @@ details.card summary .cnt{font-size:11.5px;color:var(--mut);font-weight:500}
   <span class="sub">입고 · 창고이동 · 발주 · 사급 한 화면</span>
   <!-- 화면이 최신 버전인지 바로 확인할 수 있게 표시 — 이 값이 다르면 브라우저가
        예전 파일을 캐시해 둔 것이므로 강력 새로고침(Ctrl+F5 / 아이폰은 Safari 재실행) 필요 -->
-  <span class="sub" id="buildStamp" title="화면 버전 — 최신이 아니면 Ctrl+F5로 강력 새로고침">v2026-08-26c</span>
+  <span class="sub" id="buildStamp" title="화면 버전 — 최신이 아니면 Ctrl+F5로 강력 새로고침">v2026-08-27a</span>
   <span class="sp"></span>
   <span class="date">기준일 <input type="date" id="curDate" onchange="setDate(this.value)"></span>
   <span class="savebox" id="saveBox"><i></i><span id="saveTxt">불러오는 중</span></span>
   <span class="chip c-wait" id="drvNotif" style="display:none;cursor:pointer" onclick="clearDrvNotif()" title="눌러서 확인"></span>
+  <span class="chip c-late" id="delAlert" style="display:none;cursor:pointer" onclick="ackDeletes()" title="눌러서 삭제 기록 보기"></span>
   <button class="btn sm" onclick="toggleDriver()" id="btnDrv">지게차 화면</button>
   <button class="btn sm" onclick="openShare()">공유·바로가기</button>
   <button class="btn sm" onclick="exportJSON()">백업</button>
@@ -198,6 +199,7 @@ details.card summary .cnt{font-size:11.5px;color:var(--mut);font-weight:500}
   <button data-t="master" onclick="showTab('master')">기준정보</button>
   <button data-t="stats" onclick="showTab('stats')">통계</button>
   <button data-t="fc" onclick="showTab('fc')">원료예측</button>
+  <button data-t="trash" onclick="showTab('trash')">삭제기록<span class="b" id="bTrash" hidden></span></button>
 </nav>
 <main>
 <div id="roBanner" class="card" style="display:none;border-color:var(--amber);background:var(--amber-soft);color:var(--amber);font-size:13px;padding:10px 14px;margin-bottom:12px">읽기 전용 화면입니다. 체크·입력은 편집 권한이 있는 계정에서만 저장됩니다.</div>
@@ -502,6 +504,39 @@ details.card summary .cnt{font-size:11.5px;color:var(--mut);font-weight:500}
 </section>
 
 <!-- ═══════ 지게차 기사 화면 ═══════ -->
+<!-- ═══════ 삭제 기록 · 휴지통 ═══════ -->
+<section id="tab-trash" style="display:none">
+  <div class="card">
+    <h2>삭제 기록 <span class="cnt" id="cntLog"></span></h2>
+    <div class="hint">누가 언제 무엇을 지웠는지 남습니다. 실시간 공유라 다른 사람이 지운 것도 여기에 기록됩니다.<br>
+      한 번에 여러 건이 지워지면 상단에 <b>빨간 경고</b>가 뜹니다. 아래 [되살리기]로 복구할 수 있습니다.</div>
+    <div class="tbl scroll"><table><thead><tr><th>시각</th><th>지운 사람</th><th>종류</th><th class="num">건수</th><th>내용</th><th></th></tr></thead><tbody id="logBody"></tbody></table></div>
+  </div>
+  <div class="card">
+    <h2>휴지통 <span class="cnt" id="cntTrash"></span></h2>
+    <div class="hint">지워진 항목이 보관됩니다(최근 500건). 개별로 되살릴 수 있습니다.</div>
+    <div class="row" style="margin-bottom:10px">
+      <input id="trashSearch" placeholder="품목·내용 검색" oninput="renderTrash()" style="flex:1;min-width:160px">
+      <select id="trashKind" onchange="renderTrash()">
+        <option value="">종류 전체</option><option value="move">창고이동</option>
+        <option value="order">발주</option><option value="cons">사급</option><option value="note">전달사항</option>
+      </select>
+    </div>
+    <div class="tbl scroll"><table><thead><tr><th>지운 시각</th><th>지운 사람</th><th>종류</th><th>내용</th><th></th></tr></thead><tbody id="trashBody"></tbody></table></div>
+  </div>
+  <div class="card">
+    <h2>백업 파일에서 되살리기</h2>
+    <div class="hint">브라우저에 남아 있던 백업(<b>recover.html</b>에서 내려받은 파일)에서 <b>지금 없어진 항목만</b> 찾아 되살립니다.<br>
+      기존 내용을 덮어쓰지 않으므로 이후에 입력한 것이 사라지지 않습니다.</div>
+    <div class="row">
+      <button class="btn sm pri" onclick="mergeFile.click()">백업 파일 고르기</button>
+      <input type="file" id="mergeFile" accept=".json" style="display:none" onchange="mergeRestore(event)">
+      <a class="btn sm" href="recover.html" target="_blank" style="text-decoration:none;display:inline-block">복구 도구 열기</a>
+    </div>
+    <div id="mergeResult" class="hint" style="margin-top:8px"></div>
+  </div>
+</section>
+
 <section id="tab-driver" class="drv" style="display:none"></section>
 </main>
 
@@ -676,7 +711,7 @@ function deptOf(m){if(!m)return '';const u=m.use||'';if(/창호/.test(u))return'
 
 /* ═════════ 저장소 ═════════ */
 const KEY='jajae-board-v1';
-let S={moves:[],orders:[],cons:[],specials:{},notes:[],seq:1,invHist:[],fcPlan:[]};
+let S={moves:[],orders:[],cons:[],specials:{},notes:[],trash:[],log:[],seq:1,invHist:[],fcPlan:[]};
 const localISO=x=>`${x.getFullYear()}-${String(x.getMonth()+1).padStart(2,'0')}-${String(x.getDate()).padStart(2,'0')}`;
 let cap=null,readOnly=false,mode='local',cur=localISO(new Date());
 const today=()=>cur, realToday=()=>localISO(new Date());
@@ -705,7 +740,7 @@ function makeDummyState(){
     cons:[
       {id:5,recvDate:d,consignee:'(샘플) 사급처A',item:'(샘플) 품목E',qty:150,action:'발주',supplier:'(샘플) 공급사',due:d,ordDate:'',outDate:'',done:false}
     ],
-    specials:{},notes:[],seq:100,invHist:[],fcPlan:[]};
+    specials:{},notes:[],trash:[],log:[],seq:100,invHist:[],fcPlan:[]};
 }
 async function loadDB(){
   let loaded=false;
@@ -762,6 +797,8 @@ function sbNormalize(d){
   return{moves:arrOfObj(d.moves),orders:arrOfObj(d.orders),cons:arrOfObj(d.cons),
     specials:isObj(d.specials)?d.specials:{},
     notes:arrOfObj(d.notes),
+    trash:arrOfObj(d.trash),
+    log:arrOfObj(d.log),
     seq:Number.isFinite(d.seq)?d.seq:1,
     fcPlan:arrOfObj(d.fcPlan),invHist:arrOfObj(d.invHist),
     inv:isObj(d.inv)?d.inv:undefined};
@@ -826,7 +863,7 @@ async function sbConnect(pass){
   if(data&&Object.keys(data).length){
     if(!sbApply(data)){toast('서버 데이터 형식이 올바르지 않아 로컬 데이터를 유지합니다');}
   }else{
-    if(S._sample)S={moves:[],orders:[],cons:[],specials:{},notes:[],seq:1,invHist:[],fcPlan:[]};   // 샘플 데이터가 최초 업로드로 올라가지 않게 방지
+    if(S._sample)S={moves:[],orders:[],cons:[],specials:{},notes:[],trash:[],log:[],seq:1,invHist:[],fcPlan:[]};   // 샘플 데이터가 최초 업로드로 올라가지 않게 방지
     let seedRes;try{seedRes=await sb.rpc('set_board',{p_id:SB_BOARD,p_passcode:sbPass,p_data:S});}catch(e){seedRes=null;}
     if(!seedRes||seedRes.error){toast('최초 업로드 실패 — 잠시 후 다시 시도하세요');sbOK=false;sbShowGate();return;}
     refreshAll();   // M 병합 결과(기준정보) 반영 — S는 그대로라 sbApply를 거치지 않음
@@ -948,6 +985,8 @@ function refreshAll(){
   const odN=S.orders.filter(o=>!o.skip&&!o.inDate).length, mvN=S.moves.filter(m=>m.date===cur&&!m.done).length, csN=S.cons.filter(c=>!c.done&&!c.ordDate&&!c.outDate).length;
   badge('bMove',mvN);badge('bOrder',odN);badge('bCons',csN);
   updateDrvNotif();
+  updateDelAlert();
+  renderTrashTab();
   pushDrvNotif();   // 기사 기기: 새로 생긴 입고·이동·전달사항을 폰 알림으로
 }
 function badge(id,n){const b=document.getElementById(id);b.hidden=!n;b.textContent=n;}
@@ -1502,9 +1541,9 @@ function armDel(key){
   toast('한 번 더 누르면 삭제됩니다');refreshAll();return false;
 }
 const armLbl=key=>_arm===key?'정말 삭제?':'삭제';
-function delMove(id){if(!armDel('mv'+id))return;S.moves=S.moves.filter(x=>x.id!==id);saveDB();refreshAll();toast('삭제됨');}
-function delOrder(id){if(!armDel('od'+id))return;S.orders=S.orders.filter(x=>x.id!==id);saveDB();refreshAll();toast('발주 건 삭제됨');}
-function delCs(id){if(!armDel('cs'+id))return;S.cons=S.cons.filter(x=>x.id!==id);saveDB();refreshAll();toast('사급 건 삭제됨');}
+function delMove(id){if(!armDel('mv'+id))return;toTrash('move',S.moves.filter(x=>x.id===id));S.moves=S.moves.filter(x=>x.id!==id);saveDB();refreshAll();toast('삭제됨 — 휴지통에서 되살릴 수 있음');}
+function delOrder(id){if(!armDel('od'+id))return;toTrash('order',S.orders.filter(x=>x.id===id));S.orders=S.orders.filter(x=>x.id!==id);saveDB();refreshAll();toast('발주 건 삭제됨 — 휴지통에서 되살릴 수 있음');}
+function delCs(id){if(!armDel('cs'+id))return;toTrash('cons',S.cons.filter(x=>x.id===id));S.cons=S.cons.filter(x=>x.id!==id);saveDB();refreshAll();toast('사급 건 삭제됨 — 휴지통에서 되살릴 수 있음');}
 let selMv=new Set();
 function toggleSelMv(id,checked){checked?selMv.add(id):selMv.delete(id);const el=document.getElementById('mvSelAll');if(el)el.checked=false;updateMvSelCnt();}
 function toggleAllMv(checked){
@@ -1537,7 +1576,7 @@ function renderMoves(){
   document.getElementById('cntMv2').textContent=mv.length?`${mv.length}건`:'';
   updateMvSelCnt();
 }
-function editMove(id){const m=S.moves.find(x=>x.id===id);openDlg('창고이동 수정',[['date','날짜','date'],['dept','부서'],['item','품목'],['qty','수량','number'],['unit','단위'],['loc','출고창고'],['actKg','실출고 합계 kg (파레트 보정 — 예: SL-64 540+465=1,005)','number'],['note','비고']],m,()=>{saveDB();refreshAll();},()=>{S.moves=S.moves.filter(x=>x.id!==id);saveDB();refreshAll();});}
+function editMove(id){const m=S.moves.find(x=>x.id===id);openDlg('창고이동 수정',[['date','날짜','date'],['dept','부서'],['item','품목'],['qty','수량','number'],['unit','단위'],['loc','출고창고'],['actKg','실출고 합계 kg (파레트 보정 — 예: SL-64 540+465=1,005)','number'],['note','비고']],m,()=>{saveDB();refreshAll();},()=>{toTrash('move',S.moves.filter(x=>x.id===id));S.moves=S.moves.filter(x=>x.id!==id);saveDB();refreshAll();});}
 
 /* ═════════ 발주 · 입고 ═════════ */
 function applyPreset(){
@@ -1605,7 +1644,7 @@ function renderOrders(){
   const th=document.getElementById('odEtaTh');if(th)th.textContent='착일'+(odSort==='asc'?' ▲':odSort==='desc'?' ▼':'');
   updateOdSelCnt();
 }
-function editOrder(id){const o=S.orders.find(x=>x.id===id);openDlg('발주 건 수정',[['ordDate','발주일','date'],['vendor','매입처'],['item','품목'],['dest','납품처'],['qty','수량','number'],['unit','단위'],['eta','착일','date'],['inDate','실입고일 (비우면 미입고)','date'],['loc','창고'],['dept','부서'],['note','비고']],o,()=>{saveDB();refreshAll();},()=>{S.orders=S.orders.filter(x=>x.id!==id);saveDB();refreshAll();});}
+function editOrder(id){const o=S.orders.find(x=>x.id===id);openDlg('발주 건 수정',[['ordDate','발주일','date'],['vendor','매입처'],['item','품목'],['dest','납품처'],['qty','수량','number'],['unit','단위'],['eta','착일','date'],['inDate','실입고일 (비우면 미입고)','date'],['loc','창고'],['dept','부서'],['note','비고']],o,()=>{saveDB();refreshAll();},()=>{toTrash('order',S.orders.filter(x=>x.id===id));S.orders=S.orders.filter(x=>x.id!==id);saveDB();refreshAll();});}
 
 /* ═════════ 사급 발주서 ═════════ */
 let draft=[];
@@ -1873,7 +1912,7 @@ function editCs(id){
     <div style="grid-column:1/-1"><label>비고</label><input data-k="note" value="${esc(c.note??'')}"></div>`;
   csEditActionSync(dlgBody.querySelector('[data-k="action"]'));
   const db2=document.getElementById('dlgDelBtn');db2.style.display='';db2.dataset.arm='';db2.textContent='삭제';
-  dlgCtx={obj:c,onSave:()=>{saveDB();refreshAll();},onDel:()=>{S.cons=S.cons.filter(x=>x.id!==id);saveDB();refreshAll();}};
+  dlgCtx={obj:c,onSave:()=>{saveDB();refreshAll();},onDel:()=>{toTrash('cons',S.cons.filter(x=>x.id===id));S.cons=S.cons.filter(x=>x.id!==id);saveDB();refreshAll();}};
   dlg.showModal();
 }
 
@@ -2076,6 +2115,155 @@ async function pushDrvNotif(){
   }catch(e){}
 }
 
+/* ═════════ 삭제 기록 · 휴지통 ═════════
+   삭제된 항목을 지우지 않고 S.trash에 옮겨 두고, 누가 언제 지웠는지 S.log에 남김.
+   실시간 공유 특성상 다른 사람이 지운 것도 내 화면에 그대로 반영되므로,
+   "누가 지웠는지"와 "되살리기"가 없으면 사고를 확인할 방법이 없음.
+   기록도 함께 동기화되도록 sbNormalize 화이트리스트에 trash·log를 넣어 둠. */
+const TRASH_KEEP=500;      // 휴지통 보관 개수(넘치면 오래된 것부터 정리)
+const LOG_KEEP=300;
+function whoAmI(){
+  const n=localStorage.getItem('jjUser')||'';
+  if(n)return n;
+  return document.body.classList.contains('driver')?'기사(이름 미입력)':'자재과';
+}
+const KIND_LABEL={move:'창고이동',order:'발주',cons:'사급',note:'전달사항'};
+const KIND_ARR={move:'moves',order:'orders',cons:'cons',note:'notes'};
+/* 삭제 항목을 휴지통으로. 여러 건을 한 번에 지운 경우 같은 batch로 묶어 기록 */
+function toTrash(kind,items,batch){
+  if(!items||!items.length)return;
+  S.trash=S.trash||[];S.log=S.log||[];
+  const at=new Date().toISOString(), by=whoAmI(), b=batch||('b'+Date.now()+Math.random().toString(36).slice(2,6));
+  items.forEach(it=>S.trash.push({tid:'t'+(S.seq++),kind,by,at,batch:b,data:JSON.parse(JSON.stringify(it))}));
+  S.log.push({lid:'l'+(S.seq++),at,by,kind,n:items.length,batch:b,
+    sample:items.slice(0,3).map(i=>i.item||i.text||i.consignee||'').filter(Boolean).join(', ')});
+  if(S.trash.length>TRASH_KEEP)S.trash=S.trash.slice(-TRASH_KEEP);
+  if(S.log.length>LOG_KEEP)S.log=S.log.slice(-LOG_KEEP);
+}
+/* 휴지통에서 되살리기 — 같은 id가 이미 있으면 건드리지 않음(중복 생성 방지) */
+function restoreTrash(tid){
+  const t=(S.trash||[]).find(x=>x.tid===tid);if(!t)return;
+  const arr=KIND_ARR[t.kind];if(!arr)return;
+  S[arr]=S[arr]||[];
+  if(!S[arr].some(x=>x.id===t.data.id))S[arr].push(t.data);
+  S.trash=S.trash.filter(x=>x.tid!==tid);
+  saveDB();refreshAll();toast(`${KIND_LABEL[t.kind]} 되살림`);
+}
+/* 한 번에 지워진 묶음 전체 되살리기 */
+function restoreBatch(batch){
+  const list=(S.trash||[]).filter(x=>x.batch===batch);
+  if(!list.length){toast('되살릴 항목이 없습니다');return;}
+  list.forEach(t=>{
+    const arr=KIND_ARR[t.kind];if(!arr)return;
+    S[arr]=S[arr]||[];
+    if(!S[arr].some(x=>x.id===t.data.id))S[arr].push(t.data);
+  });
+  S.trash=(S.trash||[]).filter(x=>x.batch!==batch);
+  saveDB();refreshAll();toast(`${list.length}건 되살림`);
+}
+/* 내가 아닌 사람이 지운 기록이 있으면 상단에 경고 — 특히 한 번에 여러 건 지운 경우 */
+function seenLogSet(){try{return new Set(JSON.parse(localStorage.getItem('jjSeenLog')||'[]'));}catch(e){return new Set();}}
+function unseenDeletes(){
+  const me=whoAmI(), seen=seenLogSet();
+  return (S.log||[]).filter(l=>l.by!==me&&!seen.has(l.lid));
+}
+function ackDeletes(){
+  try{localStorage.setItem('jjSeenLog',JSON.stringify((S.log||[]).map(l=>l.lid).slice(-LOG_KEEP)));}catch(e){}
+  showTab('trash');updateDelAlert();
+}
+function updateDelAlert(){
+  const el=document.getElementById('delAlert');if(!el)return;
+  if(document.body.classList.contains('driver')){el.style.display='none';return;}
+  const un=unseenDeletes();
+  const total=un.reduce((a,l)=>a+(l.n||0),0);
+  if(!total){el.style.display='none';return;}
+  el.style.display='';
+  el.textContent=`⚠ 다른 사람이 삭제 ${total}건 — 확인`;
+  const bulk=un.some(l=>(l.n||0)>=3);
+  el.className='chip '+(bulk?'c-late':'c-wait');
+}
+
+function fmtWhen(iso){
+  try{const d=new Date(iso);
+    return `${String(d.getMonth()+1).padStart(2,'0')}/${String(d.getDate()).padStart(2,'0')} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
+  }catch(e){return iso||'';}
+}
+function trashDesc(t){
+  const d=t.data||{};
+  if(t.kind==='move')return `${esc(d.dept||'')} · ${esc(d.item||'')} ${fmtN(d.qty)}${esc(d.unit||'')}${d.date?' · '+d.date:''}`;
+  if(t.kind==='order')return `${esc(d.vendor||'')} · ${esc(d.item||'')} ${fmtN(d.qty)}${esc(d.unit||'')}${d.eta?' · 착일 '+d.eta:''}`;
+  if(t.kind==='cons')return `${esc(d.consignee||'')} · ${esc(d.item||'')} ${fmtN(d.qty)}`;
+  if(t.kind==='note')return esc(d.text||'');
+  return '';
+}
+function renderTrashTab(){
+  const lb=document.getElementById('logBody');
+  if(lb){
+    const logs=[...(S.log||[])].reverse();
+    const me=whoAmI();
+    lb.innerHTML=logs.length?logs.map(l=>{
+      const mine=l.by===me;
+      const left=(S.trash||[]).filter(t=>t.batch===l.batch).length;
+      const bulk=(l.n||0)>=3;
+      return `<tr><td>${fmtWhen(l.at)}</td><td>${mine?'<span class="tag">나</span> ':''}<b>${esc(l.by)}</b></td>`+
+        `<td>${KIND_LABEL[l.kind]||l.kind}</td>`+
+        `<td class="num">${bulk?'<span class="chip c-late">'+l.n+'건</span>':l.n}</td>`+
+        `<td class="tag" style="white-space:normal">${esc(l.sample||'')}</td>`+
+        `<td>${left?`<button class="btn sm pri" onclick="restoreBatch('${l.batch}')">${left}건 되살리기</button>`:'<span class="tag">되살림·정리됨</span>'}</td></tr>`;
+    }).join(''):'<tr><td colspan="6" class="empty">삭제 기록 없음</td></tr>';
+    const cl=document.getElementById('cntLog');
+    if(cl)cl.textContent=(S.log||[]).length?`${(S.log||[]).length}건`:'';
+  }
+  renderTrash();
+  const bt=document.getElementById('bTrash');
+  if(bt){const n=unseenDeletes().reduce((a,l)=>a+(l.n||0),0);bt.hidden=!n;bt.textContent=n;}
+}
+function renderTrash(){
+  const box=document.getElementById('trashBody');if(!box)return;
+  const q=(document.getElementById('trashSearch')?.value||'').trim().toUpperCase();
+  const kind=document.getElementById('trashKind')?.value||'';
+  let list=[...(S.trash||[])].reverse();
+  if(kind)list=list.filter(t=>t.kind===kind);
+  if(q)list=list.filter(t=>JSON.stringify(t.data||{}).toUpperCase().includes(q));
+  box.innerHTML=list.length?list.map(t=>
+    `<tr><td>${fmtWhen(t.at)}</td><td><b>${esc(t.by)}</b></td><td>${KIND_LABEL[t.kind]||t.kind}</td>`+
+    `<td style="white-space:normal">${trashDesc(t)}</td>`+
+    `<td><button class="btn sm pri" onclick="restoreTrash('${t.tid}')">되살리기</button></td></tr>`
+  ).join(''):'<tr><td colspan="5" class="empty">휴지통 비어 있음</td></tr>';
+  const ct=document.getElementById('cntTrash');
+  if(ct)ct.textContent=(S.trash||[]).length?`${(S.trash||[]).length}건 보관`:'';
+}
+/* 백업 파일에서 "지금 없는 것만" 되살림 — 덮어쓰지 않으므로 이후 입력분이 사라지지 않음 */
+function mergeRestore(ev){
+  const f=ev.target.files[0];if(!f)return;
+  const r=new FileReader();
+  r.onload=()=>{
+    let d;
+    try{d=JSON.parse(r.result);}catch(e){document.getElementById('mergeResult').textContent='파일을 읽을 수 없습니다.';return;}
+    if(!d||!Array.isArray(d.moves)){document.getElementById('mergeResult').textContent='올바른 백업 파일이 아닙니다.';return;}
+    const added={};
+    [['moves','창고이동'],['orders','발주'],['cons','사급'],['notes','전달사항']].forEach(([k,label])=>{
+      const src=Array.isArray(d[k])?d[k]:[];
+      S[k]=S[k]||[];
+      const have=new Set(S[k].map(x=>x.id));
+      // 되살린 뒤 다시 지워진 것으로 오해하지 않도록, 휴지통에 있는 것도 대상에서 제외
+      const inTrash=new Set((S.trash||[]).map(t=>t.data&&t.data.id));
+      let n=0;
+      src.forEach(x=>{if(x&&x.id!=null&&!have.has(x.id)&&!inTrash.has(x.id)){S[k].push(x);n++;}});
+      if(n)added[label]=n;
+      // id 충돌을 막기 위해 seq를 항상 최대값 위로 올려 둠
+      const maxId=Math.max(0,...S[k].map(x=>+x.id||0));
+      if(S.seq<=maxId)S.seq=maxId+1;
+    });
+    const total=Object.values(added).reduce((a,b)=>a+b,0);
+    document.getElementById('mergeResult').innerHTML=total
+      ? `되살림: ${Object.entries(added).map(([k,v])=>`${k} <b>${v}</b>건`).join(' · ')}`
+      : '되살릴 항목이 없습니다 — 백업에 있는 내용이 이미 모두 들어 있습니다.';
+    if(total){saveDB();refreshAll();toast(`${total}건 되살림`);}
+  };
+  r.readAsText(f);ev.target.value='';
+}
+
 /* ═════════ 특이사항 자유 메모 ═════════
    부서 고정칸(경질·DBP·타일·창호)으로 안 잡히는 전달사항을 날짜별로 자유롭게 적는 곳.
    지게차 화면에도 그대로 표시되고 기사가 완료 체크할 수 있음.
@@ -2094,6 +2282,7 @@ function addNote(){
 }
 function delNote(id){
   if(!armDel('note'+id))return;
+  toTrash('note',(S.notes||[]).filter(n=>n.id===id));
   S.notes=(S.notes||[]).filter(n=>n.id!==id);
   saveDB();refreshAll();
 }

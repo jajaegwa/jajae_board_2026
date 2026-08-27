@@ -274,7 +274,7 @@ function sbWatchMain(){
 async function fetchOrders(){
   if(!sb||!sbPass)return;
   try{const{data}=await sb.rpc('get_board',{p_id:B_MAIN,p_passcode:sbPass});
-    if(data&&isObj(data)){mainOK=true;orders=arrOfObj(data.orders);renderView();}}catch(e){}
+    if(data&&isObj(data)){mainOK=true;orders=arrOfObj(data.orders);refreshAll();}}catch(e){}
 }
 function askConnect(){
   const p=prompt('부서 공유 비밀번호를 입력하세요 (자재과 작업판과 동일)');
@@ -426,7 +426,15 @@ function renderNav(){
   }).join('');
 }
 function setView(v){view=v;renderNav();renderView();}
-function refreshAll(){renderNav();renderView();}
+/* 45초/60초 주기 폴링·실시간 브로드캐스트(발주 데이터 등)가 검색창에 타이핑 중인
+   화면을 통째로 다시 그려버리면 입력 중이던 DOM이 교체돼 조합이 끊기고 포커스가
+   날아감 — 그래서 검색창에 포커스가 있는 동안은 배경 새로고침을 건너뛴다.
+   (검색 자체의 재렌더링은 scheduleSearch가 별도로, 타이핑이 멈췄을 때만 수행) */
+function isSearchFocused(){
+  const el=document.activeElement;
+  return !!(el&&el.tagName==='INPUT'&&el.type==='search');
+}
+function refreshAll(){renderNav();if(!isSearchFocused())renderView();}
 /* 검색창 입력마다 큰 표 전체를 다시 그리면 느려지고, 한글 조합(IME) 중에 입력칸 DOM이
    통째로 교체되면서 조합이 끊겨 한 글자만 쳐지는 문제가 생김 — 그래서 타이핑이 잠깐
    멈췄을 때만 다시 그리고, 그 후 포커스·커서 위치를 검색창에 되돌려준다. */

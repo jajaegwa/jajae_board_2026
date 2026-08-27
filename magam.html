@@ -405,9 +405,12 @@ function clearTargets(side){
 /* ===== 화면 ===== */
 const VIEWS=[['dash','대시보드'],['sales','사급 매출마감'],['purchase','매입 마감'],['setup','데이터·설정']];
 let view='dash';
-/* who=처리자(자재과 담당, 기본 김성진), buyer=구매팀(매입 전용) */
-const flt={sales:{q:'',st:'',who:'김성진',ty:''},purchase:{q:'',st:'',who:'김성진',buyer:'',ty:''}};
-let dashWho='김성진';
+/* who=처리자(자재과 담당), buyer=구매팀(매입 전용).
+   기본값을 특정 이름으로 고정하면, 업체별 처리자 데이터에 그 이름이 하나도 없을 때
+   드롭다운은 "전체"로 보이는데 실제로는 몰래 필터링되어 목록이 통째로 비어버리는
+   문제가 생기므로 기본은 항상 "전체"(빈 문자열)로 둔다. */
+const flt={sales:{q:'',st:'',who:'',ty:''},purchase:{q:'',st:'',who:'',buyer:'',ty:''}};
+let dashWho='';
 const tgtOnly={sales:true,purchase:true};   // 이번달 마감대상 업로드 시 기본 ON (파일 없으면 무시하고 전체 표시)
 function esc(s){return (s||'').toString().replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
 

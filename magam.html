@@ -664,6 +664,34 @@ function editVendor(side,vid){
   });
 }
 
+/* --- 처리자 일괄 변경 --- 업체별 "처리자" 항목(슬래시로 여러 명 표기 가능)에 남아있는
+   이름을 한 번에 바꾼다. 인계 등으로 담당자가 바뀌었는데 업체마다 일일이 수정하기
+   번거로울 때 씀. */
+function bulkRenameHandler(from,to){
+  from=(from||'').trim();to=(to||'').trim();
+  if(!from||!to)return;
+  let n=0;
+  ['sales','purchase'].forEach(side=>{
+    S.vendors[side].forEach(v=>{
+      const parts=(v.handler||'').split('/').map(x=>x.trim()).filter(Boolean);
+      if(parts.includes(from)){
+        v.handler=parts.map(x=>x===from?to:x).join('/');
+        n++;
+      }
+    });
+  });
+  if(!n){toast(`처리자에 "${from}"이(가) 있는 업체가 없습니다`);return;}
+  saveDB();refreshAll();
+  toast(`${n}곳의 처리자를 "${from}"→"${to}"로 변경했습니다`);
+}
+function bulkRenameHandlerPrompt(){
+  const from=prompt('바꿀 기존 처리자 이름을 입력하세요');
+  if(from==null||!from.trim())return;
+  const to=prompt(`"${from.trim()}"을(를) 무엇으로 바꿀까요?`,'김성진');
+  if(to==null||!to.trim())return;
+  bulkRenameHandler(from,to);
+}
+
 /* --- 데이터·설정 --- */
 function setupHTML(){
   const sql=`insert into board_state (id, passcode, data)
@@ -688,6 +716,13 @@ on conflict (id) do nothing;`;
       <button class="btn" onclick="exportCSV('purchase')">매입 CSV</button>
     </div>
     <div class="hint" style="margin-top:10px">업체 ${S.vendors.sales.length+S.vendors.purchase.length}곳 · 저장된 월: ${Object.keys(S.months).sort().join(', ')||'없음'}</div>
+  </div>
+  <div class="card"><h2>처리자 일괄 변경</h2>
+    <div class="hint">업체별 "처리자" 항목에 남아있는 이름을 한 번에 바꿉니다. (담당자 인계 등으로 이름이 바뀌었을 때 사용 — 업체마다 일일이 수정할 필요 없음)</div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <button class="btn pri" onclick="bulkRenameHandler('김성룡','김성진')">김성룡 → 김성진 일괄 변경</button>
+      <button class="btn" onclick="bulkRenameHandlerPrompt()">다른 이름으로 변경…</button>
+    </div>
   </div>
   <div class="card"><h2>월 관리</h2>
     <div class="hint">상단의 <b>마감월</b>을 바꾸면 해당 월 체크리스트로 전환됩니다. 새 달은 빈 체크리스트로 자동 시작되고, 지난 달 기록은 그대로 보존됩니다.</div>

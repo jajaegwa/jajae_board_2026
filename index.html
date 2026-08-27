@@ -179,7 +179,7 @@ details.card summary .cnt{font-size:11.5px;color:var(--mut);font-weight:500}
   <span class="sub">입고 · 창고이동 · 발주 · 사급 한 화면</span>
   <!-- 화면이 최신 버전인지 바로 확인할 수 있게 표시 — 이 값이 다르면 브라우저가
        예전 파일을 캐시해 둔 것이므로 강력 새로고침(Ctrl+F5 / 아이폰은 Safari 재실행) 필요 -->
-  <span class="sub" id="buildStamp" title="화면 버전 — 최신이 아니면 Ctrl+F5로 강력 새로고침">v2026-08-27b</span>
+  <span class="sub" id="buildStamp" title="화면 버전 — 최신이 아니면 Ctrl+F5로 강력 새로고침">v2026-08-27c</span>
   <span class="sp"></span>
   <span class="date">기준일 <input type="date" id="curDate" onchange="setDate(this.value)"></span>
   <span class="savebox" id="saveBox"><i></i><span id="saveTxt">불러오는 중</span></span>
@@ -540,7 +540,7 @@ details.card summary .cnt{font-size:11.5px;color:var(--mut);font-weight:500}
 <section id="tab-driver" class="drv" style="display:none"></section>
 </main>
 
-<datalist id="itemList"></datalist><datalist id="vendorList"></datalist><datalist id="destList"></datalist><datalist id="consList"></datalist>
+<datalist id="itemList"></datalist><datalist id="vendorList"></datalist><datalist id="destList"></datalist><datalist id="consList"></datalist><datalist id="matKindList"><option value="PVC"><option value="PP"><option value="ABS"><option value="PC"></datalist>
 <div class="toast" id="toast"></div>
 
 <dialog id="dlg"><div class="dlg"><h3 id="dlgTitle">수정</h3><div class="grid2" id="dlgBody"></div></div>
@@ -921,6 +921,23 @@ async function sbSaveMasterMaterials(){
     const res=await sb.rpc('set_board',{p_id:'jajae-master',p_passcode:sbPass,p_data:payload});
     if(res&&res.error)toast('신규 품목 공유 저장 실패 — 네트워크 확인');
   }catch(e){toast('신규 품목 공유 저장 실패 — 네트워크 확인');}
+}
+/* 원료 마스터 '종류' 편집 저장 — 예: PVC로 표시해 두면 지게차 화면 입고 목록에서 자동 제외됨(isPvcItem 참고). */
+async function matField(idx,key,val){
+  const m=M.materials[idx];if(!m)return;
+  m[key]=val.trim();
+  fillLists();refreshAll();
+  if(!sb||!sbOK){toast(`${m.name} 저장됨 (이 기기에만 — 공유 연결 시 전체 반영)`);return;}
+  try{
+    const{data:cur3}=await sb.rpc('get_board',{p_id:'jajae-master',p_passcode:sbPass});
+    const base=(cur3&&typeof cur3==='object'&&!Array.isArray(cur3))?cur3:{};
+    const remoteMats=Array.isArray(base.materials)?base.materials:M.materials;
+    const merged=remoteMats.map(x=>norm(x.name)===norm(m.name)?{...x,[key]:m[key]}:x);
+    M.materials=merged;fillLists();renderMaster();
+    const payload={...base,materials:merged};
+    const res=await sb.rpc('set_board',{p_id:'jajae-master',p_passcode:sbPass,p_data:payload});
+    if(res&&res.error)toast('저장 실패 — 네트워크 확인');else toast(`${m.name} 저장됨`);
+  }catch(e){toast('저장 실패 — 네트워크 확인');}
 }
 function ensureMaterial(item,extra){
   const name=String(item||'').trim();
@@ -1935,7 +1952,8 @@ function editCs(id){
 function renderMaster(){
   const q=(document.getElementById('matSearch').value||'').trim().toUpperCase();
   const rows=M.materials.filter(m=>!q||(m.name+m.vendor+m.loc+m.use+m.kind).toUpperCase().includes(q));
-  document.getElementById('matBody').innerHTML=rows.map(m=>`<tr><td><b>${esc(m.name)}</b></td><td>${esc(m.kind)}</td><td>${esc(m.pack)}</td><td class="num">${fmtN(m.unitKg)}</td><td><b>${esc(m.vendor)}</b></td><td>${esc(m.use)}</td><td>${m.loc?`<span class="loc">${esc(m.loc)}</span>`:''}</td><td class="tag">${esc(m.note)}</td></tr>`).join('');
+  document.getElementById('matBody').innerHTML=rows.map(m=>{const idx=M.materials.indexOf(m);
+    return `<tr><td><b>${esc(m.name)}</b></td><td><input value="${esc(m.kind)}" list="matKindList" placeholder="예: PVC" style="width:90px" onchange="matField(${idx},'kind',this.value)"></td><td>${esc(m.pack)}</td><td class="num">${fmtN(m.unitKg)}</td><td><b>${esc(m.vendor)}</b></td><td>${esc(m.use)}</td><td>${m.loc?`<span class="loc">${esc(m.loc)}</span>`:''}</td><td class="tag">${esc(m.note)}</td></tr>`;}).join('');
   document.getElementById('cntMat').textContent=`${rows.length}개`;
   document.getElementById('respBody').innerHTML=M.consigneeResponse.map(r=>{
     const dir=r.directItems.filter(x=>!orderResp(x)),ex=r.directItems.filter(x=>orderResp(x));
@@ -2361,10 +2379,17 @@ async function sbSaveMasterPresetSelfAll(){
   }catch(e){toast('주기 기준 저장 실패 — 네트워크 확인');}
 }
 
+/* PVC 품목은 지게차 화면 "오늘 들어오는 것"에 표시하지 않음 — 원료 마스터(기준정보 탭)
+   표의 '종류' 열에 PVC로 표시해 둔 품목만 대상. matchItem()으로 발주 품목명과
+   마스터 품목을 매칭해 종류를 조회함(오탈자·괄호 표기 차이에도 웬만큼 매칭됨). */
+function isPvcItem(itemName){
+  const m=matchItem(itemName);
+  return !!(m&&norm(m.kind)==='PVC');
+}
 /* ═════════ 지게차 기사 화면 ═════════ */
 function renderDriver(){
   const el=document.getElementById('tab-driver');
-  const ins=S.orders.filter(o=>!o.skip&&o.type==='self'&&o.eta&&o.eta<=cur&&(!o.inDate||o.inDate===cur)).sort((a,b)=>(a.loc||'').localeCompare(b.loc||''));
+  const ins=S.orders.filter(o=>!o.skip&&o.type==='self'&&o.eta&&o.eta<=cur&&(!o.inDate||o.inDate===cur)&&!isPvcItem(o.item)).sort((a,b)=>(a.loc||'').localeCompare(b.loc||''));
   const mv=S.moves.filter(m=>m.date===cur);const order={'경질':0,'창호':1,'타일':2,'DBP':3};mv.sort((a,b)=>(order[a.dept]??9)-(order[b.dept]??9));
   const outs=S.cons.filter(c=>c.action==='직접출고'&&!c.done&&(!c.due||c.due<=addDays(cur,1)));
   const sp=S.specials[cur]||{};const spTxt=Object.entries(sp).filter(([k,v])=>v).map(([k,v])=>`${k}: ${v}`).join(' · ');

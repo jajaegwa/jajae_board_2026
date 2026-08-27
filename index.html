@@ -179,7 +179,7 @@ details.card summary .cnt{font-size:11.5px;color:var(--mut);font-weight:500}
   <span class="sub">입고 · 창고이동 · 발주 · 사급 한 화면</span>
   <!-- 화면이 최신 버전인지 바로 확인할 수 있게 표시 — 이 값이 다르면 브라우저가
        예전 파일을 캐시해 둔 것이므로 강력 새로고침(Ctrl+F5 / 아이폰은 Safari 재실행) 필요 -->
-  <span class="sub" id="buildStamp" title="화면 버전 — 최신이 아니면 Ctrl+F5로 강력 새로고침">v2026-08-27b</span>
+  <span class="sub" id="buildStamp" title="화면 버전 — 최신이 아니면 Ctrl+F5로 강력 새로고침">v2026-08-27d</span>
   <span class="sp"></span>
   <span class="date">기준일 <input type="date" id="curDate" onchange="setDate(this.value)"></span>
   <span class="savebox" id="saveBox"><i></i><span id="saveTxt">불러오는 중</span></span>
@@ -2289,6 +2289,7 @@ function mergeRestore(ev){
    S.notes에 저장 — Supabase 동기화 화이트리스트(sbNormalize)에도 notes를 넣어야
    다른 사람 화면까지 전달됨. */
 function todayNotes(){return (S.notes||[]).filter(n=>n.date===cur);}
+function drvVisibleNotes(){return todayNotes().filter(n=>!isPvcText(n.text));}
 function addNote(){
   const el=document.getElementById('noteTxt');
   const text=(el.value||'').trim();
@@ -2361,22 +2362,27 @@ async function sbSaveMasterPresetSelfAll(){
   }catch(e){toast('주기 기준 저장 실패 — 네트워크 확인');}
 }
 
+/* PVC 관련 특이사항·전달사항은 지게차 화면에 표시하지 않음 —
+   내용 중 "PVC"라는 글자가 들어 있으면 대상. 자재과 현황 화면(특이사항 카드·
+   전달사항 목록)에서는 그대로 보이고 관리도 그대로 됨 — 지게차 화면에서만 뺌. */
+function isPvcText(s){return /PVC/i.test(String(s||''));}
 /* ═════════ 지게차 기사 화면 ═════════ */
 function renderDriver(){
   const el=document.getElementById('tab-driver');
   const ins=S.orders.filter(o=>!o.skip&&o.type==='self'&&o.eta&&o.eta<=cur&&(!o.inDate||o.inDate===cur)).sort((a,b)=>(a.loc||'').localeCompare(b.loc||''));
   const mv=S.moves.filter(m=>m.date===cur);const order={'경질':0,'창호':1,'타일':2,'DBP':3};mv.sort((a,b)=>(order[a.dept]??9)-(order[b.dept]??9));
   const outs=S.cons.filter(c=>c.action==='직접출고'&&!c.done&&(!c.due||c.due<=addDays(cur,1)));
-  const sp=S.specials[cur]||{};const spTxt=Object.entries(sp).filter(([k,v])=>v).map(([k,v])=>`${k}: ${v}`).join(' · ');
+  const sp=S.specials[cur]||{};const spTxt=Object.entries(sp).filter(([k,v])=>v&&!isPvcText(v)).map(([k,v])=>`${k}: ${v}`).join(' · ');
   const ro=readOnly||!cap;
   const cb=(fn,done)=>`<label><input type="checkbox" ${done?'checked':''} ${ro&&!cap?'':''} onchange="${fn}">완료</label>`;
   const meName=localStorage.getItem('jjUser')||'';
   const insLeft=ins.filter(o=>!o.inDate).length;
-  let h=`<div class="banner"><div><b>${fmtK(cur)}</b> 지게차 작업 <span style="opacity:.7;font-size:13px">(${cur})</span><input type="date" class="drv-date" value="${cur}" onchange="setDate(this.value)"></div><div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">입고 ${insLeft} · 창고이동 ${mv.filter(m=>!m.done).length} · 사급출고 ${outs.length}${todayNotes().filter(n=>!n.done).length?' · 전달사항 '+todayNotes().filter(n=>!n.done).length:''}${notifSupported()&&Notification.permission!=='granted'?`<button class="btn sm warn" onclick="askNotifPerm()" title="폰 알림 받기">🔔 알림 켜기</button>`:(notifSupported()?`<span class="chip c-done" title="새 작업이 등록되면 폰 알림이 옵니다">🔔 알림 켜짐</span>`:'')}<button class="btn sm" style="background:transparent;color:var(--navy-ink);border-color:#4a5b6c" onclick="askName()">👤 ${esc(meName)||'이름 입력'}</button><button class="btn sm" style="background:transparent;color:var(--navy-ink);border-color:#4a5b6c" onclick="location.reload()">새로고침</button></div></div>`;
+  let h=`<div class="banner"><div><b>${fmtK(cur)}</b> 지게차 작업 <span style="opacity:.7;font-size:13px">(${cur})</span><input type="date" class="drv-date" value="${cur}" onchange="setDate(this.value)"></div><div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">입고 ${insLeft} · 창고이동 ${mv.filter(m=>!m.done).length} · 사급출고 ${outs.length}${drvVisibleNotes().filter(n=>!n.done).length?' · 전달사항 '+drvVisibleNotes().filter(n=>!n.done).length:''}${notifSupported()&&Notification.permission!=='granted'?`<button class="btn sm warn" onclick="askNotifPerm()" title="폰 알림 받기">🔔 알림 켜기</button>`:(notifSupported()?`<span class="chip c-done" title="새 작업이 등록되면 폰 알림이 옵니다">🔔 알림 켜짐</span>`:'')}<button class="btn sm" style="background:transparent;color:var(--navy-ink);border-color:#4a5b6c" onclick="askName()">👤 ${esc(meName)||'이름 입력'}</button><button class="btn sm" style="background:transparent;color:var(--navy-ink);border-color:#4a5b6c" onclick="location.reload()">새로고침</button></div></div>`;
   if(cur!==localISO(new Date()))h+=`<div class="card" style="margin-top:10px;font-size:13px;color:var(--amber)">⚠ 오늘(${fmtK(localISO(new Date()))}) 날짜가 아닙니다 · <b onclick="setDate('${localISO(new Date())}')" style="cursor:pointer;text-decoration:underline">오늘로 돌아가기</b></div>`;
   if(spTxt)h+=`<div class="card" style="margin-top:10px;font-size:15px"><b>특이사항</b> ${esc(spTxt)}</div>`;
   // 자유 메모 — 부서칸으로 안 잡히는 전달사항. 기사가 바로 읽고 완료 체크할 수 있게 크게 표시.
-  const notes=todayNotes();
+  // PVC 언급된 메모는 여기서 뺌(자재과 현황 화면의 전달사항 목록에는 그대로 남음).
+  const notes=drvVisibleNotes();
   if(notes.length){
     h+=`<h2>📌 전달사항 <span class="cnt">${notes.filter(n=>!n.done).length}건 남음</span></h2>`;
     h+=notes.map(n=>`<div class="item ${n.done?'done':''}"><div><div class="name" style="white-space:normal">${esc(n.text)}</div><div class="meta">${n.by?'✋ '+esc(n.by)+' 등록':'자재과 등록'}${n.done&&n.doneBy?' · 완료: '+esc(n.doneBy):''}</div></div><div>${cb(`toggleNote(${n.id})`,n.done)}</div></div>`).join('');

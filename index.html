@@ -179,7 +179,7 @@ details.card summary .cnt{font-size:11.5px;color:var(--mut);font-weight:500}
   <span class="sub">입고 · 창고이동 · 발주 · 사급 한 화면</span>
   <!-- 화면이 최신 버전인지 바로 확인할 수 있게 표시 — 이 값이 다르면 브라우저가
        예전 파일을 캐시해 둔 것이므로 강력 새로고침(Ctrl+F5 / 아이폰은 Safari 재실행) 필요 -->
-  <span class="sub" id="buildStamp" title="화면 버전 — 최신이 아니면 Ctrl+F5로 강력 새로고침">v2026-08-27f</span>
+  <span class="sub" id="buildStamp" title="화면 버전 — 최신이 아니면 Ctrl+F5로 강력 새로고침">v2026-08-27g</span>
   <span class="sp"></span>
   <span class="date">기준일 <input type="date" id="curDate" onchange="setDate(this.value)"></span>
   <span class="savebox" id="saveBox"><i></i><span id="saveTxt">불러오는 중</span></span>
@@ -1711,30 +1711,68 @@ dcInv.addEventListener('drop',e=>{const f=e.dataTransfer.files[0];if(f)readInv(f
 function parseCs(){
   const raw=document.getElementById('csPaste').value;if(!raw.trim()){csMsg.textContent='내용이 없습니다.';return;}
   const lines=raw.split(/\r?\n/).map(l=>l.replace(/\t+/g,'\t').trim()).filter(Boolean);
+  // 열 위치 기반 인식용 — 위 lines는 연속 탭(빈 칸)을 하나로 합쳐서 열 위치가 밀리므로,
+  // 탭을 그대로 보존한 버전을 따로 둠(엑셀 업로드는 빈 칸도 탭으로 열이 유지되어 있음).
+  const rawLines=raw.split(/\r?\n/).map(l=>l.replace(/\r$/,'')).filter(l=>l.trim());
   let vendor='';
   for(const key of ['발 신','발신','입고처','상호']){const ln=lines.find(l=>l.replace(/\s/g,'').startsWith(key.replace(/\s/g,'')));if(ln){let v=ln.replace(/^[^\t:：]*?(발\s*신|입고처|상호)\s*[:：]?\s*/,'').split(/\t| {2,}/)[0].trim();v=v.replace(/^(주식회사|㈜|\(주\))\s*/,'').replace(/(㈜|\(주\))$/,'').replace(/(구매팀|운영팀|업무지원팀|담당부서).*$/,'').trim();if(v&&!/협력업체|당\s?사|현대/.test(v)){vendor=v;break;}}}
   let recv='';const rl=lines.find(l=>/의뢰일|거래일자/.test(l));if(rl)recv=findDate(rl);
   const y=recv?+recv.slice(0,4):new Date(cur).getFullYear();
   draft=[];let lastDue='';
-  for(const l of lines){
-    const nl=l.replace(/\s/g,'');
-    if(KEYS.some(k=>nl.startsWith(k.replace(/\s/g,''))))continue;
-    if(/@|☏|☎|\d{3}-\d{3,4}-\d{4}/.test(l))continue;
-    let cells=l.split(/\t| {2,}/).map(c=>c.trim()).filter(Boolean);
-    if(cells.length<2)continue;
-    // 선두 NO 제거
-    if(/^\d{1,2}$/.test(cells[0]))cells=cells.slice(1);
-    const nums=cells.map(c=>c.replace(/,/g,'')).filter(c=>/^\d+(\.\d+)?$/.test(c)).map(Number);
-    const texts=cells.filter(c=>!/^[\d,.]+$/.test(c)&&c.length>=2&&!/^20\d\d-/.test(c)&&!/^"$/.test(c));
-    if(!texts.length||!nums.length)continue;
-    const item=texts[0];
-    // 수량: 포장단위(15/20/25/200/500 등) 다음의 큰 값 우선
-    const packCand=nums.find(n=>[15,20,25,200,500,600,1000,1005].includes(n));
-    let qty=null;const rest=nums.filter(n=>n!==packCand&&n>0&&n<1000000);
-    qty=rest.length?rest[0]:(nums.length>1?nums[1]:nums[0]);
-    if(!qty||qty<=0)continue;
-    const due=findDate(l,y)||(/"|〃|상동/.test(l)?lastDue:'');if(due)lastDue=due;
-    draft.push({item,pack:packCand?`${packCand}kg`:'',qty,due,action:'',supplier:''});
+  /* 열 위치 기반 인식 — "구분"·"품목"처럼 텍스트 열이 여러 개인 표(엑셀 업로드·붙여넣기 모두
+     탭으로 열이 구분됨)에서는 "첫 글자 열=품목" 식 휴리스틱이 구분 열을 품목으로 잘못 집어감.
+     헤더행에서 정확히 "품목" 글자가 있는 열의 위치를 찾아 그 위치 값만 품목으로 쓰고,
+     "수량"이 적힌 열이 있는 행만 대상으로 함(포장단위·생산예정수량 등 다른 숫자 열과 안 섞이게).
+     탭이 없는 줄(엑셀 밖에서 그냥 복사한 자유 텍스트)은 열 위치를 신뢰할 수 없어 기존 방식으로. */
+  let headerCols=null;
+  for(const hl of rawLines){
+    if(!hl.includes('\t'))continue;
+    const hc=hl.split('\t').map(c=>c.replace(/\s+/g,''));
+    const itemIdx=hc.findIndex(c=>c==='품목'||c==='품목명');
+    if(itemIdx<0)continue;
+    const qtyIdx=hc.findIndex(c=>/수량/.test(c)&&!/생산예정수량/.test(c));
+    if(qtyIdx<0)continue;   // 수량 열을 못 찾으면 "수량 적힌 것만" 판단 불가 — 기존 방식으로
+    const dueIdx=hc.findIndex(c=>/납기/.test(c));
+    const packIdx=hc.findIndex(c=>/포장/.test(c));
+    headerCols={itemIdx,qtyIdx,dueIdx:dueIdx<0?null:dueIdx,packIdx:packIdx<0?null:packIdx,headerLine:hl};
+    break;
+  }
+  if(headerCols){
+    let started=false;
+    for(const hl of rawLines){
+      if(hl===headerCols.headerLine){started=true;continue;}
+      if(!started||!hl.includes('\t'))continue;
+      const cells=hl.split('\t').map(c=>c.trim());
+      const item=(cells[headerCols.itemIdx]||'').trim();
+      if(!item||/^(합\s*계|계)$/.test(item))continue;
+      const qtyRaw=(cells[headerCols.qtyIdx]||'').trim().replace(/,/g,'');
+      if(!qtyRaw||!/^\d+(\.\d+)?$/.test(qtyRaw))continue;   // 그 행의 수량 칸이 비어 있으면 대상 아님
+      const qty=+qtyRaw;if(!qty||qty<=0)continue;
+      const due=(headerCols.dueIdx!=null?findDate(cells[headerCols.dueIdx]||'',y):'')||(/"|〃|상동/.test(hl)?lastDue:'');if(due)lastDue=due;
+      const pack=headerCols.packIdx!=null?(cells[headerCols.packIdx]||'').trim():'';
+      draft.push({item,pack,qty,due,action:'',supplier:''});
+    }
+  }else{
+    for(const l of lines){
+      const nl=l.replace(/\s/g,'');
+      if(KEYS.some(k=>nl.startsWith(k.replace(/\s/g,''))))continue;
+      if(/@|☏|☎|\d{3}-\d{3,4}-\d{4}/.test(l))continue;
+      let cells=l.split(/\t| {2,}/).map(c=>c.trim()).filter(Boolean);
+      if(cells.length<2)continue;
+      // 선두 NO 제거
+      if(/^\d{1,2}$/.test(cells[0]))cells=cells.slice(1);
+      const nums=cells.map(c=>c.replace(/,/g,'')).filter(c=>/^\d+(\.\d+)?$/.test(c)).map(Number);
+      const texts=cells.filter(c=>!/^[\d,.]+$/.test(c)&&c.length>=2&&!/^20\d\d-/.test(c)&&!/^"$/.test(c));
+      if(!texts.length||!nums.length)continue;
+      const item=texts[0];
+      // 수량: 포장단위(15/20/25/200/500 등) 다음의 큰 값 우선
+      const packCand=nums.find(n=>[15,20,25,200,500,600,1000,1005].includes(n));
+      let qty=null;const rest=nums.filter(n=>n!==packCand&&n>0&&n<1000000);
+      qty=rest.length?rest[0]:(nums.length>1?nums[1]:nums[0]);
+      if(!qty||qty<=0)continue;
+      const due=findDate(l,y)||(/"|〃|상동/.test(l)?lastDue:'');if(due)lastDue=due;
+      draft.push({item,pack:packCand?`${packCand}kg`:'',qty,due,action:'',supplier:''});
+    }
   }
   csVendor.value=vendor;csDate.value=recv||cur;
   csMsg.textContent=`품목 ${draft.length}행 인식 — 확인 후 등록`;

@@ -153,8 +153,8 @@ const STEPS={
 };
 /* 체크 칸이 많아서 구분이 안 되는 문제 — 흐름상 한 단계로 묶이는 항목들 사이에
    굵은 세로선을 그어 구역을 나눔. 값은 각 구역이 "시작하는" STEPS 인덱스.
-   사급: [수량·금액] [전표생성·매출승인] [수금] [입금표발행·전송·수취] [증빙] [회계보고] */
-const STEP_GROUPS={sales:[2,4,5,8,9],purchase:[]};
+   사급: [수량·금액] [전표생성·매출승인] [수금] [입금표발행·전송·수취·증빙] [회계보고] */
+const STEP_GROUPS={sales:[2,4,5,9],purchase:[]};
 function stepBorder(side,i){return STEP_GROUPS[side].includes(i)?'border-left:2px solid var(--ink);':'';}
 const SIDE_LB={sales:'사급(매각) 매출마감',purchase:'매입 마감'};
 const VIAS=['','이메일','카카오톡','팩스','전화','기타'];
@@ -183,6 +183,10 @@ function normalize(d){
           note:typeof e.note==='string'?e.note:''};
       });
     });
+    /* 이번달만 제외한 업체 — 완전 삭제가 아니라 이번달 목록에서만 숨김(다음달엔 다시 보임) */
+    const ex=isObj(mm.excluded)?mm.excluded:{};
+    clean.excluded={sales:Array.isArray(ex.sales)?ex.sales.filter(x=>typeof x==='string'):[],
+      purchase:Array.isArray(ex.purchase)?ex.purchase.filter(x=>typeof x==='string'):[]};
     /* 이번달 마감대상(업로드 파일 분석 결과) — 업체 id 배열 + 요약 메타 */
     const tg=isObj(mm.targets)?mm.targets:{};
     clean.targets={sales:Array.isArray(tg.sales)?tg.sales.filter(x=>typeof x==='string'):null,
@@ -203,7 +207,7 @@ function normalize(d){
 }
 let S=(()=>{try{const v=normalize(JSON.parse(localStorage.getItem('magamDB')));if(v)return v;}catch(e){}return emptyState();})();
 
-function ensureMonth(m){if(!S.months[m])S.months[m]={sales:{},purchase:{},targets:{sales:null,purchase:null},targetsMeta:{sales:null,purchase:null}};return S.months[m];}
+function ensureMonth(m){if(!S.months[m])S.months[m]={sales:{},purchase:{},targets:{sales:null,purchase:null},targetsMeta:{sales:null,purchase:null},excluded:{sales:[],purchase:[]}};if(!S.months[m].excluded)S.months[m].excluded={sales:[],purchase:[]};return S.months[m];}
 function entry(side,vid,m){const mm=ensureMonth(m||mon);if(!mm[side][vid])mm[side][vid]={sent:'',via:'',st:STEPS.sales.map(()=>false),note:''};return mm[side][vid];}
 function entryRO(side,vid,m){const mm=S.months[m||mon];return mm&&mm[side]&&mm[side][vid]?mm[side][vid]:{sent:'',via:'',st:STEPS.sales.map(()=>false),note:''};}
 function pct(side,e){const n=STEPS[side].length;return e.st.slice(0,n).filter(Boolean).length/n;}
@@ -561,8 +565,11 @@ function listHTML(side){
   const tgt=liveTgtIds(side,tm)||tgtLegacy;
   const tgtEmpty=!!(tm&&tm.names&&tm.names.length&&tgt&&!tgt.length);
   const applyTgt=tgt&&tgt.length&&tgtOnly[side];
+  const mmCur=S.months[mon];
+  const excluded=(mmCur&&mmCur.excluded&&mmCur.excluded[side])||[];
   const rows=S.vendors[side].filter(v=>{
     const e=entryRO(side,v.id);
+    if(excluded.includes(v.id))return false;
     if(applyTgt&&!tgt.includes(v.id))return false;
     if(f.q&&!(v.name+v.type+v.items+v.handler+v.buyer).toUpperCase().includes(f.q.toUpperCase()))return false;
     if(f.st==='done'&&pct(side,e)<1)return false;
@@ -603,11 +610,17 @@ function listHTML(side){
     <button class="btn sm" onclick="exportCSV('${side}')">CSV 내보내기</button>
     <button class="btn sm danger" onclick="resetSide('${side}')">체크 초기화</button>
   </div>
+  <div class="bar">
+    <button class="btn sm danger" onclick="excludeSelectedVendors('${side}')">선택 제외(이번달만)</button>
+    <span id="vSelCnt_${side}" class="mut" style="font-size:11.5px"></span>
+    <span class="sp" style="flex:1"></span>
+    <button class="btn sm ghost" onclick="showExcludedDlg('${side}')">이번달 제외 목록${excluded.length?` (${excluded.length})`:''}</button>
+  </div>
   <div class="tbl scroll"><table>
-    <tr><th>업체명</th><th>유형·품목</th><th>${side==='sales'?'처리자':'처리자·구매팀'}</th><th>발주↔입고</th><th>보낸날짜</th><th>방식</th>${short.map((s,i)=>`<th style="text-align:center;${stepBorder(side,i)}">${s}</th>`).join('')}<th>진행률</th><th>상태</th><th></th></tr>
+    <tr><th><input type="checkbox" class="ck" id="vSelAll_${side}" onchange="toggleAllVendorFromDom(this)"></th><th>업체명</th><th>유형·품목</th><th>${side==='sales'?'처리자':'처리자·구매팀'}</th><th>발주↔입고</th><th>보낸날짜</th><th>방식</th>${short.map((s,i)=>`<th style="text-align:center;${stepBorder(side,i)}">${s}</th>`).join('')}<th>진행률</th><th>상태</th><th></th></tr>
     ${rows.map(v=>rowHTML(side,v)).join('')}
   </table></div>
-  <div class="hint" style="margin-top:8px">업체명 클릭 → 연락처·미입고 상세. 발주↔입고는 자재과 작업판 데이터와 실시간 대사(사급=사급처 출고분, 매입=매입처 발주분).</div>
+  <div class="hint" style="margin-top:8px">업체명 클릭 → 연락처·미입고 상세. 발주↔입고는 자재과 작업판 데이터와 실시간 대사(사급=사급처 출고분, 매입=매입처 발주분). 체크박스로 여러 곳을 선택해 "선택 제외"하면 이번달 목록에서만 빠지고(완전 삭제 아님), 다음달엔 다시 보입니다.</div>
   </div>`;
 }
 function rowHTML(side,v){
@@ -615,6 +628,7 @@ function rowHTML(side,v){
   const p=pct(side,e);
   const dl=delayStep(side,e);
   return`<tr>
+    <td><input type="checkbox" class="ck vsel" data-id="${esc(v.id)}"${selVendor[side].has(v.id)?' checked':''} onchange="toggleSelVendor('${side}','${v.id}',this.checked)"></td>
     <td><span class="vname" onclick="toggleDetail('${side}','${v.id}',this)">${esc(v.name)}</span>${v.mgr?`<div class="vsub">${esc(v.mgr)}</div>`:''}</td>
     <td><div>${esc(v.type)||'<span class=mut>—</span>'}</div><div class="vsub">${esc(v.items)}</div></td>
     <td style="font-size:12px">${esc(v.handler)||'<span class=mut>—</span>'}${side==='purchase'&&v.buyer?`<div class="vsub">${esc(v.buyer)}</div>`:''}</td>
@@ -634,7 +648,7 @@ function toggleDetail(side,vid,el){
   const v=S.vendors[side].find(x=>x.id===vid);if(!v)return;
   const L=mainOK?linkOf(side,v):null;
   const d=document.createElement('tr');d.className='detail';
-  d.innerHTML=`<td colspan="18"><div class="dbox">
+  d.innerHTML=`<td colspan="21"><div class="dbox">
     <span><b>담당</b>${esc(v.mgr)||'—'}</span>
     <span><b>이메일</b>${v.email?`<a href="mailto:${esc(v.email.split(/[;,]/)[0].trim())}">${esc(v.email)}</a>`:'—'}</span>
     <span><b>전화</b>${esc(v.tel)||'—'}</span>
@@ -671,6 +685,51 @@ function editVendor(side,vid){
     S.vendors[side]=S.vendors[side].filter(x=>x.id!==vid);
     Object.values(S.months).forEach(mm=>{if(mm[side])delete mm[side][vid];});
   });
+}
+
+/* --- 이번달만 제외 --- 업체를 완전히 삭제하지 않고 "이번달 목록"에서만 숨김.
+   다음달엔 다시 보이고, 아래 [이번달 제외 목록]에서 언제든 복원 가능. */
+let selVendor={sales:new Set(),purchase:new Set()};
+function toggleSelVendor(side,id,checked){checked?selVendor[side].add(id):selVendor[side].delete(id);const all=document.getElementById('vSelAll_'+side);if(all)all.checked=false;updateVendorSelCnt(side);}
+function toggleAllVendorFromDom(el){
+  const side=el.id.replace('vSelAll_','');
+  const checked=el.checked;
+  el.closest('table').querySelectorAll('td input.vsel').forEach(cb=>{
+    cb.checked=checked;
+    checked?selVendor[side].add(cb.dataset.id):selVendor[side].delete(cb.dataset.id);
+  });
+  updateVendorSelCnt(side);
+}
+function updateVendorSelCnt(side){const el=document.getElementById('vSelCnt_'+side);if(el)el.textContent=selVendor[side].size?`${selVendor[side].size}곳 선택됨`:'';}
+function excludeSelectedVendors(side){
+  const ids=[...selVendor[side]];
+  if(!ids.length){toast('제외할 업체를 먼저 체크하세요');return;}
+  if(!confirm(`선택한 ${ids.length}곳을 ${mon} 목록에서 제외할까요?\n(완전히 삭제되지 않습니다 — 다음달엔 다시 보이고, [이번달 제외 목록]에서 언제든 복원할 수 있습니다)`))return;
+  const mm=ensureMonth(mon);
+  ids.forEach(id=>{if(!mm.excluded[side].includes(id))mm.excluded[side].push(id);});
+  selVendor[side].clear();
+  saveDB();refreshAll();
+  toast(`${ids.length}곳을 ${mon} 목록에서 제외했습니다`);
+}
+function restoreVendor(side,id){
+  const mm=ensureMonth(mon);
+  mm.excluded[side]=mm.excluded[side].filter(x=>x!==id);
+  saveDB();refreshAll();showExcludedDlg(side);
+}
+function restoreAllVendors(side){
+  const mm=ensureMonth(mon);
+  mm.excluded[side]=[];
+  saveDB();refreshAll();dlg.close();
+  toast('전체 복원했습니다');
+}
+function showExcludedDlg(side){
+  const mm=ensureMonth(mon);
+  const ids=mm.excluded[side]||[];
+  const vs=ids.map(id=>S.vendors[side].find(v=>v.id===id)).filter(Boolean);
+  dlg.innerHTML=`<h3>${mon} ${SIDE_LB[side]} — 이번달 제외 목록 (${vs.length}곳)</h3>
+    ${vs.length?`<div style="max-height:320px;overflow:auto;margin-top:8px">${vs.map(v=>`<div style="display:flex;justify-content:space-between;align-items:center;padding:5px 0;border-bottom:1px solid var(--line2)"><span>${esc(v.name)}</span><button class="btn sm" onclick="restoreVendor('${side}','${v.id}')">복원</button></div>`).join('')}</div>`:'<div class="hint">제외된 업체가 없습니다.</div>'}
+    <div class="acts">${vs.length?`<button class="btn" onclick="restoreAllVendors('${side}')">전체 복원</button>`:''}<span style="flex:1"></span><button class="btn pri" onclick="dlg.close()">닫기</button></div>`;
+  dlg.showModal();
 }
 
 /* --- 처리자 일괄 변경 --- 업체별 "처리자" 항목(슬래시로 여러 명 표기 가능)에 남아있는

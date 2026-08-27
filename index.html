@@ -179,7 +179,7 @@ details.card summary .cnt{font-size:11.5px;color:var(--mut);font-weight:500}
   <span class="sub">입고 · 창고이동 · 발주 · 사급 한 화면</span>
   <!-- 화면이 최신 버전인지 바로 확인할 수 있게 표시 — 이 값이 다르면 브라우저가
        예전 파일을 캐시해 둔 것이므로 강력 새로고침(Ctrl+F5 / 아이폰은 Safari 재실행) 필요 -->
-  <span class="sub" id="buildStamp" title="화면 버전 — 최신이 아니면 Ctrl+F5로 강력 새로고침">v2026-08-27h</span>
+  <span class="sub" id="buildStamp" title="화면 버전 — 최신이 아니면 Ctrl+F5로 강력 새로고침">v2026-08-27j</span>
   <span class="sp"></span>
   <span class="date">기준일 <input type="date" id="curDate" onchange="setDate(this.value)"></span>
   <span class="savebox" id="saveBox"><i></i><span id="saveTxt">불러오는 중</span></span>
@@ -1701,6 +1701,9 @@ function orderResp(item){
   return ORDER_RESP.some(cn=>cn===nn||(an&&cn===an)||(cn.length>=5&&nn.length>=5&&(nn.includes(cn)||cn.includes(nn))));
 }
 const KEYS=['발신','발 신','수신','수 신','입고처','의뢰일','합계','합 계','당부사항','전달사항','발주내역','용도','접수담당','발주담당','NO','DESCRIPTION','포장단위','요청납기','생산제품','생산예정','거래일자','발주번호','공급받는자','공급자','등록번호','상호','주소','담당자','전화','팩스','코드','품목명','규격','단가','공급가','납기일','부가세','특기','원부원료','품목'];
+/* "구분"(재질 종류) 열에 들어가는 값들 — 발주서 표에 이 열이 품목 열 앞에 있으면
+   품목으로 잘못 걸리기 쉬워, 인식 시 절대 품목으로 채택하지 않음(parseCs 참고). */
+const CAT_WORDS=new Set(['점착제','경화제','희석제','충전제','촉매제','안정제','가소제','접착제','첨가제','용제','희석용제','경화촉진제','촉진제','소포제','습윤제','분산제','안료','개시제','바인더'].map(norm));
 function findDate(t,y){let m=t.match(/(20\d{2})[.\-\/년\s]+(\d{1,2})[.\-\/월\s]+(\d{1,2})/);if(m)return`${m[1]}-${String(m[2]).padStart(2,'0')}-${String(m[3]).padStart(2,'0')}`;
   m=t.match(/(\d{1,2})\s*월\s*(\d{1,2})\s*일/);if(m)return`${y||new Date().getFullYear()}-${String(m[1]).padStart(2,'0')}-${String(m[2]).padStart(2,'0')}`;return'';}
 function readXls(f){
@@ -1737,15 +1740,32 @@ function parseCs(){
      "수량"이 적힌 열이 있는 행만 대상으로 함(포장단위·생산예정수량 등 다른 숫자 열과 안 섞이게).
      탭이 없는 줄(엑셀 밖에서 그냥 복사한 자유 텍스트)은 열 위치를 신뢰할 수 없어 기존 방식으로. */
   let headerCols=null;
-  for(const hl of rawLines){
+  for(let hi=0;hi<rawLines.length;hi++){
+    const hl=rawLines[hi];
     if(!hl.includes('\t'))continue;
     const hc=hl.split('\t').map(c=>c.replace(/\s+/g,''));
-    const itemIdx=hc.findIndex(c=>c==='품목'||c==='품목명');
+    const itemIdx=hc.findIndex(c=>/품목/.test(c));
     if(itemIdx<0)continue;
-    const qtyIdx=hc.findIndex(c=>/수량/.test(c)&&!/생산예정수량/.test(c));
+    // 2행짜리 병합 헤더 대응 — "발주 수량(kg)" 등이 "품목"과 같은 줄이 아니라
+    // 병합으로 바로 위/아래 줄에 있을 수 있음(엑셀은 병합 셀의 값을 맨 위 칸에만 채움).
+    // 같은 열 위치를 위·아래 줄에서도 찾아 빈 칸을 보완함.
+    const above=hi>0&&rawLines[hi-1].includes('\t')?rawLines[hi-1].split('\t').map(c=>c.replace(/\s+/g,'')):[];
+    const below=hi<rawLines.length-1&&rawLines[hi+1].includes('\t')?rawLines[hi+1].split('\t').map(c=>c.replace(/\s+/g,'')):[];
+    const findCol=(re,exclude)=>{
+      for(const row of [hc,above,below]){
+        const idx=row.findIndex(c=>re.test(c)&&!(exclude&&exclude.test(c)));
+        if(idx>=0)return idx;
+      }
+      return -1;
+    };
+    // "발주 수량"이 우선 — "포장수량"·"생산예정수량"처럼 "수량"이 들어간 다른 열과
+    // 혼동하면 포장단위 숫자가 발주수량 자리에 잘못 뜨므로, "발주"가 붙은 수량 열을 먼저 찾고
+    // 없을 때만 "포장"·"생산예정"이 아닌 수량 열로 대신함.
+    const qtyIdx0=findCol(/발주.*수량|수량.*발주/);
+    const qtyIdx=qtyIdx0>=0?qtyIdx0:findCol(/수량/,/포장|생산예정수량/);
     if(qtyIdx<0)continue;   // 수량 열을 못 찾으면 "수량 적힌 것만" 판단 불가 — 기존 방식으로
-    const dueIdx=hc.findIndex(c=>/납기/.test(c));
-    const packIdx=hc.findIndex(c=>/포장/.test(c));
+    const dueIdx=findCol(/납기/);
+    const packIdx=findCol(/포장/);
     headerCols={itemIdx,qtyIdx,dueIdx:dueIdx<0?null:dueIdx,packIdx:packIdx<0?null:packIdx,headerLine:hl};
     break;
   }
@@ -1757,6 +1777,7 @@ function parseCs(){
       const cells=hl.split('\t').map(c=>c.trim());
       const item=(cells[headerCols.itemIdx]||'').trim();
       if(!item||/^(합\s*계|계)$/.test(item))continue;
+      if(CAT_WORDS.has(norm(item)))continue;   // 열 위치가 어긋나 "구분" 값이 잡힌 경우 안전장치
       const qtyRaw=(cells[headerCols.qtyIdx]||'').trim().replace(/,/g,'');
       if(!qtyRaw||!/^\d+(\.\d+)?$/.test(qtyRaw))continue;   // 그 행의 수량 칸이 비어 있으면 대상 아님
       const qty=+qtyRaw;if(!qty||qty<=0)continue;
@@ -1776,7 +1797,11 @@ function parseCs(){
       const nums=cells.map(c=>c.replace(/,/g,'')).filter(c=>/^\d+(\.\d+)?$/.test(c)).map(Number);
       const texts=cells.filter(c=>!/^[\d,.]+$/.test(c)&&c.length>=2&&!/^20\d\d-/.test(c)&&!/^"$/.test(c));
       if(!texts.length||!nums.length)continue;
-      const item=texts[0];
+      // "첫 텍스트 열 = 품목"이 기본 규칙이지만, 그 앞에 "구분"(재질 종류) 열이 있는 표에서는
+      // 점착제·경화제 같은 재질 구분값이 잘못 걸림 — 위 헤더 인식(탭 기반)이 안 통하는
+      // 입력(탭 없이 붙여넣은 경우 등)에 대비한 안전장치로, 알려진 구분값은 건너뛰고
+      // 그다음 텍스트 열을 품목으로 씀.
+      const item=texts.find(t=>!CAT_WORDS.has(norm(t)))||texts[0];
       // 수량: 포장단위(15/20/25/200/500 등) 다음의 큰 값 우선
       const packCand=nums.find(n=>[15,20,25,200,500,600,1000,1005].includes(n));
       let qty=null;const rest=nums.filter(n=>n!==packCand&&n>0&&n<1000000);

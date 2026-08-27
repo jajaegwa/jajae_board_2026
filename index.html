@@ -179,7 +179,7 @@ details.card summary .cnt{font-size:11.5px;color:var(--mut);font-weight:500}
   <span class="sub">입고 · 창고이동 · 발주 · 사급 한 화면</span>
   <!-- 화면이 최신 버전인지 바로 확인할 수 있게 표시 — 이 값이 다르면 브라우저가
        예전 파일을 캐시해 둔 것이므로 강력 새로고침(Ctrl+F5 / 아이폰은 Safari 재실행) 필요 -->
-  <span class="sub" id="buildStamp" title="화면 버전 — 최신이 아니면 Ctrl+F5로 강력 새로고침">v2026-08-27i</span>
+  <span class="sub" id="buildStamp" title="화면 버전 — 최신이 아니면 Ctrl+F5로 강력 새로고침">v2026-08-27j</span>
   <span class="sp"></span>
   <span class="date">기준일 <input type="date" id="curDate" onchange="setDate(this.value)"></span>
   <span class="savebox" id="saveBox"><i></i><span id="saveTxt">불러오는 중</span></span>
@@ -1758,7 +1758,11 @@ function parseCs(){
       }
       return -1;
     };
-    const qtyIdx=findCol(/수량/,/생산예정수량/);
+    // "발주 수량"이 우선 — "포장수량"·"생산예정수량"처럼 "수량"이 들어간 다른 열과
+    // 혼동하면 포장단위 숫자가 발주수량 자리에 잘못 뜨므로, "발주"가 붙은 수량 열을 먼저 찾고
+    // 없을 때만 "포장"·"생산예정"이 아닌 수량 열로 대신함.
+    const qtyIdx0=findCol(/발주.*수량|수량.*발주/);
+    const qtyIdx=qtyIdx0>=0?qtyIdx0:findCol(/수량/,/포장|생산예정수량/);
     if(qtyIdx<0)continue;   // 수량 열을 못 찾으면 "수량 적힌 것만" 판단 불가 — 기존 방식으로
     const dueIdx=findCol(/납기/);
     const packIdx=findCol(/포장/);

@@ -1,0 +1,205 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>작업판 데이터 복구</title>
+<style>
+:root{--ink:#1b3047;--mut:#6b7c8d;--line:#d5dde3;--line2:#e9edef;--head:#e9edef;--card:#fff;--bg:#f4f6f7;
+      --acc:#1f5c8b;--red:#b4442e;--green:#3a8f5a;--amber:#c07a2a}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:'Malgun Gothic','맑은 고딕','Apple SD Gothic Neo',sans-serif;font-size:13px;line-height:1.6}
+header{background:var(--ink);color:#fff;padding:12px 16px;display:flex;gap:10px;align-items:baseline;flex-wrap:wrap}
+header h1{font-size:16px;margin:0;font-weight:700}
+header .sub{font-size:12px;opacity:.75}
+main{max-width:1000px;margin:14px auto;padding:0 14px 60px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:2px;padding:14px;margin-bottom:12px}
+.card h2{font-size:15px;margin:0 0 8px;padding-bottom:7px;border-bottom:1px solid var(--line2)}
+.note{background:#fff8e8;border:1px solid var(--amber);border-radius:2px;padding:10px 12px;margin-bottom:12px;font-size:12.5px}
+.bad{background:#fdf0ed;border-color:var(--red)}
+.ok{background:#eef7f1;border-color:var(--green)}
+table{width:100%;border-collapse:collapse}
+th{background:var(--head);font-size:11.5px;padding:6px 8px;border:1px solid var(--line);white-space:nowrap;text-align:left}
+td{padding:6px 8px;border:1px solid var(--line2);font-size:12.5px;vertical-align:top}
+td.num{text-align:right}
+.tbl{overflow:auto;max-height:460px}
+.tbl thead th{position:sticky;top:0;z-index:1}
+.tbl table{border-collapse:separate;border-spacing:0}
+.tbl th,.tbl td{border-width:0 1px 1px 0}
+.tbl tr>*:first-child{border-left-width:1px}
+.tbl thead th{border-top-width:1px}
+button{border:1px solid var(--line);background:var(--card);color:var(--ink);border-radius:2px;padding:6px 12px;font:inherit;font-size:12.5px;cursor:pointer}
+button:hover{border-color:var(--acc);color:var(--acc)}
+button.pri{background:var(--acc);border-color:var(--acc);color:#fff}
+button.pri:hover{color:#fff;opacity:.9}
+select,input{border:1px solid var(--line);border-radius:2px;padding:5px 7px;font:inherit;font-size:12.5px;height:30px}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:10px}
+.mut{color:var(--mut)}
+.big{font-size:22px;font-weight:700}
+.pill{display:inline-block;padding:1px 7px;border-radius:2px;font-size:11px;font-weight:700;border:1px solid var(--line)}
+code{background:var(--head);padding:1px 5px;border-radius:2px;font-size:12px}
+</style>
+</head>
+<body>
+<header>
+  <h1>작업판 데이터 복구</h1>
+  <span class="sub">이 브라우저에 남아 있는 백업을 확인하고 내려받는 도구</span>
+</header>
+<main>
+
+<div class="note" id="warn">
+  <b>이 페이지는 아무것도 바꾸지 않습니다.</b> 브라우저에 남아 있는 내용을 읽어서 보여주기만 합니다.<br>
+  작업판에서 <b>무언가를 입력·수정·체크하면 이 백업이 덮어써집니다.</b> 복구를 마칠 때까지 작업판은 건드리지 마세요.
+</div>
+
+<div class="card">
+  <h2>1. 이 브라우저에 남아 있는 백업</h2>
+  <div id="summary">읽는 중…</div>
+</div>
+
+<div class="card" id="dateCard" style="display:none">
+  <h2>2. 날짜별 내용 확인</h2>
+  <div class="row">
+    <label>날짜</label>
+    <select id="dateSel" onchange="renderDate()"></select>
+    <span class="mut" id="dateInfo"></span>
+  </div>
+  <div id="dateBody"></div>
+</div>
+
+<div class="card" id="dlCard" style="display:none">
+  <h2>3. 내려받기</h2>
+  <div class="row">
+    <button class="pri" onclick="downloadAll()">전체 백업 내려받기 (JSON)</button>
+    <button onclick="copyAll()">클립보드로 복사</button>
+  </div>
+  <div class="mut">내려받은 파일은 작업판의 <b>[복구]</b> 기능에서 불러와 <b>없어진 항목만 되살릴</b> 수 있습니다.
+    (작업판 상단 <code>복구</code> 버튼 — 덮어쓰지 않고 빠진 것만 채워 넣습니다.)</div>
+</div>
+
+<div class="card">
+  <h2>백업이 없다고 나오면</h2>
+  <ul class="mut" style="margin:0;padding-left:18px">
+    <li>데이터를 <b>입력했던 그 기기·그 브라우저</b>에서 이 페이지를 열어야 합니다. (다른 폰·PC는 각각 따로 저장됩니다)</li>
+    <li>같은 브라우저라도 <b>시크릿 모드</b>로 썼다면 남아 있지 않습니다.</li>
+    <li>기사님 폰처럼 <b>동기화를 늦게 받은 기기</b>에 남아 있을 수 있으니 그 기기에서도 이 페이지를 열어 보세요.</li>
+    <li>그래도 없으면 Supabase 대시보드의 백업(Point-in-time Recovery)으로 되돌리는 방법이 남아 있습니다.</li>
+  </ul>
+</div>
+
+</main>
+<script>
+const KEY='jajae-board-v1';
+let DATA=null;
+
+function esc(s){return String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));}
+function n(v){return (+v||0).toLocaleString('ko-KR');}
+
+function load(){
+  let raw=null;
+  try{raw=localStorage.getItem(KEY);}catch(e){
+    document.getElementById('summary').innerHTML='<span style="color:var(--red)">브라우저가 저장소 접근을 막고 있습니다. 시크릿 모드가 아닌 일반 창에서 열어 주세요.</span>';
+    return;
+  }
+  if(!raw){
+    document.getElementById('summary').innerHTML=
+      '<div class="big" style="color:var(--red)">백업 없음</div>'+
+      '<div class="mut">이 브라우저에는 작업판 데이터가 저장돼 있지 않습니다. 아래 안내를 확인하세요.</div>';
+    document.getElementById('warn').className='note bad';
+    return;
+  }
+  try{DATA=JSON.parse(raw);}catch(e){
+    document.getElementById('summary').innerHTML='<span style="color:var(--red)">백업이 손상되어 읽을 수 없습니다.</span>';
+    return;
+  }
+  render();
+}
+
+function byDate(){
+  const map={};
+  const add=(d,kind)=>{ if(!d)return; (map[d]=map[d]||{move:0,order:0,cons:0,note:0})[kind]++; };
+  (DATA.moves||[]).forEach(m=>add(m.date,'move'));
+  (DATA.orders||[]).forEach(o=>add(o.ordDate,'order'));
+  (DATA.cons||[]).forEach(c=>add(c.recvDate,'cons'));
+  (DATA.notes||[]).forEach(x=>add(x.date,'note'));
+  return map;
+}
+
+function render(){
+  const m=(DATA.moves||[]).length,o=(DATA.orders||[]).length,c=(DATA.cons||[]).length,nt=(DATA.notes||[]).length;
+  document.getElementById('summary').innerHTML=
+    '<div class="big" style="color:var(--green)">백업을 찾았습니다</div>'+
+    `<div style="margin-top:6px">창고이동 <b>${n(m)}</b>건 · 발주 <b>${n(o)}</b>건 · 사급 <b>${n(c)}</b>건 · 전달사항 <b>${n(nt)}</b>건</div>`+
+    '<div class="mut" style="margin-top:4px">이 기기에서 마지막으로 <b>저장(입력·수정·체크)</b>했을 때의 내용입니다.</div>';
+  document.getElementById('warn').className='note ok';
+
+  const map=byDate();
+  const dates=Object.keys(map).sort().reverse();
+  const sel=document.getElementById('dateSel');
+  sel.innerHTML=dates.map(d=>{const v=map[d];
+    return `<option value="${d}">${d} — 이동 ${v.move} · 발주 ${v.order} · 사급 ${v.cons} · 전달 ${v.note}</option>`;}).join('');
+  if(dates.length){
+    document.getElementById('dateCard').style.display='';
+    document.getElementById('dlCard').style.display='';
+    // 오늘 날짜가 있으면 그것부터 보여줌
+    const today=new Date();
+    const iso=`${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}-${String(today.getDate()).padStart(2,'0')}`;
+    sel.value=dates.includes(iso)?iso:dates[0];
+    renderDate();
+  }
+}
+
+function renderDate(){
+  const d=document.getElementById('dateSel').value;
+  const mv=(DATA.moves||[]).filter(x=>x.date===d);
+  const od=(DATA.orders||[]).filter(x=>x.ordDate===d);
+  const cs=(DATA.cons||[]).filter(x=>x.recvDate===d);
+  const nt=(DATA.notes||[]).filter(x=>x.date===d);
+  document.getElementById('dateInfo').textContent=`${d} · 총 ${mv.length+od.length+cs.length+nt.length}건`;
+
+  let h='';
+  if(mv.length){
+    h+='<h3 style="font-size:13.5px;margin:12px 0 6px">창고이동 요청 '+mv.length+'건</h3>';
+    h+='<div class="tbl"><table><thead><tr><th>부서</th><th>품목</th><th>수량</th><th>출고창고</th><th>비고</th><th>상태</th></tr></thead><tbody>'+
+      mv.map(x=>`<tr><td>${esc(x.dept)}</td><td><b>${esc(x.item)}</b></td><td class="num">${n(x.qty)} ${esc(x.unit||'')}</td><td>${esc(x.loc||'')}</td><td>${esc(x.note||'')}</td><td>${x.done?'<span class="pill">실물완료</span>':''}${x.erp?' <span class="pill">전산완료</span>':''}</td></tr>`).join('')+
+      '</tbody></table></div>';
+  }
+  if(od.length){
+    h+='<h3 style="font-size:13.5px;margin:12px 0 6px">발주 '+od.length+'건</h3>';
+    h+='<div class="tbl"><table><thead><tr><th>착일</th><th>매입처</th><th>품목</th><th>수량</th><th>납품처</th></tr></thead><tbody>'+
+      od.map(x=>`<tr><td>${esc(x.eta||'')}</td><td>${esc(x.vendor)}</td><td><b>${esc(x.item)}</b></td><td class="num">${n(x.qty)} ${esc(x.unit||'')}</td><td>${esc(x.dest||'')}</td></tr>`).join('')+
+      '</tbody></table></div>';
+  }
+  if(cs.length){
+    h+='<h3 style="font-size:13.5px;margin:12px 0 6px">사급 '+cs.length+'건</h3>';
+    h+='<div class="tbl"><table><thead><tr><th>사급처</th><th>품목</th><th>수량</th><th>처리</th></tr></thead><tbody>'+
+      cs.map(x=>`<tr><td>${esc(x.consignee)}</td><td><b>${esc(x.item)}</b></td><td class="num">${n(x.qty)}</td><td>${esc(x.action||'')}</td></tr>`).join('')+
+      '</tbody></table></div>';
+  }
+  if(nt.length){
+    h+='<h3 style="font-size:13.5px;margin:12px 0 6px">전달사항 '+nt.length+'건</h3>';
+    h+='<div class="tbl"><table><thead><tr><th>내용</th><th>등록</th></tr></thead><tbody>'+
+      nt.map(x=>`<tr><td>${esc(x.text)}</td><td>${esc(x.by||'')}</td></tr>`).join('')+
+      '</tbody></table></div>';
+  }
+  document.getElementById('dateBody').innerHTML=h||'<div class="mut">이 날짜에는 기록이 없습니다.</div>';
+}
+
+function downloadAll(){
+  const blob=new Blob([JSON.stringify(DATA,null,1)],{type:'application/json'});
+  const a=document.createElement('a');
+  const t=new Date();
+  const stamp=`${t.getFullYear()}${String(t.getMonth()+1).padStart(2,'0')}${String(t.getDate()).padStart(2,'0')}-${String(t.getHours()).padStart(2,'0')}${String(t.getMinutes()).padStart(2,'0')}`;
+  a.href=URL.createObjectURL(blob);
+  a.download=`작업판-백업-${stamp}.json`;
+  document.body.appendChild(a);a.click();
+  setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove();},1000);
+}
+async function copyAll(){
+  try{await navigator.clipboard.writeText(JSON.stringify(DATA,null,1));alert('복사되었습니다. 메모장 등에 붙여넣어 보관하세요.');}
+  catch(e){alert('복사에 실패했습니다. [전체 백업 내려받기]를 사용해 주세요.');}
+}
+load();
+</script>
+</body>
+</html>

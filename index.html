@@ -179,7 +179,7 @@ details.card summary .cnt{font-size:11.5px;color:var(--mut);font-weight:500}
   <span class="sub">입고 · 창고이동 · 발주 · 사급 한 화면</span>
   <!-- 화면이 최신 버전인지 바로 확인할 수 있게 표시 — 이 값이 다르면 브라우저가
        예전 파일을 캐시해 둔 것이므로 강력 새로고침(Ctrl+F5 / 아이폰은 Safari 재실행) 필요 -->
-  <span class="sub" id="buildStamp" title="화면 버전 — 최신이 아니면 Ctrl+F5로 강력 새로고침">v2026-08-27p</span>
+  <span class="sub" id="buildStamp" title="화면 버전 — 최신이 아니면 Ctrl+F5로 강력 새로고침">v2026-08-27q</span>
   <span class="sp"></span>
   <span class="date">기준일 <input type="date" id="curDate" onchange="setDate(this.value)"></span>
   <span class="savebox" id="saveBox"><i></i><span id="saveTxt">불러오는 중</span></span>
@@ -2409,7 +2409,7 @@ function mergeRestore(ev){
    S.notes에 저장 — Supabase 동기화 화이트리스트(sbNormalize)에도 notes를 넣어야
    다른 사람 화면까지 전달됨. */
 function todayNotes(){return (S.notes||[]).filter(n=>n.date===cur);}
-function drvVisibleNotes(){return todayNotes().filter(n=>!isPvcText(n.text));}
+function drvVisibleNotes(){return todayNotes().filter(n=>!isPvcText(n.text)&&!isDriverHiddenText(n.text));}
 function addNote(){
   const el=document.getElementById('noteTxt');
   const text=(el.value||'').trim();
@@ -2514,13 +2514,21 @@ function isPvcItem(itemName){
   return !!(m&&norm(m.kind)==='PVC');
 }
 function isPvcText(s){return /PVC/i.test(String(s||''));}
+/* 벌크·탱크로 자가 입고되는 P-1000·P-1000F·P-800·P-700은 지게차가 다루는 건이 아니라
+   주기 기준(자재과 발주 알림) 용도로만 관리 — PVC와 같은 규칙으로 지게차 화면
+   전체(오늘 들어오는 것·특이사항·전달사항)에서 안 보이게 함. 자재과 현황 화면·
+   기준정보 탭에서는 그대로 보임. */
+const DRIVER_HIDE_NAMES=['P-1000F','P-1000','P-800','P-700'];
+const DRIVER_HIDE_ITEMS=new Set(DRIVER_HIDE_NAMES.map(norm));
+function isDriverHiddenItem(itemName){return DRIVER_HIDE_ITEMS.has(norm(itemName));}
+function isDriverHiddenText(s){const t=String(s||'').toUpperCase();return DRIVER_HIDE_NAMES.some(n=>t.includes(n.toUpperCase()));}
 /* ═════════ 지게차 기사 화면 ═════════ */
 function renderDriver(){
   const el=document.getElementById('tab-driver');
-  const ins=S.orders.filter(o=>!o.skip&&o.type==='self'&&o.eta&&o.eta<=cur&&(!o.inDate||o.inDate===cur)&&!isPvcItem(o.item)).sort((a,b)=>(a.loc||'').localeCompare(b.loc||''));
+  const ins=S.orders.filter(o=>!o.skip&&o.type==='self'&&o.eta&&o.eta<=cur&&(!o.inDate||o.inDate===cur)&&!isPvcItem(o.item)&&!isDriverHiddenItem(o.item)).sort((a,b)=>(a.loc||'').localeCompare(b.loc||''));
   const mv=S.moves.filter(m=>m.date===cur);const order={'경질':0,'창호':1,'타일':2,'DBP':3};mv.sort((a,b)=>(order[a.dept]??9)-(order[b.dept]??9));
   const outs=S.cons.filter(c=>c.action==='직접출고'&&!c.done&&(!c.due||c.due<=addDays(cur,1)));
-  const sp=S.specials[cur]||{};const spTxt=Object.entries(sp).filter(([k,v])=>v&&!isPvcText(v)).map(([k,v])=>`${k}: ${v}`).join(' · ');
+  const sp=S.specials[cur]||{};const spTxt=Object.entries(sp).filter(([k,v])=>v&&!isPvcText(v)&&!isDriverHiddenText(v)).map(([k,v])=>`${k}: ${v}`).join(' · ');
   const ro=readOnly||!cap;
   const cb=(fn,done)=>`<label><input type="checkbox" ${done?'checked':''} ${ro&&!cap?'':''} onchange="${fn}">완료</label>`;
   const meName=localStorage.getItem('jjUser')||'';

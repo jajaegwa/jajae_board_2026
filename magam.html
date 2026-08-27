@@ -6,6 +6,8 @@
 <title>자재과 마감관리</title>
 <!-- 실시간 공유 동기화(Supabase) — 외부망 차단 환경에서는 로드 실패 → 자동 로컬 저장 모드 -->
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<!-- 이번달 마감대상 업로드(더존 엑셀 리포트 파싱)용 — 로드 실패 시 업로드 버튼에서 안내 -->
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <style>
 /* jajae-board-erp 디자인 시스템(DESIGN.md) 준수 — 밝은 크롬, 시스템 한글 폰트, 2px 모서리,
    전체 셀 테두리 그리드, 아웃라인 칩. 다크 크롬은 토스트에만 허용. */
@@ -49,17 +51,6 @@ main{max-width:1800px;margin:14px auto;padding:0 16px 60px}
 .card h2 .cnt{font-size:11.5px;color:var(--mut);font-weight:500}
 .card .hint{font-size:12px;color:var(--mut);margin-bottom:10px;line-height:1.55}
 .tbl{overflow-x:auto}
-/* 세로 스크롤 시 헤더행 고정 — overflow-x:auto만 있으면 overflow-y가 auto로 계산돼
-   .tbl이 스크롤 컨테이너가 되고, sticky th가 페이지가 아닌 이 박스 기준으로 묶여
-   높이 제한이 없으면 결국 헤더가 그대로 밀려 올라감. 높이를 제한해 박스 안에서
-   스크롤되게 하면 그 안에서 헤더가 고정됨.
-   이 표들은 <thead> 없이 첫 행이 th라서 tr:first-child th까지 함께 처리.
-   사파리는 border-collapse:collapse 표에서 sticky를 지원하지 않아 separate로 전환. */
-.tbl.scroll{max-height:560px;overflow:auto}
-.tbl.scroll table{border-collapse:separate;border-spacing:0}
-.tbl.scroll th,.tbl.scroll td{border-width:0 1px 1px 0}
-.tbl.scroll tr>*:first-child{border-left-width:1px}
-.tbl.scroll tr:first-child th{border-top-width:1px}
 table{width:100%;border-collapse:collapse}
 th{background:var(--head);color:var(--mut);font-size:11.5px;font-weight:700;text-align:left;padding:6px 8px;border:1px solid var(--line);position:sticky;top:0;white-space:nowrap;z-index:1}
 td{padding:5px 8px;border:1px solid var(--line2);font-size:12.5px;vertical-align:middle;white-space:nowrap}
@@ -172,13 +163,26 @@ function normalize(d){
           note:typeof e.note==='string'?e.note:''};
       });
     });
+    /* 이번달 마감대상(업로드 파일 분석 결과) — 업체 id 배열 + 요약 메타 */
+    const tg=isObj(mm.targets)?mm.targets:{};
+    clean.targets={sales:Array.isArray(tg.sales)?tg.sales.filter(x=>typeof x==='string'):null,
+      purchase:Array.isArray(tg.purchase)?tg.purchase.filter(x=>typeof x==='string'):null};
+    const tgm=isObj(mm.targetsMeta)?mm.targetsMeta:{};
+    clean.targetsMeta={};
+    ['sales','purchase'].forEach(sd=>{
+      const m2=tgm[sd];
+      clean.targetsMeta[sd]=isObj(m2)?{fileName:typeof m2.fileName==='string'?m2.fileName:'',
+        at:typeof m2.at==='string'?m2.at:'',total:Number.isFinite(m2.total)?m2.total:0,
+        matched:Number.isFinite(m2.matched)?m2.matched:0,created:Number.isFinite(m2.created)?m2.created:0,
+        unmatched:Array.isArray(m2.unmatched)?m2.unmatched.filter(x=>typeof x==='string'):[]}:null;
+    });
     months[m]=clean;
   });
   return{ver:1,vendors:{sales:arrOfObj(vs.sales),purchase:arrOfObj(vs.purchase)},months};
 }
 let S=(()=>{try{const v=normalize(JSON.parse(localStorage.getItem('magamDB')));if(v)return v;}catch(e){}return emptyState();})();
 
-function ensureMonth(m){if(!S.months[m])S.months[m]={sales:{},purchase:{}};return S.months[m];}
+function ensureMonth(m){if(!S.months[m])S.months[m]={sales:{},purchase:{},targets:{sales:null,purchase:null},targetsMeta:{sales:null,purchase:null}};return S.months[m];}
 function entry(side,vid,m){const mm=ensureMonth(m||mon);if(!mm[side][vid])mm[side][vid]={sent:'',via:'',st:STEPS.sales.map(()=>false),note:''};return mm[side][vid];}
 function entryRO(side,vid,m){const mm=S.months[m||mon];return mm&&mm[side]&&mm[side][vid]?mm[side][vid]:{sent:'',via:'',st:STEPS.sales.map(()=>false),note:''};}
 function pct(side,e){const n=STEPS[side].length;return e.st.slice(0,n).filter(Boolean).length/n;}
@@ -291,12 +295,108 @@ function linkBadge(side,v){
   return h;
 }
 
+/* ===== 이번달 마감대상 업로드(더존 엑셀 리포트 분석) =====
+   매입: "마감확인용(업체별)" 리포트 — 헤더 'Site Name' 열의 업체명(그룹 첫 행만, 'XXX Total' 행 제외)
+   사급: "M_03_매각내역" 리포트 — 헤더 '매각업체명' 열, 동일한 그룹핑 규칙.
+   업체명에 붙는 사업자번호"(1234567890)"·법인표기(주식회사/㈜/(주)/(유))는 매칭 전에 제거. */
+const REPORT_COL={purchase:{idx:0,header:'Site Name',label:'마감확인용(업체별)'},sales:{idx:1,header:'매각업체명',label:'M_03_매각내역'}};
+function stripBizForm(s){
+  let x=(s||'').trim();
+  x=x.replace(/\(\d{6,}\)\s*$/,'');
+  x=x.replace(/(주식회사|㈜|\(주\)|\(유\))/g,'');
+  return x.trim();
+}
+function extractGroupedNames(rows,colIdx,headerText){
+  let hRow=-1;
+  for(let i=0;i<rows.length;i++){
+    if(rows[i]&&rows[i].some(c=>typeof c==='string'&&c.trim()===headerText)){hRow=i;break;}
+  }
+  if(hRow<0)return null;
+  const names=[];
+  for(let i=hRow+1;i<rows.length;i++){
+    const v=rows[i]&&rows[i][colIdx];
+    if(typeof v==='string'){
+      const t=v.trim();
+      if(t&&!/Total$/.test(t))names.push(t);
+    }
+  }
+  return[...new Set(names)];
+}
+function matchFileName(name,side){
+  const n=nrm(stripBizForm(name));if(!n)return{id:null};
+  const same=S.vendors[side];
+  const hit=v=>vKeys(v).some(k=>k===n)?1:(vKeys(v).some(k=>k.length>=2&&(n.includes(k)||k.includes(n)))?2:0);
+  let best=null,bestScore=99;
+  for(const v of same){const s=hit(v);if(s&&s<bestScore){best=v;bestScore=s;}}
+  if(best)return{id:best.id,from:'same'};
+  const other=side==='sales'?'purchase':'sales';
+  best=null;bestScore=99;
+  for(const v of S.vendors[other]){const s=hit(v);if(s&&s<bestScore){best=v;bestScore=s;}}
+  if(best)return{id:null,twin:best,from:'other'};
+  return{id:null};
+}
+function cloneVendorForSide(side,twin){
+  const seq=(S._impSeq=(S._impSeq||0)+1);
+  const v={id:side[0]+'a'+Date.now().toString(36)+seq,name:twin.name,mgr:twin.mgr||'',email:twin.email||'',
+    tel:twin.tel||'',type:twin.type||'',handler:twin.handler||'',buyer:side==='purchase'?(twin.buyer||''):'',
+    items:twin.items||'',alias:twin.alias||''};
+  S.vendors[side].push(v);
+  return v.id;
+}
+function processMonthlyFile(side,file){
+  if(typeof XLSX==='undefined'){toast('엑셀 라이브러리 로드 실패 — 네트워크 확인 후 새로고침해서 다시 시도해주세요');return;}
+  const rd=new FileReader();
+  rd.onload=()=>{
+    let rows;
+    try{
+      const wb=XLSX.read(new Uint8Array(rd.result),{type:'array'});
+      const ws=wb.Sheets[wb.SheetNames[0]];
+      rows=XLSX.utils.sheet_to_json(ws,{header:1,defval:''});
+    }catch(e){toast('엑셀 파일을 읽을 수 없습니다');return;}
+    const cfg=REPORT_COL[side];
+    let names=extractGroupedNames(rows,cfg.idx,cfg.header);
+    if(!names){
+      const other=side==='sales'?'purchase':'sales';
+      const alt=extractGroupedNames(rows,REPORT_COL[other].idx,REPORT_COL[other].header);
+      toast(alt?`이 파일은 ${SIDE_LB[other]} 리포트(${REPORT_COL[other].label})로 보입니다 — ${SIDE_LB[other]} 탭에서 업로드해주세요`
+        :`업체별 리포트 형식을 인식하지 못했습니다 (${cfg.label} 리포트를 올려주세요)`);
+      return;
+    }
+    if(!names.length){toast('파일에서 업체명을 찾지 못했습니다');return;}
+    const ids=new Set();let created=0;const unmatched=[];
+    names.forEach(nm=>{
+      const m=matchFileName(nm,side);
+      if(m.id){ids.add(m.id);}
+      else if(m.twin){ids.add(cloneVendorForSide(side,m.twin));created++;}
+      else unmatched.push(nm);
+    });
+    const mm=ensureMonth(mon);
+    mm.targets[side]=[...ids];
+    mm.targetsMeta[side]={fileName:file.name,at:curDate,total:names.length,matched:ids.size-created,created,unmatched};
+    tgtOnly[side]=true;
+    saveDB();refreshAll();
+    toast(`${SIDE_LB[side]} 마감대상 반영: ${names.length}곳 중 ${ids.size}곳 매칭`+(unmatched.length?` · 미매칭 ${unmatched.length}곳`:''));
+  };
+  rd.readAsArrayBuffer(file);
+}
+function uploadMonthly(side,inp){
+  const f=inp.files[0];if(!f)return;
+  processMonthlyFile(side,f);
+  inp.value='';
+}
+function clearTargets(side){
+  if(!confirm(mon+' '+SIDE_LB[side]+' 마감대상 필터를 해제할까요? (체크 데이터는 유지됩니다)'))return;
+  const mm=ensureMonth(mon);mm.targets[side]=null;mm.targetsMeta[side]=null;
+  saveDB();refreshAll();
+}
+
 /* ===== 화면 ===== */
 const VIEWS=[['dash','대시보드'],['sales','사급 매출마감'],['purchase','매입 마감'],['setup','데이터·설정']];
 let view='dash';
 /* who=처리자(자재과 담당, 기본 김성진), buyer=구매팀(매입 전용) */
 const flt={sales:{q:'',st:'',who:'김성진',ty:''},purchase:{q:'',st:'',who:'김성진',buyer:'',ty:''}};
 let dashWho='김성진';
+const tgtOnly={sales:true,purchase:true};   // 이번달 마감대상 업로드 시 기본 ON (파일 없으면 무시하고 전체 표시)
 function esc(s){return (s||'').toString().replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
 
 function renderNav(){
@@ -350,7 +450,7 @@ function dashHTML(){
     <div style="margin-top:12px"><div class="k mut" style="font-size:12px;margin-bottom:2px">지연단계 분포 (미완 업체)</div>${distBar(side,st)}</div>
     <div style="margin-top:12px"><button class="btn sm" onclick="setView('${side}')">체크리스트 열기 →</button></div></div>`;
   const openCard=(t,list,side)=>`<div class="card"><h2>${t} <span class="cnt">${mainOK?list.length+'개 업체':'연동 필요'}</span></h2>
-    ${mainOK?(list.length?`<div class="tbl scroll"><table><tr><th>업체</th><th class="num">미입고</th><th>품목 (착일)</th></tr>${
+    ${mainOK?(list.length?`<div class="tbl"><table><tr><th>업체</th><th class="num">미입고</th><th>품목 (착일)</th></tr>${
       list.sort((a,b)=>b.L.open.length-a.L.open.length).map(x=>`<tr><td class="vname" onclick="setView('${side}')">${esc(x.v.name)}</td><td class="num">${x.L.open.length}건${x.L.late.length?` <span class="pill r">지연 ${x.L.late.length}</span>`:''}</td><td style="white-space:normal;font-size:12px" class="mut">${x.L.open.slice(0,4).map(o=>`${esc(o.item)} ${o.qty||''}${esc(o.unit||'')}${o.eta?`(${o.eta.slice(5)})`:''}`).join(' · ')}${x.L.open.length>4?' 외':''}</td></tr>`).join('')
     }</table></div>`:'<div class="mut" style="font-size:13px">발주분 전량 입고 완료 ✓</div>')
     :'<div class="mut" style="font-size:13px">작업판 발주 데이터 연동이 필요합니다 — 우측 하단 [연결] 또는 설정 탭.</div>'}</div>`;
@@ -372,10 +472,43 @@ function nameList(side,key){
   S.vendors[side].forEach(v=>((v[key])||'').split('/').forEach(x=>{x=x.trim();if(x&&x!=='—')set.add(x);}));
   return[...set].sort();
 }
+function uploadBarHTML(side,tgt,tm){
+  const cfg=REPORT_COL[side];
+  const btn=`<button class="btn sm pri" onclick="document.getElementById('imp_${side}').click()">${tgt?'다시 업로드':'이번달 마감대상 업로드'}</button>
+    <input type="file" id="imp_${side}" accept=".xlsx,.xls" style="display:none" onchange="uploadMonthly('${side}',this)">`;
+  if(!tgt)return`<div class="bar" style="margin-bottom:6px">${btn}<span class="mut" style="font-size:11.5px">더존 "${cfg.label}" 엑셀을 올리면 이번달 실제 ${SIDE_LB[side].replace(' 마감','')} 있는 업체만 걸러 보여줍니다</span></div>`;
+  return`<div class="bar" style="margin-bottom:6px">
+    ${btn}
+    <label style="font-size:12px;display:flex;align-items:center;gap:4px;cursor:pointer">
+      <input type="checkbox" class="ck"${tgtOnly[side]?' checked':''} onchange="tgtOnly['${side}']=this.checked;renderView()">마감대상만 보기
+    </label>
+    <span class="pill b">${tm?tm.fileName:''}</span>
+    <span class="mut" style="font-size:11.5px">${tm?`매칭 ${tm.matched}·자동연동 ${tm.created}${tm.unmatched.length?`·미매칭 ${tm.unmatched.length}`:''} (${tm.at})`:''}</span>
+    <span class="sp" style="flex:1"></span>
+    <button class="btn sm ghost" onclick="clearTargets('${side}')">필터 해제</button>
+  </div>
+  ${tm&&tm.unmatched.length?`<div class="hint" style="background:var(--amber-soft);border:1px solid var(--amber);border-radius:2px;padding:8px 10px;margin-bottom:8px">
+    <b style="color:var(--amber)">파일에 있지만 업체 목록과 매칭 안 된 이름 ${tm.unmatched.length}곳</b><br>
+    ${tm.unmatched.map(nm=>`<span style="display:inline-flex;align-items:center;gap:4px;margin:3px 8px 0 0">${esc(nm)}<button class="btn sm" style="padding:0 6px" onclick="addVendorFromUnmatched('${side}','${esc(nm).replace(/'/g,"&#39;")}')">+ 추가</button></span>`).join('')}
+  </div>`:''}`;
+}
+function addVendorFromUnmatched(side,nm){
+  const v={id:side[0]+Date.now().toString(36),name:stripBizForm(nm)};
+  vendorDlg('업체 추가 — '+SIDE_LB[side],v,()=>{
+    S.vendors[side].push(v);
+    const mm=ensureMonth(mon);
+    if(mm.targets[side])mm.targets[side].push(v.id);
+    if(mm.targetsMeta[side])mm.targetsMeta[side].unmatched=mm.targetsMeta[side].unmatched.filter(x=>x!==nm);
+  });
+}
 function listHTML(side){
   const f=flt[side];
+  const tgt=S.months[mon]&&S.months[mon].targets?S.months[mon].targets[side]:null;
+  const tm=S.months[mon]&&S.months[mon].targetsMeta?S.months[mon].targetsMeta[side]:null;
+  const applyTgt=tgt&&tgtOnly[side];
   const rows=S.vendors[side].filter(v=>{
     const e=entryRO(side,v.id);
+    if(applyTgt&&!tgt.includes(v.id))return false;
     if(f.q&&!(v.name+v.type+v.items+v.handler+v.buyer).toUpperCase().includes(f.q.toUpperCase()))return false;
     if(f.st==='done'&&pct(side,e)<1)return false;
     if(f.st==='open'&&pct(side,e)===1)return false;
@@ -388,7 +521,8 @@ function listHTML(side){
   S.vendors[side].forEach(v=>(v.type||'').split(/[·,+]/).forEach(t=>{t=t.trim();if(t)tySet.add(t);}));
   const short=side==='sales'?['수량','금액','매출입력','매출승인','수금','입금표전송','입금표수취','증빙']:['수량','금액','매입전표','매입승인','대금지급','계산서요청','계산서수취'];
   return`<div class="card">
-  <h2>${SIDE_LB[side]} <span class="cnt">${mon} · ${rows.length}/${S.vendors[side].length}개 업체</span></h2>
+  <h2>${SIDE_LB[side]} <span class="cnt">${mon} · ${rows.length}/${S.vendors[side].length}개 업체${tgt?` · 마감대상 ${tgt.length}곳`:''}</span></h2>
+  ${uploadBarHTML(side,tgt,tm)}
   <div class="bar">
     <input type="search" placeholder="업체·품목·담당 검색" value="${esc(f.q)}" oninput="flt['${side}'].q=this.value;renderView()">
     <select onchange="flt['${side}'].st=this.value;renderView()">
@@ -408,7 +542,7 @@ function listHTML(side){
     <button class="btn sm" onclick="exportCSV('${side}')">CSV 내보내기</button>
     <button class="btn sm danger" onclick="resetSide('${side}')">체크 초기화</button>
   </div>
-  <div class="tbl scroll"><table>
+  <div class="tbl"><table>
     <tr><th>업체명</th><th>유형·품목</th><th>${side==='sales'?'처리자':'처리자·구매팀'}</th><th>발주↔입고</th><th>보낸날짜</th><th>방식</th>${short.map(s=>`<th style="text-align:center">${s}</th>`).join('')}<th>진행률</th><th>상태</th><th></th></tr>
     ${rows.map(v=>rowHTML(side,v)).join('')}
   </table></div>

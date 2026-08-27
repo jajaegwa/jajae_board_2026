@@ -1791,7 +1791,7 @@ function csInstrText(consignee,list){
   const ct=contactOf(consignee);
   const due=list.map(c=>c.due).filter(Boolean).sort()[0]||addDays(today(),1);
   const plt=Math.max(1,Math.ceil(list.reduce((a,c)=>a+c.qty,0)/1000));
-  return`${consignee}   ${fmtK(due)} 출고\n약 ${plt} 파렛트\n\n${list.map(c=>`${c.item.padEnd(18)} ${String(fmtN(c.qty)).padStart(8)} kg   ${c.loc||'14동'}`).join('\n')}\n${'계'.padEnd(18)} ${String(fmtN(list.reduce((a,c)=>a+c.qty,0))).padStart(8)} kg\n\n입고처 : ${ct&&ct.addr?ct.addr:'(주소 확인)'}\n        ${consignee}${ct?`  ${ct.contact||''} ${ct.phone||''}`:''}\n현대엘앤씨 자재과  김성진 선임`;
+  return`${consignee}   ${fmtK(due)} 출고\n약 ${plt} 파렛트\n\n${list.map(c=>`${c.item.padEnd(18)} ${String(fmtN(c.qty)).padStart(8)} kg   ${c.loc||'14동'}`).join('\n')}\n${'계'.padEnd(18)} ${String(fmtN(list.reduce((a,c)=>a+c.qty,0))).padStart(8)} kg\n\n입고처 : ${ct&&ct.addr?ct.addr:'(주소 확인)'}\n        ${consignee}${ct?`  ${ct.contact||''} ${ct.phone||''}`:''}`;
 }
 function editCsInstrToggle(btn){
   const block=btn.closest('.csInstrBlock'),ta=block.querySelector('textarea');

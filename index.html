@@ -179,7 +179,7 @@ details.card summary .cnt{font-size:11.5px;color:var(--mut);font-weight:500}
   <span class="sub">입고 · 창고이동 · 발주 · 사급 한 화면</span>
   <!-- 화면이 최신 버전인지 바로 확인할 수 있게 표시 — 이 값이 다르면 브라우저가
        예전 파일을 캐시해 둔 것이므로 강력 새로고침(Ctrl+F5 / 아이폰은 Safari 재실행) 필요 -->
-  <span class="sub" id="buildStamp" title="화면 버전 — 최신이 아니면 Ctrl+F5로 강력 새로고침">v2026-08-27e</span>
+  <span class="sub" id="buildStamp" title="화면 버전 — 최신이 아니면 Ctrl+F5로 강력 새로고침">v2026-08-27f</span>
   <span class="sp"></span>
   <span class="date">기준일 <input type="date" id="curDate" onchange="setDate(this.value)"></span>
   <span class="savebox" id="saveBox"><i></i><span id="saveTxt">불러오는 중</span></span>
@@ -1791,7 +1791,7 @@ function csInstrText(consignee,list){
   const ct=contactOf(consignee);
   const due=list.map(c=>c.due).filter(Boolean).sort()[0]||addDays(today(),1);
   const plt=Math.max(1,Math.ceil(list.reduce((a,c)=>a+c.qty,0)/1000));
-  return`${consignee}   ${fmtK(due)} 출고\n약 ${plt} 파렛트\n\n${list.map(c=>`${c.item.padEnd(18)} ${String(fmtN(c.qty)).padStart(8)} kg   ${c.loc||'14동'}`).join('\n')}\n${'계'.padEnd(18)} ${String(fmtN(list.reduce((a,c)=>a+c.qty,0))).padStart(8)} kg\n\n입고처 : ${ct&&ct.addr?ct.addr:'(주소 확인)'}\n        ${consignee}${ct?`  ${ct.contact||''} ${ct.phone||''}`:''}\n현대엘앤씨 자재과  김성진 선임 010-5730-6623`;
+  return`${consignee}   ${fmtK(due)} 출고\n약 ${plt} 파렛트\n\n${list.map(c=>`${c.item.padEnd(18)} ${String(fmtN(c.qty)).padStart(8)} kg   ${c.loc||'14동'}`).join('\n')}\n${'계'.padEnd(18)} ${String(fmtN(list.reduce((a,c)=>a+c.qty,0))).padStart(8)} kg\n\n입고처 : ${ct&&ct.addr?ct.addr:'(주소 확인)'}\n        ${consignee}${ct?`  ${ct.contact||''} ${ct.phone||''}`:''}\n현대엘앤씨 자재과  김성진 선임`;
 }
 function editCsInstrToggle(btn){
   const block=btn.closest('.csInstrBlock'),ta=block.querySelector('textarea');
@@ -1831,7 +1831,7 @@ function buildMails(ids){
     const due=list.map(c=>c.due).filter(Boolean).sort()[0]||'';
     const itemsTxt=list.map(c=>c.item).join(', ');
     const subj=`[현대L&C 자재과 발주건] ${consignee} ${itemsTxt} 발주 요청 (${fmtK(today())})`;
-    const body=`${sup} 담당자님, 안녕하세요.\n현대L&C 자재과 김성진입니다.\n아래와 같이 발주 드리오니 납기 맞춰 출고 부탁드립니다.\n\n■ 납품처 : ${consignee}${ct&&ct.addr?`\n■ 주소 : ${ct.addr}`:''}${ct?`\n■ 수신 담당 : ${ct.contact||''} ${ct.phone||''}`:''}\n■ 요청 납기 : ${due?fmtK(due)+' 도착':'협의'}\n\n■ 발주 내역\n${list.map((c,i)=>`  ${i+1}. ${c.item}  ${fmtN(c.qty)} kg${c.pack?` (${c.pack} 포장)`:''}${c.due&&c.due!==due?`  납기 ${fmtK(c.due)}`:''}`).join('\n')}\n  합계 ${fmtN(list.reduce((a,c)=>a+c.qty,0))} kg\n\n감사합니다.\n\n현대L&C 물류팀 자재과 김성진 선임 / 010-5730-6623`;
+    const body=`${sup} 담당자님, 안녕하세요.\n현대L&C 자재과 김성진입니다.\n아래와 같이 발주 드리오니 납기 맞춰 출고 부탁드립니다.\n\n■ 납품처 : ${consignee}${ct&&ct.addr?`\n■ 주소 : ${ct.addr}`:''}${ct?`\n■ 수신 담당 : ${ct.contact||''} ${ct.phone||''}`:''}\n■ 요청 납기 : ${due?fmtK(due)+' 도착':'협의'}\n\n■ 발주 내역\n${list.map((c,i)=>`  ${i+1}. ${c.item}  ${fmtN(c.qty)} kg${c.pack?` (${c.pack} 포장)`:''}${c.due&&c.due!==due?`  납기 ${fmtK(c.due)}`:''}`).join('\n')}\n  합계 ${fmtN(list.reduce((a,c)=>a+c.qty,0))} kg\n\n감사합니다.\n\n현대L&C 물류팀 자재과 김성진 선임`;
     box.insertAdjacentHTML('beforeend',`<div class="mailBlock"><div class="row" style="justify-content:space-between;margin-bottom:6px;align-items:center"><b>발주 메일 → ${esc(sup)}</b><div class="row" style="gap:6px"><button class="btn sm" onclick="copyText(this.closest('.mailBlock').querySelector('.mailSubj').textContent)">제목 복사</button><button class="btn sm" onclick="copyText(this.closest('.mailBlock').querySelector('.mailBody').textContent)">본문 복사</button></div></div><div class="tag" style="margin-bottom:6px"><b>제목</b> : <span class="mailSubj">${esc(subj)}</span></div><pre class="mail mailBody">${esc(body)}</pre></div>`);
   }
   // 출고 지시서 (직접출고) — 수정 후 [저장 및 전송]을 눌러야 지게차 화면에 반영됨

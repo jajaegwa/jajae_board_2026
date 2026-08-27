@@ -185,7 +185,8 @@ function normalize(d){
       clean.targetsMeta[sd]=isObj(m2)?{fileName:typeof m2.fileName==='string'?m2.fileName:'',
         at:typeof m2.at==='string'?m2.at:'',total:Number.isFinite(m2.total)?m2.total:0,
         matched:Number.isFinite(m2.matched)?m2.matched:0,created:Number.isFinite(m2.created)?m2.created:0,
-        unmatched:Array.isArray(m2.unmatched)?m2.unmatched.filter(x=>typeof x==='string'):[]}:null;
+        unmatched:Array.isArray(m2.unmatched)?m2.unmatched.filter(x=>typeof x==='string'):[],
+        names:Array.isArray(m2.names)?m2.names.filter(x=>typeof x==='string'):[]}:null;
     });
     months[m]=clean;
   });
@@ -383,7 +384,7 @@ function processMonthlyFile(side,file){
     });
     const mm=ensureMonth(mon);
     mm.targets[side]=[...ids];
-    mm.targetsMeta[side]={fileName:file.name,at:curDate,total:names.length,matched:ids.size-created,created,unmatched};
+    mm.targetsMeta[side]={fileName:file.name,at:curDate,total:names.length,matched:ids.size-created,created,unmatched,names};
     tgtOnly[side]=true;
     saveDB();refreshAll();
     toast(`${SIDE_LB[side]} 마감대상 반영: ${names.length}곳 중 ${ids.size}곳 매칭`+(unmatched.length?` · 미매칭 ${unmatched.length}곳`:''));
@@ -512,16 +513,22 @@ function addVendorFromUnmatched(side,nm){
     if(mm.targetsMeta[side])mm.targetsMeta[side].unmatched=mm.targetsMeta[side].unmatched.filter(x=>x!==nm);
   });
 }
+/* 업로드 당시 저장해둔 업체 id는 다른 기기·시점의 업체 목록 변경으로 어긋날 수 있음 —
+   그래서 id를 그대로 믿지 않고, 업로드 파일에서 뽑은 업체명 목록(targetsMeta.names)을
+   지금 이 순간의 업체 목록(S.vendors)에 매번 새로 매칭해서 마감대상을 구한다. */
+function liveTgtIds(side,tm){
+  if(!tm||!Array.isArray(tm.names)||!tm.names.length)return null;
+  const ids=new Set();
+  tm.names.forEach(nm=>{const m=matchFileName(nm,side);if(m.id)ids.add(m.id);});
+  return[...ids];
+}
 function listHTML(side){
   const f=flt[side];
-  const tgt=S.months[mon]&&S.months[mon].targets?S.months[mon].targets[side]:null;
   const tm=S.months[mon]&&S.months[mon].targetsMeta?S.months[mon].targetsMeta[side]:null;
-  /* 업로드 당시 매칭됐던 업체 id가 지금 업체 목록과 하나도 안 겹치면(다른 기기에서 목록이
-     바뀌었거나 동기화가 어긋난 경우) 필터를 그대로 걸면 화면이 통째로 빈 목록이 되어버림 —
-     그런 상태(고아 필터)면 필터를 무시하고 전체를 보여주며 경고를 띄운다. */
-  const vidSet=new Set(S.vendors[side].map(v=>v.id));
-  const tgtStale=!!(tgt&&tgt.length&&!tgt.some(id=>vidSet.has(id)));
-  const applyTgt=tgt&&tgtOnly[side]&&!tgtStale;
+  const tgtLegacy=S.months[mon]&&S.months[mon].targets?S.months[mon].targets[side]:null;
+  const tgt=liveTgtIds(side,tm)||tgtLegacy;
+  const tgtEmpty=!!(tm&&tm.names&&tm.names.length&&tgt&&!tgt.length);
+  const applyTgt=tgt&&tgt.length&&tgtOnly[side];
   const rows=S.vendors[side].filter(v=>{
     const e=entryRO(side,v.id);
     if(applyTgt&&!tgt.includes(v.id))return false;
@@ -538,8 +545,8 @@ function listHTML(side){
   const short=side==='sales'?['수량','금액','매출입력','매출승인','수금','입금표전송','입금표수취','증빙']:['수량','금액','매입전표','매입승인','대금지급','계산서요청','계산서수취'];
   return`<div class="card">
   <h2>${SIDE_LB[side]} <span class="cnt">${mon} · ${rows.length}/${S.vendors[side].length}개 업체${tgt?` · 마감대상 ${tgt.length}곳`:''}</span></h2>
-  ${tgtStale?`<div class="hint" style="background:var(--red-soft);border:1px solid var(--red);border-radius:2px;padding:8px 10px;margin-bottom:8px">
-    <b style="color:var(--red)">⚠ 마감대상 필터가 지금 업체 목록과 맞지 않아 무시하고 전체를 표시합니다</b> — 업로드 당시와 업체 목록이 달라진 것 같습니다. <b>다시 업로드</b>를 눌러 엑셀을 한 번 더 올려주세요.
+  ${tgtEmpty?`<div class="hint" style="background:var(--red-soft);border:1px solid var(--red);border-radius:2px;padding:8px 10px;margin-bottom:8px">
+    <b style="color:var(--red)">⚠ 업로드한 파일의 업체명이 지금 업체 목록과 하나도 매칭되지 않았습니다</b> — 아래 미매칭 목록에서 [+ 추가]로 업체를 등록하거나, 업체명을 맞춰준 뒤 <b>다시 업로드</b>해주세요. 지금은 필터를 무시하고 전체 업체를 표시합니다.
   </div>`:''}
   ${uploadBarHTML(side,tgt,tm)}
   <div class="bar">

@@ -179,7 +179,7 @@ details.card summary .cnt{font-size:11.5px;color:var(--mut);font-weight:500}
   <span class="sub">입고 · 창고이동 · 발주 · 사급 한 화면</span>
   <!-- 화면이 최신 버전인지 바로 확인할 수 있게 표시 — 이 값이 다르면 브라우저가
        예전 파일을 캐시해 둔 것이므로 강력 새로고침(Ctrl+F5 / 아이폰은 Safari 재실행) 필요 -->
-  <span class="sub" id="buildStamp" title="화면 버전 — 최신이 아니면 Ctrl+F5로 강력 새로고침">v2026-08-27n</span>
+  <span class="sub" id="buildStamp" title="화면 버전 — 최신이 아니면 Ctrl+F5로 강력 새로고침">v2026-08-27p</span>
   <span class="sp"></span>
   <span class="date">기준일 <input type="date" id="curDate" onchange="setDate(this.value)"></span>
   <span class="savebox" id="saveBox"><i></i><span id="saveTxt">불러오는 중</span></span>
@@ -415,8 +415,8 @@ details.card summary .cnt{font-size:11.5px;color:var(--mut);font-weight:500}
   <div class="card">
     <h2>주기 기준 대상 (자가 발주) <span class="cnt" id="cntCycMat"></span></h2>
     <div class="hint">"자가 아님"에 체크하면 현황 화면 "주기 기준" 표에서 빠집니다. 주기·1회 발주량도 여기서 바로 수정됩니다.</div>
-    <input id="cycSearch" placeholder="품목 검색" oninput="renderCycMat()" style="width:100%;margin:10px 0">
-    <div class="tbl scroll"><table><thead><tr><th>품목</th><th>주기</th><th class="num">1회 발주량</th><th>단위</th><th>자가 아님(제외)</th></tr></thead><tbody id="cycMatBody"></tbody></table></div>
+    <div class="row" style="margin:10px 0"><input id="cycSearch" placeholder="품목 검색" oninput="renderCycMat()" style="flex:1;min-width:160px"><button class="btn sm pri" onclick="addCycRow()">+ 품목 추가</button></div>
+    <div class="tbl scroll"><table><thead><tr><th>품목</th><th>주기</th><th class="num">1회 발주량</th><th>단위</th><th>자가 아님(제외)</th><th></th></tr></thead><tbody id="cycMatBody"></tbody></table></div>
   </div>
   <div class="card">
     <h2>사급처별 요청 대응 이력 (발주 대응 vs 14동 직접출고)</h2>
@@ -633,7 +633,7 @@ const short=s=>String(s||'').replace(/^.*?_(?=[^_]+$)/,'');  // 'TiO2_TIONA-696'
    이 함수를 다시 호출해야 패치가 사라지지 않음 — sb 연결 코드에서 재호출하는 부분 참고.
    M._patchVersion으로 딱 한 번만 실행되게 막아둠 — 기준정보 탭에서 사람이 직접 고친 값을
    다음 로그인 때 또 덮어쓰지 않기 위함. 새 패치를 추가할 땐 MASTER_PATCH_VERSION을 올릴 것. */
-const MASTER_PATCH_VERSION=3;
+const MASTER_PATCH_VERSION=5;
 function applyMasterPatches(){
   if((M._patchVersion||0)>=MASTER_PATCH_VERSION)return;
   const bag=M.rop.find(r=>r.item==='BAG'&&/단석/.test(r.vendor||''));if(bag)bag.item='DS356S1';
@@ -686,6 +686,13 @@ function applyMasterPatches(){
   // _patchVersion으로 한 번만 실행되도록 잠겨 있어서, 서버 마스터가 이미 최신 버전이면
   // 영원히 다시 실행되지 않는 게 문제였음. 지금은 isCycleExcluded()가 렌더링할 때마다
   // 이름으로 걸러내므로 저장된 플래그나 패치 버전과 무관하게 항상 제외됨.
+  // v5: 주기 기준 대상은 P-1000F·P-1000·P-800·P-700 4개만 남김 — 없으면 추가하고
+  // 나머지는 정리(최초 1회만 — 이후 기준정보 탭에서 사람이 다시 추가한 품목까지 지우지는 않음).
+  ['P-1000F','P-1000','P-800','P-700'].forEach(name=>{
+    if(!M.presetSelf.find(p=>norm(p.item)===norm(name)))M.presetSelf.push({item:name,label:name,cycle:'격주',qty:null,unit:'대'});
+  });
+  const CYC_KEEP=new Set(['P-1000F','P-1000','P-800','P-700'].map(norm));
+  M.presetSelf=M.presetSelf.filter(p=>CYC_KEEP.has(norm(p.item)));
   M._patchVersion=MASTER_PATCH_VERSION;
   if(sb&&sbOK)sbSaveMasterAfterPatch();
 }
@@ -2449,8 +2456,8 @@ function renderCycMat(){
     const idx=M.presetSelf.indexOf(p);
     // BAG·LOX-203 등 하드 제외 품목은 체크박스를 켠 채 잠금 — 표시와 실제 동작을 일치시킴
     const hard=!p.excluded&&isCycleExcluded(p);
-    return `<tr><td><b>${esc(p.item)}</b>${p.label&&p.label!==p.item?`<div class="tag">${esc(p.label)}</div>`:''}</td><td><select onchange="cycField(${idx},'cycle',this.value)">${cycOptsFor(p.cycle)}</select></td><td class="num"><input type="number" value="${p.qty??''}" style="width:90px;text-align:right" onchange="cycField(${idx},'qty',this.value)"></td><td><input value="${esc(p.unit||'')}" style="width:60px" onchange="cycField(${idx},'unit',this.value)"></td><td style="text-align:center"><input type="checkbox" ${p.excluded||hard?'checked':''} ${hard?'disabled title="사급 품목이라 주기 기준에서 항상 제외됨"':''} onchange="cycField(${idx},'excluded',this.checked)">${hard?'<div class="tag">항상 제외</div>':''}</td></tr>`;
-  }).join(''):'<tr><td colspan="5" class="empty">등록된 자가 발주 품목 없음</td></tr>';
+    return `<tr><td><b>${esc(p.item)}</b>${p.label&&p.label!==p.item?`<div class="tag">${esc(p.label)}</div>`:''}</td><td><select onchange="cycField(${idx},'cycle',this.value)">${cycOptsFor(p.cycle)}</select></td><td class="num"><input type="number" value="${p.qty??''}" style="width:90px;text-align:right" onchange="cycField(${idx},'qty',this.value)"></td><td><input value="${esc(p.unit||'')}" style="width:60px" onchange="cycField(${idx},'unit',this.value)"></td><td style="text-align:center"><input type="checkbox" ${p.excluded||hard?'checked':''} ${hard?'disabled title="사급 품목이라 주기 기준에서 항상 제외됨"':''} onchange="cycField(${idx},'excluded',this.checked)">${hard?'<div class="tag">항상 제외</div>':''}</td><td><button class="btn sm" style="color:var(--red)" onclick="delCycRow(${idx})">${armLbl('cyc'+idx)}</button></td></tr>`;
+  }).join(''):'<tr><td colspan="6" class="empty">등록된 자가 발주 품목 없음</td></tr>';
   document.getElementById('cntCycMat').textContent=`${M.presetSelf.length}개`;
 }
 function cycField(idx,key,val){
@@ -2463,6 +2470,25 @@ function cycField(idx,key,val){
   renderCycMat();
   refreshAll();
   toast(`${p.item} 저장됨${sbOK?'':' (이 기기에만 — 공유 연결 시 전체 반영)'}`);
+}
+function addCycRow(){
+  const name=(prompt('추가할 품목명 — 발주 등록에서 쓰는 이름과 정확히 같아야 발주 이력이 제대로 매칭됩니다')||'').trim();
+  if(!name)return;
+  if(M.presetSelf.find(p=>norm(p.item)===norm(name))){toast('이미 등록된 품목입니다');return;}
+  M.presetSelf.push({item:name,label:name,cycle:'격주',qty:null,unit:'대'});
+  if(sb&&sbOK)sbSaveMasterPresetSelfAll();
+  renderCycMat();
+  refreshAll();
+  toast(`${name} 추가됨 — 주기·1회 발주량 등을 입력하세요`);
+}
+function delCycRow(idx){
+  if(!armDel('cyc'+idx))return;
+  const p=M.presetSelf[idx];
+  M.presetSelf.splice(idx,1);
+  if(sb&&sbOK)sbSaveMasterPresetSelfAll();
+  renderCycMat();
+  refreshAll();
+  toast(`${p?.item||''} 삭제됨`);
 }
 async function sbSaveMasterPresetSelfAll(){
   if(!sb||!sbOK)return;

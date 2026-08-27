@@ -427,6 +427,18 @@ function renderNav(){
 }
 function setView(v){view=v;renderNav();renderView();}
 function refreshAll(){renderNav();renderView();}
+/* 검색창 입력마다 큰 표 전체를 다시 그리면 느려지고, 한글 조합(IME) 중에 입력칸 DOM이
+   통째로 교체되면서 조합이 끊겨 한 글자만 쳐지는 문제가 생김 — 그래서 타이핑이 잠깐
+   멈췄을 때만 다시 그리고, 그 후 포커스·커서 위치를 검색창에 되돌려준다. */
+let searchT=null;
+function scheduleSearch(side){
+  clearTimeout(searchT);
+  searchT=setTimeout(()=>{
+    renderView();
+    const el=document.querySelector(`main input[type=search]`);
+    if(el){el.focus();const v=el.value;el.setSelectionRange(v.length,v.length);}
+  },250);
+}
 
 function renderView(){
   const m=document.getElementById('main');
@@ -553,7 +565,10 @@ function listHTML(side){
   </div>`:''}
   ${uploadBarHTML(side,tgt,tm)}
   <div class="bar">
-    <input type="search" placeholder="업체·품목·담당 검색" value="${esc(f.q)}" oninput="flt['${side}'].q=this.value;renderView()">
+    <input type="search" placeholder="업체·품목·담당 검색" value="${esc(f.q)}"
+      oncompositionstart="this.dataset.composing='1'"
+      oncompositionend="this.dataset.composing='';flt['${side}'].q=this.value;scheduleSearch('${side}')"
+      oninput="flt['${side}'].q=this.value;if(!this.dataset.composing)scheduleSearch('${side}')">
     <select onchange="flt['${side}'].st=this.value;renderView()">
       <option value="">전체</option><option value="open"${f.st==='open'?' selected':''}>미완만</option><option value="done"${f.st==='done'?' selected':''}>완료만</option>
     </select>

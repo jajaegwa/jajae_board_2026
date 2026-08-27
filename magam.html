@@ -143,9 +143,13 @@ pre.sql{background:var(--head);border:1px solid var(--line);border-radius:2px;pa
 const SB_URL='https://druppuarqowdmskgldlw.supabase.co';
 const SB_ANON='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRydXBwdWFycW93ZG1za2dsZGx3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODc2MTE4OTcsImV4cCI6MjEwMzE4Nzg5N30.RIDSNGJfa0huV_MnpCbzToajuOo7KTDMckaSvf9oDYw';
 const B_MAGAM='jajae-magam', B_MAIN='jajae-main';
+/* 노션 "08-3. AR/AP 마감 프로세스" 매뉴얼 기준 — 실제 마감 순서·체크포인트에 맞춤.
+   사급(AR): 전표생성→매출승인→수금→입금표발행→입금표전송→입금표수취→증빙→회계보고(신은진 사원 메일)
+   매입(AP): 계산서수취→매입전표(PO전표)→매입승인(AP결재/일괄결재) — 대금지급·계산서요청은
+   매뉴얼상 자재과 마감 범위 밖이라 제외 */
 const STEPS={
-  sales:['수량일치','금액일치','매출입력','매출승인','수금','입금표전송','입금표수취','증빙'],
-  purchase:['수량일치','금액일치','매입전표','매입승인','대금지급','계산서요청','계산서수취']
+  sales:['수량일치','금액일치','전표생성','매출승인','수금','입금표발행','입금표전송','입금표수취','증빙','회계보고'],
+  purchase:['수량일치','금액일치','계산서수취','매입전표','매입승인']
 };
 const SIDE_LB={sales:'사급(매각) 매출마감',purchase:'매입 마감'};
 const VIAS=['','이메일','카카오톡','팩스','전화','기타'];
@@ -565,7 +569,7 @@ function listHTML(side){
   });
   const tySet=new Set();
   S.vendors[side].forEach(v=>(v.type||'').split(/[·,+]/).forEach(t=>{t=t.trim();if(t)tySet.add(t);}));
-  const short=side==='sales'?['수량','금액','매출입력','매출승인','수금','입금표전송','입금표수취','증빙']:['수량','금액','매입전표','매입승인','대금지급','계산서요청','계산서수취'];
+  const short=side==='sales'?['수량','금액','전표생성','매출승인','수금','입금표발행','입금표전송','입금표수취','증빙','회계보고']:['수량','금액','계산서수취','매입전표','매입승인'];
   return`<div class="card">
   <h2>${SIDE_LB[side]} <span class="cnt">${mon} · ${rows.length}/${S.vendors[side].length}개 업체${tgt?` · 마감대상 ${tgt.length}곳`:''}</span></h2>
   ${tgtEmpty?`<div class="hint" style="background:var(--red-soft);border:1px solid var(--red);border-radius:2px;padding:8px 10px;margin-bottom:8px">

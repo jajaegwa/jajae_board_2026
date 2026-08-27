@@ -179,7 +179,7 @@ details.card summary .cnt{font-size:11.5px;color:var(--mut);font-weight:500}
   <span class="sub">입고 · 창고이동 · 발주 · 사급 한 화면</span>
   <!-- 화면이 최신 버전인지 바로 확인할 수 있게 표시 — 이 값이 다르면 브라우저가
        예전 파일을 캐시해 둔 것이므로 강력 새로고침(Ctrl+F5 / 아이폰은 Safari 재실행) 필요 -->
-  <span class="sub" id="buildStamp" title="화면 버전 — 최신이 아니면 Ctrl+F5로 강력 새로고침">v2026-08-27j</span>
+  <span class="sub" id="buildStamp" title="화면 버전 — 최신이 아니면 Ctrl+F5로 강력 새로고침">v2026-08-27m</span>
   <span class="sp"></span>
   <span class="date">기준일 <input type="date" id="curDate" onchange="setDate(this.value)"></span>
   <span class="savebox" id="saveBox"><i></i><span id="saveTxt">불러오는 중</span></span>
@@ -268,6 +268,7 @@ details.card summary .cnt{font-size:11.5px;color:var(--mut);font-weight:500}
         <div class="tag" style="margin-bottom:4px">납품 날짜(선택 · 주말 포함) → 수량 탭 = 기록</div>
         <div class="quick" id="sp2When" style="margin:0 0 8px"></div>
         <div class="quick qm-qty" id="sp2Qty" style="margin:0 0 10px"></div>
+        <input id="sp2Note" placeholder="비고 (선택)" style="width:100%;margin-bottom:8px">
         <label style="display:flex;align-items:center;gap:5px;font-size:12.5px;color:var(--ink)"><input type="checkbox" id="sp2Ord" checked>발주도 같이 등록</label>
       </div>
     </div>
@@ -1313,13 +1314,13 @@ function ropOrder(item){
 
 /* ═════════ 특이사항 · 벌크/직납 발주 원터치 ═════════ */
 const SP_ITEMS={
- '경질':['P-1000','P-800','DOTP(드럼)','TIONA-696(백)','TIONA-696(지대)','K-2450(백)','K-2450(지대)'],
+ '경질':['P-1000','P-800'],
  '창호':['P-1000F','NR-950','CPE','DWC4Z','DWC6Z','SJ-01'],
- '타일':['P-1000','GPPS(재생)','GPPS(유니드글로벌)','DHA-100','ROSIN C-9'],
+ '타일':['P-1000'],
  'DBP':['P-700','SP-390']};
-const SP_BULK=new Set(['P-1000','P-800','P-1000F','P-700','SP-390','DOTP(드럼)']);
-const SP_ROPKEY={'TIONA-696(백)':'TIONA-696','TIONA-696(지대)':'TIONA-666(696)','K-2450(백)':'Kronos2450','K-2450(지대)':'Kronos2450','GPPS(재생)':'PSGNT1TPZ','GPPS(유니드글로벌)':'125EB','DHA-100':'DHA-100','ROSIN C-9':'ROSIN C-9','NR-950':'NR-950','CPE':'CPE H-135','DWC4Z':'DWC4Z','DWC6Z':'DWC6Z','SJ-01':'SJ-01','SP-390':'DOTP'};
-let spSel='',spWhen=-1;
+const SP_BULK=new Set(['P-1000','P-800','P-1000F','P-700','SP-390']);
+const SP_ROPKEY={'NR-950':'NR-950','CPE':'CPE H-135','DWC4Z':'DWC4Z','DWC6Z':'DWC6Z','SJ-01':'SJ-01','SP-390':'DOTP'};
+let spSel='',spWhen=-1,spCustomDate='';
 function spWhens(){
   const a=[{label:'오전',date:cur},{label:'오후',date:cur}];
   for(let i=1;i<=4;i++){const d=addDays(cur,i);a.push({label:(i===1?'내일 ':'')+fmtK(d),date:d});}
@@ -1331,46 +1332,62 @@ function renderSpQuick(){
   if(spSel&&!(SP_ITEMS[d]||[]).includes(spSel))spSel='';
   document.getElementById('sp2Items').innerHTML=(SP_ITEMS[d]||[]).map((it,i)=>`<button class="${spSel===it?'sel':''}" onclick="spPick(${i})">${it}</button>`).join('');
   const ex=document.getElementById('sp2Extra');if(ex)ex.style.display=spSel?'':'none';
-  document.getElementById('sp2When').innerHTML=spWhens().map((w,i)=>`<button class="${spWhen===i?'sel':''}" onclick="spWhenSet(${i})">${w.label}</button>`).join('');
+  // 버튼으로 없는 날짜(주말 포함 임의 날짜)도 고를 수 있게 맨 끝에 달력 아이콘 추가 —
+  // 기존 오전·오후·+1~4일 버튼은 그대로 두고 직접선택 옵션만 더함.
+  document.getElementById('sp2When').innerHTML=spWhens().map((w,i)=>`<button class="${spWhen===i?'sel':''}" onclick="spWhenSet(${i})">${w.label}</button>`).join('')
+    +`<button class="${spWhen==='custom'?'sel':''}" onclick="spOpenCustomDate()" title="날짜 직접 선택">📅${spWhen==='custom'&&spCustomDate?' '+fmtK(spCustomDate):''}</button>`
+    +`<input type="date" id="sp2CustomDate" value="${esc(spCustomDate)}" style="position:absolute;width:0;height:0;opacity:0;pointer-events:none" onchange="spCustomDateSet(this.value)">`;
   document.getElementById('sp2Qty').innerHTML=spSel?(SP_BULK.has(spSel)
     ?[1,2,3].map(n2=>`<button onclick="spAdd(${n2},true)"><b>${n2}대</b></button>`).join('')
     :[500,1000,2000,3000,4000,5000,8000,10000].map(n2=>`<button onclick="spAdd(${n2},false)">${n2>=1000?(n2/1000)+'t':n2+'kg'}</button>`).join('')
   ):'<span class="tag">품목을 먼저 탭</span>';
 }
 function spPick(i){spSel=(SP_ITEMS[qmDept]||[])[i];renderSpQuick();}
-function spWhenSet(i){spWhen=spWhen===i?-1:i;renderSpQuick();}
+function spWhenSet(i){spWhen=spWhen===i?-1:i;spCustomDate='';renderSpQuick();}
+function spOpenCustomDate(){
+  const el=document.getElementById('sp2CustomDate');if(!el)return;
+  if(el.showPicker)el.showPicker();else el.click();
+}
+function spCustomDateSet(v){
+  if(!v)return;
+  spCustomDate=v;spWhen='custom';
+  renderSpQuick();
+}
 function spAdd(n,isDae){
   if(!spSel){toast('품목을 먼저 탭하세요');return;}
   const d=qmDept;
-  const w=spWhen>=0?spWhens()[spWhen]:null;
-  const entry=`${spSel} ${isDae?n+'대':fmtN(n)+'kg'}${w?' '+w.label:''}`;
+  const w=spWhen==='custom'&&spCustomDate?{label:fmtK(spCustomDate),date:spCustomDate}:(spWhen>=0?spWhens()[spWhen]:null);
+  const note=(document.getElementById('sp2Note')?.value||'').trim();
+  const entry=`${spSel} ${isDae?n+'대':fmtN(n)+'kg'}${w?' '+w.label:''}${note?' ('+note+')':''}`;
   S.specials[cur]=S.specials[cur]||{};
   S.specials[cur][d]=(S.specials[cur][d]?S.specials[cur][d]+', ':'')+entry;
   const doOrd=document.getElementById('sp2Ord').checked;
-  if(doOrd)spRegisterOrder(spSel,n,d,isDae,w&&w.date!==cur?w.date:'');
-  spWhen=-1;
+  if(doOrd)spRegisterOrder(spSel,n,d,isDae,w&&w.date!==cur?w.date:'',note);
+  spWhen=-1;spCustomDate='';
+  const noteEl=document.getElementById('sp2Note');if(noteEl)noteEl.value='';
   saveDB();refreshAll();toast(`${d}: ${entry}${doOrd?' + 발주 등록':''}`);
 }
-function spRegisterOrder(name,n,dept,isDae,etaOv){
+function spRegisterOrder(name,n,dept,isDae,etaOv,note){
   const base=name.replace(/\((백|지대|재생|유니드글로벌|벌크|드럼)\)/g,'').trim();
   const m=matchItem(base);
   const loc=m?m.loc.replace('(경질창고)',''):'';
   const ropKey=SP_ROPKEY[name]||base;
   let rp=M.rop.find(x=>norm(x.item)===norm(ropKey))||M.rop.find(x=>norm(x.item).includes(norm(ropKey))||norm(ropKey).includes(norm(x.item)));
   if(/유니드/.test(name)){const alt=M.rop.find(x=>norm(x.item).includes(norm('125EB'))&&/유니드/.test(x.vendor||''));if(alt)rp=alt;}
+  const noteTxt=note?`특이사항 자동 등록 · ${note}`:'특이사항 자동 등록';
   if(isDae){
     const key=norm(base);
     const p2=M.presetSelf.find(x=>x.label.split('|')[0].trim()===name)
           ||M.presetSelf.find(x=>typeof x.item==='string'&&(norm(x.item)===key||norm(x.item).includes(key)||key.includes(norm(x.item))))
           ||M.presetSelf.find(x=>norm(x.label).startsWith(norm(base)));
     const eta=etaOv||addDays(cur,leadOf(base));
-    if(!p2){S.orders.push({id:S.seq++,type:'self',ordDate:cur,vendor:(rp?rp.vendor:'')||(m?m.vendor:''),item:name,dest:'자가(세종·부강)',qty:n,unit:'대',eta,inDate:'',loc,dept,note:'특이사항 자동 등록'});return;}
+    if(!p2){S.orders.push({id:S.seq++,type:'self',ordDate:cur,vendor:(rp?rp.vendor:'')||(m?m.vendor:''),item:name,dest:'자가(세종·부강)',qty:n,unit:'대',eta,inDate:'',loc,dept,note:noteTxt});return;}
     const isD=p2.unit==='대';
-    S.orders.push({id:S.seq++,type:'self',ordDate:cur,vendor:p2.vendor||'',item:typeof p2.item==='string'?p2.item:name,dest:'자가(세종·부강)',qty:isD?n:(+p2.qty||0)*n,unit:isD?'대':p2.unit,eta,inDate:'',loc,dept,note:'특이사항 자동 등록'});
+    S.orders.push({id:S.seq++,type:'self',ordDate:cur,vendor:p2.vendor||'',item:typeof p2.item==='string'?p2.item:name,dest:'자가(세종·부강)',qty:isD?n:(+p2.qty||0)*n,unit:isD?'대':p2.unit,eta,inDate:'',loc,dept,note:noteTxt});
     return;
   }
   const lt=rp?Math.ceil(rp.lt):leadOf(base);
-  S.orders.push({id:S.seq++,type:'self',ordDate:cur,vendor:(rp?rp.vendor:'')||(m&&!/확인/.test(m.vendor||'')?m.vendor:''),item:name,dest:'자가(세종·부강)',qty:n,unit:'kg',eta:etaOv||addDays(cur,lt),inDate:'',loc,dept,note:'특이사항 자동 등록'});
+  S.orders.push({id:S.seq++,type:'self',ordDate:cur,vendor:(rp?rp.vendor:'')||(m&&!/확인/.test(m.vendor||'')?m.vendor:''),item:name,dest:'자가(세종·부강)',qty:n,unit:'kg',eta:etaOv||addDays(cur,lt),inDate:'',loc,dept,note:noteTxt});
 }
 
 /* ═════════ 전화 모드 (창고이동 원터치) ═════════ */
@@ -1983,6 +2000,8 @@ function csFilteredRows(){
     withDue.sort((a,b)=>csSort==='asc'?a.due.localeCompare(b.due):b.due.localeCompare(a.due));
     rows=[...withDue,...noDue];
   }else rows.sort((a,b)=>b.id-a.id);
+  // 출고완료·입고완료(c.done) 건은 정렬 기준과 무관하게 항상 맨 아래로
+  rows=[...rows.filter(c=>!c.done),...rows.filter(c=>c.done)];
   return rows;
 }
 function renderCs(){
@@ -2463,6 +2482,7 @@ async function sbSaveMasterPresetSelfAll(){
       matchItem()으로 발주 품목명과 마스터 품목을 매칭(오탈자·괄호 표기 차이 허용).
    2) 특이사항·전달사항: 내용 중 "PVC"라는 글자가 들어 있으면 대상. */
 function isPvcItem(itemName){
+  if(isPvcText(itemName))return true;   // 품목명 자체에 PVC가 들어간 경우(마스터 매칭 실패해도 잡히게)
   const m=matchItem(itemName);
   return !!(m&&norm(m.kind)==='PVC');
 }

@@ -209,7 +209,7 @@ details.card summary .cnt{font-size:11.5px;color:var(--mut);font-weight:500}
   <span class="sub">입고 · 창고이동 · 발주 · 사급 한 화면</span>
   <!-- 화면이 최신 버전인지 바로 확인할 수 있게 표시 — 이 값이 다르면 브라우저가
        예전 파일을 캐시해 둔 것이므로 강력 새로고침(Ctrl+F5 / 아이폰은 Safari 재실행) 필요 -->
-  <span class="sub" id="buildStamp" title="화면 버전 — 최신이 아니면 Ctrl+F5로 강력 새로고침">v2026-08-27u</span>
+  <span class="sub" id="buildStamp" title="화면 버전 — 최신이 아니면 Ctrl+F5로 강력 새로고침">v2026-08-27v</span>
   <span class="sp"></span>
   <span class="date">기준일 <input type="date" id="curDate" onchange="setDate(this.value)"></span>
   <span class="savebox" id="saveBox"><i></i><span id="saveTxt">불러오는 중</span></span>
@@ -2760,11 +2760,12 @@ function drvCalCellHTML(cell){
     <div class="calChips">${chips.join('')}</div>
   </div>`;
 }
+let drvCalOpen=true;
 function drvCalendarHTML(){
   const ym=(drvCalDate||cur).slice(0,7);
-  return`<h2>📅 캘린더 <span class="cnt">날짜를 탭하면 그 날로 이동</span></h2>
-  <div class="card drvCal">
-    <div class="row" style="align-items:center;margin-bottom:8px">
+  return`<details class="card drvCal" ${drvCalOpen?'open':''} ontoggle="drvCalOpen=this.open">
+    <summary>📅 캘린더 <span class="cnt">날짜를 탭하면 그 날로 이동</span></summary>
+    <div class="row" style="align-items:center;margin:10px 0 8px">
       <button class="btn ghost" onclick="drvCalShift(-1)">◀</button>
       <b style="min-width:100px;text-align:center;font-size:15px">${ym.slice(0,4)}년 ${+ym.slice(5,7)}월</b>
       <button class="btn ghost" onclick="drvCalShift(1)">▶</button>
@@ -2773,7 +2774,7 @@ function drvCalendarHTML(){
     <div class="hint" style="margin-bottom:6px"><span class="chip c-ord">■</span> 입고 &nbsp;<span class="chip c-mut">■</span> 창고이동 &nbsp;<span class="chip c-wait">■</span> 출고</div>
     <div class="calWeekHead">${KDAY.map(w=>`<div>${w}</div>`).join('')}</div>
     <div class="calRows">${calMonthDays(ym).map(drvCalCellHTML).join('')}</div>
-  </div>`;
+  </details>`;
 }
 function calGroupTable(icon,cls,label,items,cols){
   if(!items.length)return'';

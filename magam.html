@@ -189,7 +189,7 @@ function normalize(d){
         const e=mm[sd][vid];if(!isObj(e))return;
         clean[sd][vid]={sent:typeof e.sent==='string'?e.sent:'',via:typeof e.via==='string'?e.via:'',
           st:Array.isArray(e.st)?STEPS.sales.map((_,i)=>e.st[i]===true):STEPS.sales.map(()=>false),
-          note:typeof e.note==='string'?e.note:''};
+          note:typeof e.note==='string'?e.note:'',toBuyer:e.toBuyer===true};
       });
     });
     /* 이번달만 제외한 업체 — 완전 삭제가 아니라 이번달 목록에서만 숨김(다음달엔 다시 보임) */
@@ -217,10 +217,12 @@ function normalize(d){
 let S=(()=>{try{const v=normalize(JSON.parse(localStorage.getItem('magamDB')));if(v)return v;}catch(e){}return emptyState();})();
 
 function ensureMonth(m){if(!S.months[m])S.months[m]={sales:{},purchase:{},targets:{sales:null,purchase:null},targetsMeta:{sales:null,purchase:null},excluded:{sales:[],purchase:[]}};if(!S.months[m].excluded)S.months[m].excluded={sales:[],purchase:[]};return S.months[m];}
-function entry(side,vid,m){const mm=ensureMonth(m||mon);if(!mm[side][vid])mm[side][vid]={sent:'',via:'',st:STEPS.sales.map(()=>false),note:''};return mm[side][vid];}
-function entryRO(side,vid,m){const mm=S.months[m||mon];return mm&&mm[side]&&mm[side][vid]?mm[side][vid]:{sent:'',via:'',st:STEPS.sales.map(()=>false),note:''};}
-function pct(side,e){const n=STEPS[side].length;return e.st.slice(0,n).filter(Boolean).length/n;}
-function delayStep(side,e){const n=STEPS[side].length;const i=e.st.slice(0,n).findIndex(x=>!x);return i<0?'':STEPS[side][i]+' 지연';}
+function entry(side,vid,m){const mm=ensureMonth(m||mon);if(!mm[side][vid])mm[side][vid]={sent:'',via:'',st:STEPS.sales.map(()=>false),note:'',toBuyer:false};return mm[side][vid];}
+function entryRO(side,vid,m){const mm=S.months[m||mon];return mm&&mm[side]&&mm[side][vid]?mm[side][vid]:{sent:'',via:'',st:STEPS.sales.map(()=>false),note:'',toBuyer:false};}
+/* 매입 금액이 안 맞으면 자재과가 아니라 구매팀이 월말에 마감 처리함 — toBuyer로 표시해두면
+   그 업체는 자재과 미완료 집계에서 빠지고(완료로 취급) "구매팀 처리 예정"으로 따로 표시됨 */
+function pct(side,e){if(side==='purchase'&&e.toBuyer)return 1;const n=STEPS[side].length;return e.st.slice(0,n).filter(Boolean).length/n;}
+function delayStep(side,e){if(e.toBuyer)return'';const n=STEPS[side].length;const i=e.st.slice(0,n).findIndex(x=>!x);return i<0?'':STEPS[side][i]+' 지연';}
 
 /* ===== 저장 + Supabase 동기화 ===== */
 const sbClientId=Math.random().toString(36).slice(2);
@@ -634,7 +636,7 @@ function listHTML(side){
     <button class="btn sm ghost" onclick="showExcludedDlg('${side}')">이번달 제외 목록${excluded.length?` (${excluded.length})`:''}</button>
   </div>
   <div class="tbl scroll"><table>
-    <tr><th><input type="checkbox" class="ck" id="vSelAll_${side}" onchange="toggleAllVendorFromDom(this)"></th><th>업체명</th><th>유형·품목</th><th>${side==='sales'?'처리자':'처리자·구매팀'}</th><th>발주↔입고</th><th>보낸날짜</th><th>방식</th>${short.map((s,i)=>`<th style="text-align:center;border-top:2.5px solid var(--ink);${stepBorder(side,i)}">${s}</th>`).join('')}<th>비고</th><th>진행률</th><th>상태</th><th></th></tr>
+    <tr><th><input type="checkbox" class="ck" id="vSelAll_${side}" onchange="toggleAllVendorFromDom(this)"></th><th>업체명</th><th>유형·품목</th><th>${side==='sales'?'처리자':'처리자·구매팀'}</th><th>발주↔입고</th><th>보낸날짜</th><th>방식</th>${short.map((s,i)=>`<th style="text-align:center;border-top:2.5px solid var(--ink);${stepBorder(side,i)}">${s}</th>`).join('')}<th>비고</th>${side==='purchase'?'<th title="금액 불일치 — 구매팀이 월말에 직접 마감 처리">구매팀행</th>':''}<th>진행률</th><th>상태</th><th></th></tr>
     ${rows.map((v,idx)=>rowHTML(side,v,idx===rows.length-1)).join('')}
   </table></div>
   <div class="hint" style="margin-top:8px">업체명 클릭 → 연락처·미입고 상세. 발주↔입고는 자재과 작업판 데이터와 실시간 대사(사급=사급처 출고분, 매입=매입처 발주분). 체크박스로 여러 곳을 선택해 "선택 제외"하면 이번달 목록에서만 빠지고(완전 삭제 아님), 다음달엔 다시 보입니다.</div>
@@ -654,8 +656,9 @@ function rowHTML(side,v,isLast){
     <td><select onchange="setSent('${side}','${v.id}','via',this.value)">${VIAS.map(x=>`<option${e.via===x?' selected':''}>${x}</option>`).join('')}</select></td>
     ${e.st.slice(0,STEPS[side].length).map((c,i)=>`<td style="text-align:center;${stepBorder(side,i,isLast)}"><input type="checkbox" class="ck"${c?' checked':''} onchange="setStep('${side}','${v.id}',${i},this.checked)"></td>`).join('')}
     <td><input type="text" value="${esc(e.note)}" placeholder="비고" style="width:130px" onchange="setSent('${side}','${v.id}','note',this.value)"></td>
+    ${side==='purchase'?`<td style="text-align:center" title="금액 불일치 — 구매팀이 월말에 직접 마감 처리(자재과 미완료 집계에서 제외)"><input type="checkbox" class="ck"${e.toBuyer?' checked':''} onchange="setToBuyer('${side}','${v.id}',this.checked)"></td>`:''}
     <td><span class="prog${p===1?' done':''}"><i style="width:${p*100}%"></i></span><span class="pct num">${Math.round(p*100)}%</span></td>
-    <td>${p===1?'<span class="pill g">완료</span>':`<span class="pill ${p>0?'a':'r'}">${dl||'미완'}</span>`}</td>
+    <td>${side==='purchase'&&e.toBuyer?'<span class="pill b">구매팀 처리</span>':p===1?'<span class="pill g">완료</span>':`<span class="pill ${p>0?'a':'r'}">${dl||'미완'}</span>`}</td>
     <td><button class="btn sm ghost" onclick="editVendor('${side}','${v.id}')">✎</button></td>
   </tr>`;
 }
@@ -666,7 +669,7 @@ function toggleDetail(side,vid,el){
   const v=S.vendors[side].find(x=>x.id===vid);if(!v)return;
   const L=mainOK?linkOf(side,v):null;
   const d=document.createElement('tr');d.className='detail';
-  d.innerHTML=`<td colspan="22"><div class="dbox">
+  d.innerHTML=`<td colspan="23"><div class="dbox">
     <span><b>담당</b>${esc(v.mgr)||'—'}</span>
     <span><b>이메일</b>${v.email?`<a href="mailto:${esc(v.email.split(/[;,]/)[0].trim())}">${esc(v.email)}</a>`:'—'}</span>
     <span><b>전화</b>${esc(v.tel)||'—'}</span>
@@ -676,6 +679,7 @@ function toggleDetail(side,vid,el){
 }
 function setStep(side,vid,i,val){entry(side,vid).st[i]=!!val;saveDB();renderNav();renderView();}
 function setSent(side,vid,k,val){entry(side,vid)[k]=val;saveDB();}
+function setToBuyer(side,vid,val){entry(side,vid).toBuyer=!!val;saveDB();renderNav();renderView();}
 
 /* --- 업체 편집 --- */
 const FIELDS=[['name','업체명'],['mgr','담당자'],['email','이메일'],['tel','전화번호'],['type','유형'],['handler','처리자'],['buyer','구매팀 담당자'],['items','구매 품목'],['alias','발주 매칭명 (쉼표로 여러 개 — 작업판 업체명과 다를 때)']];
@@ -837,12 +841,13 @@ function dl(name,txt,type){
 }
 function exportJSON(){dl(`마감백업-${curDate}.json`,JSON.stringify(S,null,1),'application/json')}
 function exportCSV(side){
-  const hd=['업체명','담당자','유형','처리자','구매팀','구매품목','보낸날짜','보낸방식',...STEPS[side],'비고','진행률','상태','지연단계'];
+  const hd=['업체명','담당자','유형','처리자','구매팀','구매품목','보낸날짜','보낸방식',...STEPS[side],'비고',...(side==='purchase'?['구매팀행']:[]),'진행률','상태','지연단계'];
   const lines=[hd.join(',')];
   S.vendors[side].forEach(v=>{
     const e=entryRO(side,v.id);
     const cell=s=>'"'+(s||'').toString().replace(/"/g,'""')+'"';
-    lines.push([v.name,v.mgr,v.type,v.handler,v.buyer,v.items,e.sent,e.via,...e.st.slice(0,STEPS[side].length).map(x=>x?'O':''),e.note,Math.round(pct(side,e)*100)+'%',pct(side,e)===1?'완료':'미완',delayStep(side,e)].map(cell).join(','));
+    const status=side==='purchase'&&e.toBuyer?'구매팀 처리':pct(side,e)===1?'완료':'미완';
+    lines.push([v.name,v.mgr,v.type,v.handler,v.buyer,v.items,e.sent,e.via,...e.st.slice(0,STEPS[side].length).map(x=>x?'O':''),e.note,...(side==='purchase'?[e.toBuyer?'O':'']:[]),Math.round(pct(side,e)*100)+'%',status,delayStep(side,e)].map(cell).join(','));
   });
   dl(`${side==='sales'?'사급매출마감':'매입마감'}-${mon}.csv`,'﻿'+lines.join('\r\n'),'text/csv');
 }

@@ -197,6 +197,11 @@ details.card summary .cnt{font-size:11.5px;color:var(--mut);font-weight:500}
 .calTbl td{font-size:11px;padding:3px 6px}
 .calEmpty{font-size:11px;color:var(--mut);margin-top:20px;text-align:center}
 @media(max-width:640px){.calWeekHead,.calRows,.calGridWeek{grid-template-columns:repeat(7,minmax(34px,1fr))}.calCell{min-height:56px}.calPreview{display:none}}
+/* 지게차 화면의 캘린더 — 손가락으로 탭하기 쉽게 셀·글자를 좀 더 크게 */
+.drvCal .calCell{min-height:56px;padding:7px}
+.drvCal .calDayNum{font-size:14.5px}
+.drvCal .calChips .chip{font-size:11px;padding:1px 5px}
+.drvCal .btn{font-size:14px;padding:8px 14px}
 </style>
 
 <header>
@@ -204,7 +209,7 @@ details.card summary .cnt{font-size:11.5px;color:var(--mut);font-weight:500}
   <span class="sub">입고 · 창고이동 · 발주 · 사급 한 화면</span>
   <!-- 화면이 최신 버전인지 바로 확인할 수 있게 표시 — 이 값이 다르면 브라우저가
        예전 파일을 캐시해 둔 것이므로 강력 새로고침(Ctrl+F5 / 아이폰은 Safari 재실행) 필요 -->
-  <span class="sub" id="buildStamp" title="화면 버전 — 최신이 아니면 Ctrl+F5로 강력 새로고침">v2026-08-27t</span>
+  <span class="sub" id="buildStamp" title="화면 버전 — 최신이 아니면 Ctrl+F5로 강력 새로고침">v2026-08-27v</span>
   <span class="sp"></span>
   <span class="date">기준일 <input type="date" id="curDate" onchange="setDate(this.value)"></span>
   <span class="savebox" id="saveBox"><i></i><span id="saveTxt">불러오는 중</span></span>
@@ -2586,6 +2591,7 @@ function renderDriver(){
   let h=`<div class="banner"><div><b>${fmtK(cur)}</b> 지게차 작업 <span style="opacity:.7;font-size:13px">(${cur})</span><input type="date" class="drv-date" value="${cur}" onchange="setDate(this.value)"></div><div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">입고 ${insLeft} · 창고이동 ${mv.filter(m=>!m.done).length} · 사급출고 ${outs.length}${drvVisibleNotes().filter(n=>!n.done).length?' · 전달사항 '+drvVisibleNotes().filter(n=>!n.done).length:''}${notifSupported()&&Notification.permission!=='granted'?`<button class="btn sm warn" onclick="askNotifPerm()" title="폰 알림 받기">🔔 알림 켜기</button>`:(notifSupported()?`<span class="chip c-done" title="새 작업이 등록되면 폰 알림이 옵니다">🔔 알림 켜짐</span>`:'')}<button class="btn sm" style="background:transparent;color:var(--navy-ink);border-color:#4a5b6c" onclick="askName()">👤 ${esc(meName)||'이름 입력'}</button><button class="btn sm" style="background:transparent;color:var(--navy-ink);border-color:#4a5b6c" onclick="location.reload()">새로고침</button></div></div>`;
   if(cur!==localISO(new Date()))h+=`<div class="card" style="margin-top:10px;font-size:13px;color:var(--amber)">⚠ 오늘(${fmtK(localISO(new Date()))}) 날짜가 아닙니다 · <b onclick="setDate('${localISO(new Date())}')" style="cursor:pointer;text-decoration:underline">오늘로 돌아가기</b></div>`;
   if(spTxt)h+=`<div class="card" style="margin-top:10px;font-size:15px"><b>특이사항</b> ${esc(spTxt)}</div>`;
+  h+=drvCalendarHTML();
   // 자유 메모 — 부서칸으로 안 잡히는 전달사항. 기사가 바로 읽고 완료 체크할 수 있게 크게 표시.
   // PVC 언급된 메모는 여기서 뺌(자재과 현황 화면의 전달사항 목록에는 그대로 남음).
   const notes=drvVisibleNotes();
@@ -2733,6 +2739,43 @@ function calShift(n){
 function calToday(){calDate=cur;calSelDay=null;renderCalendar();}
 function calSetView(v){calView=v;calSelDay=null;renderCalendar();}
 function calPickDay(d){calSelDay=calSelDay===d?null:d;renderCalendar();}
+/* 지게차 화면용 캘린더 — 자재과 캘린더 탭과 같은 데이터(calDayData/calMonthDays)를
+   재사용하되, 날짜를 탭하면 상세 카드 대신 그 날짜로 화면 자체를 바로 이동시킴
+   (지게차 화면은 원래 "기준일" 하나를 골라 그날 할 일만 보여주는 구조라서). */
+let drvCalDate=null;
+function drvCalShift(n){
+  const base=drvCalDate||cur;
+  const d=new Date(base+'T00:00:00');d.setMonth(d.getMonth()+n,1);drvCalDate=localISO(d);
+  renderDriver();
+}
+function drvCalPick(d){drvCalDate=d;setDate(d);}
+function drvCalCellHTML(cell){
+  const{ins,mvs,outs}=calDayData(cell.date);
+  const chips=[];
+  if(ins.length)chips.push(`<span class="chip c-ord">입고${ins.length}</span>`);
+  if(mvs.length)chips.push(`<span class="chip c-mut">이동${mvs.length}</span>`);
+  if(outs.length)chips.push(`<span class="chip c-wait">출고${outs.length}</span>`);
+  return`<div class="calCell${cell.inMonth?'':' out'}${cell.date===realToday()?' today':''}${cell.date===cur?' sel':''}" onclick="drvCalPick('${cell.date}')">
+    <div class="calDayNum">${+cell.date.slice(8,10)}</div>
+    <div class="calChips">${chips.join('')}</div>
+  </div>`;
+}
+let drvCalOpen=true;
+function drvCalendarHTML(){
+  const ym=(drvCalDate||cur).slice(0,7);
+  return`<details class="card drvCal" ${drvCalOpen?'open':''} ontoggle="drvCalOpen=this.open">
+    <summary>📅 캘린더 <span class="cnt">날짜를 탭하면 그 날로 이동</span></summary>
+    <div class="row" style="align-items:center;margin:10px 0 8px">
+      <button class="btn ghost" onclick="drvCalShift(-1)">◀</button>
+      <b style="min-width:100px;text-align:center;font-size:15px">${ym.slice(0,4)}년 ${+ym.slice(5,7)}월</b>
+      <button class="btn ghost" onclick="drvCalShift(1)">▶</button>
+      <button class="btn" onclick="drvCalDate=null;setDate(realToday())">오늘</button>
+    </div>
+    <div class="hint" style="margin-bottom:6px"><span class="chip c-ord">■</span> 입고 &nbsp;<span class="chip c-mut">■</span> 창고이동 &nbsp;<span class="chip c-wait">■</span> 출고</div>
+    <div class="calWeekHead">${KDAY.map(w=>`<div>${w}</div>`).join('')}</div>
+    <div class="calRows">${calMonthDays(ym).map(drvCalCellHTML).join('')}</div>
+  </details>`;
+}
 function calGroupTable(icon,cls,label,items,cols){
   if(!items.length)return'';
   const head=cols.map(c=>`<th${c.num?' class="num"':''}>${c.h}</th>`).join('');

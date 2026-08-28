@@ -471,10 +471,18 @@ function scheduleSearch(side){
 }
 
 function renderView(){
+  /* 체크박스 하나 클릭할 때마다 표 전체를 다시 그리면서 스크롤이 맨 위로 튀는 문제 —
+     표 안쪽 스크롤(.tbl.scroll)과 페이지 스크롤 위치를 저장했다가 다시 그린 뒤 복원 */
+  const scrollBox=document.querySelector('.tbl.scroll');
+  const boxTop=scrollBox?scrollBox.scrollTop:0;
+  const pageTop=window.scrollY;
   const m=document.getElementById('main');
   if(view==='dash')m.innerHTML=dashHTML();
   else if(view==='setup')m.innerHTML=setupHTML();
   else m.innerHTML=listHTML(view);
+  const newBox=document.querySelector('.tbl.scroll');
+  if(newBox)newBox.scrollTop=boxTop;
+  window.scrollTo(window.scrollX,pageTop);
 }
 
 /* --- 대시보드 --- */

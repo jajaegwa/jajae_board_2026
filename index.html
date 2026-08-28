@@ -192,7 +192,9 @@ details.card summary .cnt{font-size:11.5px;color:var(--mut);font-weight:500}
 .calGrpLbl.c-ord{color:var(--acc);background:transparent}
 .calGrpLbl.c-mut{color:var(--mut)}
 .calGrpLbl.c-wait{color:var(--amber)}
-.calItem{font-size:11.5px;padding:1px 0 1px 4px;border-left:2px solid var(--line2);margin-bottom:1px}
+.calTbl{margin-bottom:6px}
+.calTbl th{font-size:10px;padding:3px 6px}
+.calTbl td{font-size:11px;padding:3px 6px}
 .calEmpty{font-size:11px;color:var(--mut);margin-top:20px;text-align:center}
 @media(max-width:640px){.calWeekHead,.calRows,.calGridWeek{grid-template-columns:repeat(7,minmax(34px,1fr))}.calCell{min-height:56px}.calPreview{display:none}}
 </style>
@@ -2731,16 +2733,33 @@ function calShift(n){
 function calToday(){calDate=cur;calSelDay=null;renderCalendar();}
 function calSetView(v){calView=v;calSelDay=null;renderCalendar();}
 function calPickDay(d){calSelDay=calSelDay===d?null:d;renderCalendar();}
-function calLine(icon,cls,label,items,textOf){
+function calGroupTable(icon,cls,label,items,cols){
   if(!items.length)return'';
-  return`<div class="calGrpLbl ${cls}">${icon} ${label} ${items.length}</div>`+items.map(it=>`<div class="calItem">${esc(textOf(it))}</div>`).join('');
+  const head=cols.map(c=>`<th${c.num?' class="num"':''}>${c.h}</th>`).join('');
+  const rows=items.map(it=>`<tr>${cols.map(c=>`<td${c.num?' class="num"':''}>${c.v(it)}</td>`).join('')}</tr>`).join('');
+  return`<div class="calGrpLbl ${cls}">${icon} ${label} ${items.length}</div><div class="tbl"><table class="calTbl"><thead><tr>${head}</tr></thead><tbody>${rows}</tbody></table></div>`;
 }
 function calDayDetailHTML(d){
   const{ins,mvs,outs}=calDayData(d);
   if(!ins.length&&!mvs.length&&!outs.length)return'<div class="calEmpty">이 날짜엔 입고·창고이동·출고 없음</div>';
-  return calLine('📥','c-ord','입고',ins,o=>`${o.item} ${fmtN(o.qty)}${o.unit} · ${o.vendor}${o.inDate?' · 입고완료':''}`)
-    +calLine('🚚','c-mut','창고이동',mvs,m=>`${m.dept} ← ${m.item} ${fmtN(m.qty)}${m.unit}${m.done?' · 완료':''}`)
-    +calLine('📤','c-wait','출고',outs,c=>`${c.consignee} · ${c.item} ${fmtN(c.qty)}kg${c.outDate?' · 출고완료':''}`);
+  return calGroupTable('📥','c-ord','입고',ins,[
+      {h:'품목',v:o=>esc(o.item)},
+      {h:'수량',num:true,v:o=>fmtN(o.qty)+esc(o.unit)},
+      {h:'업체',v:o=>esc(o.vendor)},
+      {h:'상태',v:o=>o.inDate?'<span class="chip c-done">입고완료</span>':'<span class="chip c-wait">대기</span>'},
+    ])
+    +calGroupTable('🚚','c-mut','창고이동',mvs,[
+      {h:'부서',v:m=>esc(m.dept)},
+      {h:'품목',v:m=>esc(m.item)},
+      {h:'수량',num:true,v:m=>fmtN(m.qty)+esc(m.unit)},
+      {h:'상태',v:m=>m.done?'<span class="chip c-done">완료</span>':'<span class="chip c-wait">대기</span>'},
+    ])
+    +calGroupTable('📤','c-wait','출고',outs,[
+      {h:'사급처',v:c=>esc(c.consignee)},
+      {h:'품목',v:c=>esc(c.item)},
+      {h:'수량',num:true,v:c=>fmtN(c.qty)+'kg'},
+      {h:'상태',v:c=>c.outDate?'<span class="chip c-done">출고완료</span>':'<span class="chip c-wait">대기</span>'},
+    ]);
 }
 function calCellHTML(cell){
   const{ins,mvs,outs}=calDayData(cell.date);

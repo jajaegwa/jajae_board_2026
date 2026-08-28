@@ -179,7 +179,7 @@ details.card summary .cnt{font-size:11.5px;color:var(--mut);font-weight:500}
   <span class="sub">입고 · 창고이동 · 발주 · 사급 한 화면</span>
   <!-- 화면이 최신 버전인지 바로 확인할 수 있게 표시 — 이 값이 다르면 브라우저가
        예전 파일을 캐시해 둔 것이므로 강력 새로고침(Ctrl+F5 / 아이폰은 Safari 재실행) 필요 -->
-  <span class="sub" id="buildStamp" title="화면 버전 — 최신이 아니면 Ctrl+F5로 강력 새로고침">v2026-08-27r</span>
+  <span class="sub" id="buildStamp" title="화면 버전 — 최신이 아니면 Ctrl+F5로 강력 새로고침">v2026-08-27s</span>
   <span class="sp"></span>
   <span class="date">기준일 <input type="date" id="curDate" onchange="setDate(this.value)"></span>
   <span class="savebox" id="saveBox"><i></i><span id="saveTxt">불러오는 중</span></span>
@@ -227,6 +227,10 @@ details.card summary .cnt{font-size:11.5px;color:var(--mut);font-weight:500}
       <div id="ropWrap" style="display:none">
         <div class="grp-lbl">재고 기준 — 발주점(ROP) 도달 <span class="cnt" id="cntRop"></span></div>
         <div class="tbl scroll"><table><thead><tr><th>품목</th><th class="num">현재고(kg)</th><th class="num">발주점(kg)</th><th class="num">1회 발주량</th><th>입고까지</th><th>업체</th><th></th></tr></thead><tbody id="boardRop"></tbody></table></div>
+      </div>
+      <div id="zeroWrap" style="display:none">
+        <div class="grp-lbl">⚠ 재고 소진 — 최근 사용했는데 재고 0 <span class="cnt" id="cntZero"></span></div>
+        <div class="tbl scroll"><table><thead><tr><th>품목</th><th>최근 사용일</th><th class="num">최근 30일 사용</th><th></th></tr></thead><tbody id="boardZero"></tbody></table></div>
       </div>
       <div class="grp-lbl" id="cycLbl">주기 기준</div>
       <div class="tbl scroll"><table><thead><tr><th>납품처</th><th>품목</th><th class="num">수량</th><th>주기</th><th>마지막 발주</th><th>경과</th><th></th></tr></thead><tbody id="boardDue"></tbody></table></div>
@@ -1193,10 +1197,12 @@ function renderBoard(){
   const hasInv=!!(S.inv&&S.inv.stock);
   const stockHas=it=>hasInv&&Object.keys(S.inv.stock).some(k=>{const kn=norm(k),n2=norm(short(it));return n2.length>=3&&(kn.includes(n2)||n2.includes(kn));});
   const due=hasInv?dueList().filter(p=>!stockHas(p.item)):dueList();
-  const dueN=due.length+rop.filter(r=>r.stk<=r.rop).length;window._dueN=dueN;
+  const zero=hasInv?zeroStockDue():[];
+  const dueN=due.length+rop.filter(r=>r.stk<=r.rop).length+zero.length;window._dueN=dueN;
   document.getElementById('invInfo').textContent=hasInv?`재고 기준: ${S.inv.ts} · ${Object.keys(S.inv.stock).length}개 품목 반영`:'DW 재고 파일을 올리면(또는 이 카드에 끌어다 놓으면) 발주점 기준으로 자동 계산됨';
   document.getElementById('invClear').style.display=hasInv?'':'none';
   document.getElementById('ropWrap').style.display=hasInv?'':'none';
+  document.getElementById('zeroWrap').style.display=hasInv&&zero.length?'':'none';
   document.getElementById('cycLbl').textContent=hasInv?'주기 기준 (자가 — 벌크·직납 등 재고 파일에 없는 품목)':'주기 기준 (자가) — 권장 주기와 마지막 발주일로 계산. [발주 체크] 시 착일 자동 생성.';
   if(hasInv){
     const ordered=it=>S.orders.some(o=>!o.skip&&!o.inDate&&norm(o.item)===norm(it));
@@ -1205,9 +1211,11 @@ function renderBoard(){
       return `<tr><td><b>${esc(r.item)}</b> ${shortStk?'<span class="chip c-late">부족 '+fmtN(Math.max(0,Math.round(r.rop-r.stk)))+'kg</span>':'<span class="chip c-wait">임박</span>'}${r.flag?' <span class="tag">'+esc(r.flag)+'</span>':''}${r.gpps?'<div class="tag">⚠ '+esc(r.gpps)+' · 발주 여부는 검토 후 확정</div>':''}</td><td class="num">${fmtN(Math.round(r.stk))}</td><td class="num">${fmtN(r.rop)}</td><td class="num">${fmtN(r.qty)} kg</td><td>${r.lt}일</td><td><b>${esc(r.vendor)}</b></td><td>${ordered(r.item)?'<span class="chip c-ord">발주됨</span>':`<button class="btn sm warn" onclick="ropOrder('${esc(r.item)}')">발주 체크</button>`}</td></tr>`;
     }).join(''):'<tr><td colspan="7" class="empty">발주점 도달 품목 없음 — 전 품목 재고 여유</td></tr>';
     document.getElementById('cntRop').textContent=rop.length?`부족 ${rop.filter(r=>r.stk<=r.rop).length} · 임박 ${rop.filter(r=>r.stk>r.rop).length}`:'';
+    document.getElementById('boardZero').innerHTML=zero.map(z=>`<tr><td><b>${esc(z.item)}</b> <span class="chip c-late">재고 0</span></td><td>${fmtK(z.lastUse)}</td><td class="num">${z.n}건</td><td><button class="btn sm warn" onclick="showTab('order')">발주 등록으로 이동</button></td></tr>`).join('');
+    document.getElementById('cntZero').textContent=zero.length?`${zero.length}건`:'';
   }
   document.getElementById('boardDue').innerHTML=due.length?due.map((p,i)=>`<tr><td>${p.type==='self'?'<span class="chip c-mut">자가</span>':'<span class="chip c-ord">'+esc(p.dest)+'</span>'}</td><td><b>${esc(short(p.item))}</b></td><td class="num">${fmtN(p.qty)} ${esc(p.unit)}</td><td>${esc(p.cycle)}</td><td>${p.last?fmtK(p.last):'<span class="tag">이력 없음</span>'}</td><td class="dday ${p.gap!=null&&p.gap>p.cyc+1?'late':'soon'}">${p.gap!=null?`+${p.gap}일`:'—'}</td><td><button class="btn sm warn" onclick="quickOrder('${p.type}',${p.type==='self'?M.presetSelf.indexOf(M.presetSelf.find(x=>x.label===p.label)):M.presetConsign.indexOf(M.presetConsign.find(x=>x.label===p.label))})">발주 체크</button> <button class="btn sm ghost" onclick="skipOrder('${p.type}',${p.type==='self'?M.presetSelf.indexOf(M.presetSelf.find(x=>x.label===p.label)):M.presetConsign.indexOf(M.presetConsign.find(x=>x.label===p.label))})" title="오늘은 발주 안 함 (주기 리셋)">건너뜀</button></td></tr>`).join(''):'<tr><td colspan="7" class="empty">오늘 주기 도래 품목 없음</td></tr>';
-  document.getElementById('cntDue').textContent=dueN?(hasInv?`재고부족 ${rop.filter(r=>r.stk<=r.rop).length} · 주기 ${due.length}건`:`${due.length}건`):'';
+  document.getElementById('cntDue').textContent=dueN?(hasInv?`재고부족 ${rop.filter(r=>r.stk<=r.rop).length}${zero.length?' · 소진 '+zero.length:''} · 주기 ${due.length}건`:`${due.length}건`):'';
   const cycSug=cycleSuggestions();
   document.getElementById('cycSugLbl').style.display=cycSug.length?'':'none';
   document.getElementById('cycSugWrap').style.display=cycSug.length?'':'none';
@@ -1311,6 +1319,31 @@ function ropDue(){
     .filter(r=>{if(seen.has(r.item))return false;seen.add(r.item);return true;})
     .filter(r=>r.stk<=(norm(r.item).includes('125EB')?r.rop:r.rop*1.15))
     .sort((a,b)=>(a.stk/a.rop)-(b.stk/b.rop));
+}
+/* 최근 사용했는데 재고가 0이 된 품목 — 발주 기준(M.rop)에 등록 안 돼 있거나
+   임계치가 잘못 잡혀 있어 ropDue()가 못 잡는 경우의 안전망. DW 재고 파일의
+   재고 수량이 정확히 0이면서, 최근 30일 안에 창고이동(라인 투입) 기록이
+   있는 품목만 대상으로 함 — 원래부터 안 쓰는 품목이 우연히 재고 0인 경우는 제외. */
+function zeroStockDue(){
+  if(!S.inv||!S.inv.stock)return[];
+  const cutoff=addDays(cur,-30);
+  const ropFlagged=new Set(ropDue().map(r=>norm(r.item)));
+  const out=[];
+  for(const key of Object.keys(S.inv.stock)){
+    const stk=S.inv.stock[key];
+    if(stk!==0)continue;
+    const kn=norm(key);
+    if(ropFlagged.has(kn))continue;   // 이미 재고 기준(ROP) 표에 뜨는 품목은 중복 표시하지 않음
+    const uses=S.moves.filter(m=>{
+      if(m.date<cutoff)return false;
+      const mn=norm(m.item);
+      return mn===kn||(mn.length>=3&&kn.length>=3&&(mn.includes(kn)||kn.includes(mn)));
+    });
+    if(!uses.length)continue;
+    const lastUse=uses.map(u=>u.date).sort().pop();
+    out.push({item:key,lastUse,n:uses.length});
+  }
+  return out.sort((a,b)=>b.lastUse.localeCompare(a.lastUse));
 }
 function ropOrder(item){
   const r=M.rop.find(x=>x.item===item);if(!r)return;

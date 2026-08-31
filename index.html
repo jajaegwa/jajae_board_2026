@@ -1937,22 +1937,26 @@ function commitCs(){
   const recv=csDate.value||cur,cd=csDue.value||'';const ids=[];const vn=norm(v);let mergedCount=0;
   valid.forEach(d=>{
     const due=d.due||cd;
-    // 같은 사급처·품목으로 아직 처리 안 된 건이 이미 있으면(추가 발주) 새 행을 만들지 않고
-    // 기존 건에 수량을 합쳐 비고란에 자동으로 내역을 남김
-    const dup=S.cons.find(c=>!c.done&&c.action===d.action&&norm(c.consignee)===vn&&norm(c.item)===norm(d.item));
+    // 같은 사급처·품목의 "직접출고"(14동 창고 재고) 건이 아직 안 나갔으면(추가 발주) 새 행을 만들지 않고
+    // 기존 건에 수량을 합쳐 비고란에 자동으로 내역을 남김. "발주"(공급사 대리발주)는 이미 메일이
+    // 나갔을 수 있어 합산하지 않고 — 기존처럼 매번 별도 건으로 등록해 발주 이력을 그대로 보존함.
+    const dup=d.action==='직접출고'?S.cons.find(c=>!c.done&&c.action==='직접출고'&&norm(c.consignee)===vn&&norm(c.item)===norm(d.item)):null;
     if(dup){
       const before=dup.qty;
       dup.qty=before+d.qty;
       dup.note=(dup.note?dup.note+' · ':'')+`기존 ${fmtN(before)}kg + 추가 ${fmtN(d.qty)}kg = ${fmtN(dup.qty)}kg (${fmtK(recv)} 추가발주)`;
       if(due&&(!dup.due||due<dup.due))dup.due=due;
       if(!dup.loc&&d.loc)dup.loc=d.loc;
+      if(isM210(dup.item))delete dup.m210by;   // 수량이 바뀌었으니 M-210 행선지 확인을 다시 받게 함
       ids.push(dup.id);mergedCount++;
     }else{
       const id=S.seq++;ids.push(id);S.cons.push({id,recvDate:recv,consignee:v,item:d.item,pack:d.pack,qty:d.qty,due,action:d.action,supplier:d.supplier,loc:d.loc||'',ordDate:'',outDate:'',done:false,note:isM210(d.item)?`⚠ 월1회 입항분 여부 확인 — 입항분이면 ${SENSITIVE.m210Contact||'담당자'} 행선지 확인 전 배차·출고 금지`:''});
     }
   });
   draft=[];renderDraft();csPaste.value='';csMsg.textContent='';
-  saveDB();refreshAll();buildMails(ids);toast(`${valid.length}건 등록${mergedCount?` · ${mergedCount}건은 기존 미처리 건에 합산됨`:''}${excl.length?` · ${excl.length}건 제외(우리 출고 아님)`:''}`);
+  saveDB();refreshAll();buildMails(ids);
+  const newCount=valid.length-mergedCount;
+  toast(`${newCount?`${newCount}건 등록`:''}${mergedCount?`${newCount?' · ':''}${mergedCount}건은 기존 미처리 건에 합산됨`:''}${excl.length?` · ${excl.length}건 제외(우리 출고 아님)`:''}`);
 }
 function contactOf(name){const cn=norm(name);return M.contacts.find(c=>norm(c.name).includes(cn.slice(0,2))||cn.includes(norm(c.name)))||null;}
 /* 사급 출고 지시서 — 텍스트 생성. 자재과가 [수정]→[저장 및 전송]으로 확정하면

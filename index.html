@@ -209,7 +209,7 @@ details.card summary .cnt{font-size:11.5px;color:var(--mut);font-weight:500}
   <span class="sub">입고 · 창고이동 · 발주 · 사급 한 화면</span>
   <!-- 화면이 최신 버전인지 바로 확인할 수 있게 표시 — 이 값이 다르면 브라우저가
        예전 파일을 캐시해 둔 것이므로 강력 새로고침(Ctrl+F5 / 아이폰은 Safari 재실행) 필요 -->
-  <span class="sub" id="buildStamp" title="화면 버전 — 최신이 아니면 Ctrl+F5로 강력 새로고침">v2026-08-27x</span>
+  <span class="sub" id="buildStamp" title="화면 버전 — 최신이 아니면 Ctrl+F5로 강력 새로고침">v2026-08-27y</span>
   <span class="sp"></span>
   <span class="date">기준일 <input type="date" id="curDate" onchange="setDate(this.value)"></span>
   <span class="savebox" id="saveBox"><i></i><span id="saveTxt">불러오는 중</span></span>
@@ -1937,14 +1937,31 @@ function commitCs(){
   if(!valid.length){
     if(excl.length){draft=[];renderDraft();csPaste.value='';csMsg.textContent='';toast(`${excl.length}건 전부 제외 — 우리 공장 출고·발주 대상 아님`);return;}
     toast('품목·수량이 있는 행이 없습니다');return;}
-  const recv=csDate.value||cur,cd=csDue.value||'';const ids=[];let newItemCount=0;
+  const recv=csDate.value||cur,cd=csDue.value||'';const ids=[];const vn=norm(v);let newItemCount=0,mergedCount=0;
   valid.forEach(d=>{
     if(addMaterial(d.item,{vendor:d.supplier,loc:d.loc}))newItemCount++;
-    const id=S.seq++;ids.push(id);S.cons.push({id,recvDate:recv,consignee:v,item:d.item,pack:d.pack,qty:d.qty,due:d.due||cd,action:d.action,supplier:d.supplier,loc:d.loc||'',ordDate:'',outDate:'',done:false,note:isM210(d.item)?`⚠ 월1회 입항분 여부 확인 — 입항분이면 ${SENSITIVE.m210Contact||'담당자'} 행선지 확인 전 배차·출고 금지`:''});
+    const due=d.due||cd;
+    // 같은 사급처·품목의 "직접출고"(14동 창고 재고) 건이 아직 안 나갔으면(추가 발주) 새 행을 만들지 않고
+    // 기존 건에 수량을 합쳐 비고란에 자동으로 내역을 남김. "발주"(공급사 대리발주)는 이미 메일이
+    // 나갔을 수 있어 합산하지 않고 — 기존처럼 매번 별도 건으로 등록해 발주 이력을 그대로 보존함.
+    const dup=d.action==='직접출고'?S.cons.find(c=>!c.done&&c.action==='직접출고'&&norm(c.consignee)===vn&&norm(c.item)===norm(d.item)):null;
+    if(dup){
+      const before=dup.qty;
+      dup.qty=before+d.qty;
+      dup.note=(dup.note?dup.note+' · ':'')+`기존 ${fmtN(before)}kg + 추가 ${fmtN(d.qty)}kg = ${fmtN(dup.qty)}kg (${fmtK(recv)} 추가발주)`;
+      if(due&&(!dup.due||due<dup.due))dup.due=due;
+      if(!dup.loc&&d.loc)dup.loc=d.loc;
+      if(isM210(dup.item))delete dup.m210by;   // 수량이 바뀌었으니 M-210 행선지 확인을 다시 받게 함
+      ids.push(dup.id);mergedCount++;
+    }else{
+      const id=S.seq++;ids.push(id);S.cons.push({id,recvDate:recv,consignee:v,item:d.item,pack:d.pack,qty:d.qty,due,action:d.action,supplier:d.supplier,loc:d.loc||'',ordDate:'',outDate:'',done:false,note:isM210(d.item)?`⚠ 월1회 입항분 여부 확인 — 입항분이면 ${SENSITIVE.m210Contact||'담당자'} 행선지 확인 전 배차·출고 금지`:''});
+    }
   });
   if(newItemCount){fillLists();if(sb&&sbOK)sbSaveMasterMaterials();}
   draft=[];renderDraft();csPaste.value='';csMsg.textContent='';
-  saveDB();refreshAll();buildMails(ids);toast(`${valid.length}건 등록${excl.length?` · ${excl.length}건 제외(우리 출고 아님)`:''}${newItemCount?` · 신규 품목 ${newItemCount}건 기준정보에 추가됨`:''}`);
+  saveDB();refreshAll();buildMails(ids);
+  const newCount=valid.length-mergedCount;
+  toast(`${newCount?`${newCount}건 등록`:''}${mergedCount?`${newCount?' · ':''}${mergedCount}건은 기존 미처리 건에 합산됨`:''}${excl.length?` · ${excl.length}건 제외(우리 출고 아님)`:''}${newItemCount?` · 신규 품목 ${newItemCount}건 기준정보에 추가됨`:''}`);
 }
 function contactOf(name){const cn=norm(name);return M.contacts.find(c=>norm(c.name).includes(cn.slice(0,2))||cn.includes(norm(c.name)))||null;}
 /* 사급 출고 지시서 — 텍스트 생성. 자재과가 [수정]→[저장 및 전송]으로 확정하면

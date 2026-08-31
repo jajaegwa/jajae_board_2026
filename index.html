@@ -209,7 +209,7 @@ details.card summary .cnt{font-size:11.5px;color:var(--mut);font-weight:500}
   <span class="sub">입고 · 창고이동 · 발주 · 사급 한 화면</span>
   <!-- 화면이 최신 버전인지 바로 확인할 수 있게 표시 — 이 값이 다르면 브라우저가
        예전 파일을 캐시해 둔 것이므로 강력 새로고침(Ctrl+F5 / 아이폰은 Safari 재실행) 필요 -->
-  <span class="sub" id="buildStamp" title="화면 버전 — 최신이 아니면 Ctrl+F5로 강력 새로고침">v2026-08-27v</span>
+  <span class="sub" id="buildStamp" title="화면 버전 — 최신이 아니면 Ctrl+F5로 강력 새로고침">v2026-08-27w</span>
   <span class="sp"></span>
   <span class="date">기준일 <input type="date" id="curDate" onchange="setDate(this.value)"></span>
   <span class="savebox" id="saveBox"><i></i><span id="saveTxt">불러오는 중</span></span>
@@ -1001,12 +1001,15 @@ async function matField(idx,key,val){
     if(res&&res.error)toast('저장 실패 — 네트워크 확인');else toast(`${m.name} 저장됨`);
   }catch(e){toast('저장 실패 — 네트워크 확인');}
 }
-function ensureMaterial(item,extra){
+function materialExists(name){return M.materials.some(m=>norm(m.name)===norm(name));}
+function addMaterial(item,extra){
   const name=String(item||'').trim();
-  if(!name)return false;
-  const n=norm(name);
-  if(M.materials.some(m=>norm(m.name)===n))return false;
+  if(!name||materialExists(name))return false;
   M.materials.push({name,kind:'',pack:'',unitKg:null,vendor:(extra&&extra.vendor)||'',use:(extra&&extra.use)||'',loc:(extra&&extra.loc)||'',note:'자동 등록'});
+  return true;
+}
+function ensureMaterial(item,extra){
+  if(!addMaterial(item,extra))return false;
   fillLists();
   if(sb&&sbOK)sbSaveMasterMaterials();
   return true;
@@ -1934,10 +1937,14 @@ function commitCs(){
   if(!valid.length){
     if(excl.length){draft=[];renderDraft();csPaste.value='';csMsg.textContent='';toast(`${excl.length}건 전부 제외 — 우리 공장 출고·발주 대상 아님`);return;}
     toast('품목·수량이 있는 행이 없습니다');return;}
-  const recv=csDate.value||cur,cd=csDue.value||'';const ids=[];
-  valid.forEach(d=>{const id=S.seq++;ids.push(id);S.cons.push({id,recvDate:recv,consignee:v,item:d.item,pack:d.pack,qty:d.qty,due:d.due||cd,action:d.action,supplier:d.supplier,loc:d.loc||'',ordDate:'',outDate:'',done:false,note:isM210(d.item)?`⚠ 월1회 입항분 여부 확인 — 입항분이면 ${SENSITIVE.m210Contact||'담당자'} 행선지 확인 전 배차·출고 금지`:''});});
+  const recv=csDate.value||cur,cd=csDue.value||'';const ids=[];let newItemCount=0;
+  valid.forEach(d=>{
+    if(addMaterial(d.item,{vendor:d.supplier,loc:d.loc}))newItemCount++;
+    const id=S.seq++;ids.push(id);S.cons.push({id,recvDate:recv,consignee:v,item:d.item,pack:d.pack,qty:d.qty,due:d.due||cd,action:d.action,supplier:d.supplier,loc:d.loc||'',ordDate:'',outDate:'',done:false,note:isM210(d.item)?`⚠ 월1회 입항분 여부 확인 — 입항분이면 ${SENSITIVE.m210Contact||'담당자'} 행선지 확인 전 배차·출고 금지`:''});
+  });
+  if(newItemCount){fillLists();if(sb&&sbOK)sbSaveMasterMaterials();}
   draft=[];renderDraft();csPaste.value='';csMsg.textContent='';
-  saveDB();refreshAll();buildMails(ids);toast(`${valid.length}건 등록${excl.length?` · ${excl.length}건 제외(우리 출고 아님)`:''}`);
+  saveDB();refreshAll();buildMails(ids);toast(`${valid.length}건 등록${excl.length?` · ${excl.length}건 제외(우리 출고 아님)`:''}${newItemCount?` · 신규 품목 ${newItemCount}건 기준정보에 추가됨`:''}`);
 }
 function contactOf(name){const cn=norm(name);return M.contacts.find(c=>norm(c.name).includes(cn.slice(0,2))||cn.includes(norm(c.name)))||null;}
 /* 사급 출고 지시서 — 텍스트 생성. 자재과가 [수정]→[저장 및 전송]으로 확정하면
@@ -2040,10 +2047,24 @@ function csMark(id,f){const c=S.cons.find(x=>x.id===id);
     return;
   }
   csMarkCore(c,f);}
-function csMarkCore(c,f){
+function csApplyMark(c,f){
   if(f==='done'){c.done=true;if(c.action==='발주'&&!c.inDate)c.inDate=cur;}else{c[f]=cur;if(f==='outDate')c.done=true;}
   if(f==='outDate'||f==='done')c.outBy=whoNow();
-  saveDB();refreshAll();}
+}
+function csMarkCore(c,f){csApplyMark(c,f);saveDB();refreshAll();}
+/* 지게차 화면에서 동일 품목으로 합쳐 보여준 행 — 체크 한 번으로 묶인 건 전부 완료 처리.
+   단, M-210(월1회 입항분) 건이 섞여 있으면 그 건은 csMark로 넘겨 행선지 확인 다이얼로그를
+   그대로 거치게 하고, 나머지 건은 이번 체크에서 함께 처리(다음에 다시 누르면 마저 처리됨). */
+function csMarkGroup(ids,f){
+  if((f==='outDate'||f==='done')&&needName(()=>csMarkGroup(ids,f)))return;
+  const isPendingM210=id=>{const c=S.cons.find(x=>x.id===id);return c&&(f==='outDate'||f==='done')&&isM210(c.item)&&!c.m210by;};
+  const m210Ids=ids.filter(isPendingM210),rest=ids.filter(id=>!isPendingM210(id));
+  if(m210Ids.length)csMark(m210Ids[0],f);   // 행선지 확인 다이얼로그부터 — 나머지 M-210 건은 확인 후 다시 눌러 처리
+  if(rest.length){
+    rest.forEach(id=>{const c=S.cons.find(x=>x.id===id);if(c)csApplyMark(c,f);});
+    saveDB();refreshAll();
+  }
+}
 /* 직접출고 건 — 출고 체크를 잘못 눌렀거나 실제로 안 나갔을 때 출고 대기로 되돌림 */
 function csUndoOut(id){
   const c=S.cons.find(x=>x.id===id);if(!c)return;
@@ -2627,7 +2648,10 @@ function renderDriver(){
   const outsGroup=list=>{
     const byC={};list.forEach(c=>(byC[c.consignee]=byC[c.consignee]||[]).push(c));
     return list.length?Object.entries(byC).map(([k,l])=>{const kj=esc(k).replace(/'/g,"\\'");
-      return `<div class="grp" style="cursor:pointer" onclick="showCsInstr('${kj}')">${esc(k)} 행 ${l[0].due?' · 납기 '+fmtK(l.map(c=>c.due).filter(Boolean).sort()[0]):''} · 약 ${Math.max(1,Math.ceil(l.reduce((a,c)=>a+c.qty,0)/1000))} PLT · 📦 지시서 보기</div>`+l.map(c=>`<div class="item"><div><div class="name" style="cursor:pointer" onclick="showCsInstr('${kj}')">${esc(c.item)} <span class="loc">${esc(c.loc||'14동')}</span></div><div class="meta">${esc(c.consignee)}${c.pack?' · '+esc(c.pack):''}</div></div><div><div class="qty">${fmtN(c.qty)} kg</div>${cb(`csMark(${c.id},'outDate')`,false)}</div></div>`).join('');}).join(''):'<div class="empty">없음</div>';
+      // 같은 사급처 안에서 동일 품목이면 한 행으로 합쳐 수량을 더하고, 완료 체크도 묶어서 한 번에 처리
+      // 품목명이 같아도 출고창고(loc)·포장(pack)이 다르면 실물 위치가 달라 헷갈릴 수 있어 별도 행 유지
+      const byItem={};l.forEach(c=>{const key=norm(c.item)+'|'+norm(c.loc)+'|'+norm(c.pack);const g=byItem[key]=byItem[key]||{item:c.item,loc:c.loc,pack:c.pack,qty:0,ids:[]};g.qty+=c.qty;g.ids.push(c.id);});
+      return `<div class="grp" style="cursor:pointer" onclick="showCsInstr('${kj}')">${esc(k)} 행 ${l[0].due?' · 납기 '+fmtK(l.map(c=>c.due).filter(Boolean).sort()[0]):''} · 약 ${Math.max(1,Math.ceil(l.reduce((a,c)=>a+c.qty,0)/1000))} PLT · 📦 지시서 보기</div>`+Object.values(byItem).map(g=>`<div class="item"><div><div class="name" style="cursor:pointer" onclick="showCsInstr('${kj}')">${esc(g.item)} <span class="loc">${esc(g.loc||'14동')}</span></div><div class="meta">${esc(k)}${g.pack?' · '+esc(g.pack):''}</div></div><div><div class="qty">${fmtN(g.qty)} kg</div>${cb(`csMarkGroup(${JSON.stringify(g.ids)},'outDate')`,false)}</div></div>`).join('');}).join(''):'<div class="empty">없음</div>';
   };
   const outsToday=outs.filter(c=>!c.due||c.due<=cur);
   const outsTomorrow=outs.filter(c=>c.due===addDays(cur,1));

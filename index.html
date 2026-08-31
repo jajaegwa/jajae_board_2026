@@ -2655,7 +2655,7 @@ function editActKg(id){
   saveDB();refreshAll();
   toast('실출고 보정 저장됨');
 }
-/* 기사 직접 등록 — ASA 등 1,000kg 단위 (창호 M201P2) */
+/* 기사 직접 등록 — 품목별 부서·창고 위치를 함께 지정, 1,000kg 단위로 탭 등록 */
 const DRV_ADD=[
   {item:'ASA GR(네츄럴그레이)',dept:'창호',loc:'M201P2'},
   {item:'ASA DB(브라운)',dept:'창호',loc:'M201P2'},
@@ -2671,9 +2671,8 @@ function drvAdd(kg){
   if(needName(()=>drvAdd(kg)))return;
   const who=whoNow();
   const preset=DRV_ADD.find(d=>d.item===drvSel);
-  const m=matchItem(drvSel);
-  const loc=(preset&&preset.loc)||(m?m.loc.replace('(경질창고)',''):'');
-  S.moves.push({id:S.seq++,date:cur,dept:preset?preset.dept:'창호',item:drvSel,qty:kg,unit:'kg',loc,note:'기사 등록',addedBy:who,done:false});
+  const loc=preset.loc||locOf(drvSel);
+  S.moves.push({id:S.seq++,date:cur,dept:preset.dept,item:drvSel,qty:kg,unit:'kg',loc,note:'기사 등록',addedBy:who,done:false});
   saveDB();refreshAll();toast(`${drvSel} ${fmtN(kg)}kg 등록됨 (${who})`);
 }
 function drvAddCustom(){

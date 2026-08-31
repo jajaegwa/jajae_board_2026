@@ -209,7 +209,7 @@ details.card summary .cnt{font-size:11.5px;color:var(--mut);font-weight:500}
   <span class="sub">입고 · 창고이동 · 발주 · 사급 한 화면</span>
   <!-- 화면이 최신 버전인지 바로 확인할 수 있게 표시 — 이 값이 다르면 브라우저가
        예전 파일을 캐시해 둔 것이므로 강력 새로고침(Ctrl+F5 / 아이폰은 Safari 재실행) 필요 -->
-  <span class="sub" id="buildStamp" title="화면 버전 — 최신이 아니면 Ctrl+F5로 강력 새로고침">v2026-08-27w</span>
+  <span class="sub" id="buildStamp" title="화면 버전 — 최신이 아니면 Ctrl+F5로 강력 새로고침">v2026-08-27x</span>
   <span class="sp"></span>
   <span class="date">기준일 <input type="date" id="curDate" onchange="setDate(this.value)"></span>
   <span class="savebox" id="saveBox"><i></i><span id="saveTxt">불러오는 중</span></span>
@@ -2633,7 +2633,7 @@ function renderDriver(){
   // 기사 직접 등록 (ASA 등 1,000kg 단위)
   h+=`<h2>➕ 이동 요청 직접 등록 <span class="cnt">품목 탭 → 톤수 탭 = 등록</span></h2>`;
   h+=`<div class="card" style="font-size:15px">
-    <div class="quick">${DRV_ADD.map((it,i)=>`<button style="font-size:15px;padding:10px 14px;${drvSel===it?'background:var(--acc);color:#fff;border-color:var(--acc)':''}" onclick="drvPick(${i})">${it}</button>`).join('')}</div>
+    <div class="quick">${DRV_ADD.map((d,i)=>`<button style="font-size:15px;padding:10px 14px;${drvSel===d.item?'background:var(--acc);color:#fff;border-color:var(--acc)':''}" onclick="drvPick(${i})">${d.item}</button>`).join('')}</div>
     <div class="quick" style="margin-top:8px">${[1,2,3,4,5].map(n2=>`<button style="font-size:16px;font-weight:700;min-width:60px;padding:10px 0" onclick="drvAdd(${n2*1000})">${n2}t</button>`).join('')}</div>
     <form class="row" style="margin-top:8px" onsubmit="event.preventDefault();drvAddCustom()">
       <select id="drvDept" style="font-size:15px"><option>창호</option><option>경질</option><option>타일</option><option>DBP</option><option>기타</option></select>
@@ -2679,15 +2679,24 @@ function editActKg(id){
   saveDB();refreshAll();
   toast('실출고 보정 저장됨');
 }
-/* 기사 직접 등록 — ASA 등 1,000kg 단위 (창호 M201P2) */
-const DRV_ADD=['ASA GR(네츄럴그레이)','ASA DB(브라운)','ASA BZ(브론즈)','ASA DG(다크그레이)','ASA BK(블랙)'];
+/* 기사 직접 등록 — 품목별 부서·창고 위치를 함께 지정, 1,000kg 단위로 탭 등록 */
+const DRV_ADD=[
+  {item:'ASA GR(네츄럴그레이)',dept:'창호',loc:'M201P2'},
+  {item:'ASA DB(브라운)',dept:'창호',loc:'M201P2'},
+  {item:'ASA BZ(브론즈)',dept:'창호',loc:'M201P2'},
+  {item:'ASA DG(다크그레이)',dept:'창호',loc:'M201P2'},
+  {item:'ASA BK(블랙)',dept:'창호',loc:'M201P2'},
+  {item:'DHA-100',dept:'타일'},
+];
 let drvSel='';
-function drvPick(i){drvSel=DRV_ADD[i]===drvSel?'':DRV_ADD[i];renderDriver();}
+function drvPick(i){drvSel=DRV_ADD[i].item===drvSel?'':DRV_ADD[i].item;renderDriver();}
 function drvAdd(kg){
   if(!drvSel){toast('품목을 먼저 탭하세요');return;}
   if(needName(()=>drvAdd(kg)))return;
   const who=whoNow();
-  S.moves.push({id:S.seq++,date:cur,dept:'창호',item:drvSel,qty:kg,unit:'kg',loc:'M201P2',note:'기사 등록',addedBy:who,done:false});
+  const preset=DRV_ADD.find(d=>d.item===drvSel);
+  const loc=preset.loc||locOf(drvSel);
+  S.moves.push({id:S.seq++,date:cur,dept:preset.dept,item:drvSel,qty:kg,unit:'kg',loc,note:'기사 등록',addedBy:who,done:false});
   saveDB();refreshAll();toast(`${drvSel} ${fmtN(kg)}kg 등록됨 (${who})`);
 }
 function drvAddCustom(){

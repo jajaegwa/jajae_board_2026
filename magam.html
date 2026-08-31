@@ -699,7 +699,12 @@ function vendorDlg(title,v,onSave,onDel){
 }
 function addVendor(side){
   const v={id:side[0]+Date.now().toString(36)};
-  vendorDlg('업체 추가 — '+SIDE_LB[side],v,()=>S.vendors[side].push(v));
+  vendorDlg('업체 추가 — '+SIDE_LB[side],v,()=>{
+    S.vendors[side].push(v);
+    /* 마감대상만 보기 필터가 켜져 있으면 방금 추가한 업체가 화면에 안 보여서
+       "저장이 안 된다"처럼 느껴짐 — 새 업체가 바로 보이도록 필터를 꺼준다 */
+    if(tgtOnly[side]){tgtOnly[side]=false;toast('업체가 추가됐습니다 — 방금 추가한 업체가 보이도록 "마감대상만 보기"를 껐어요');}
+  });
 }
 function editVendor(side,vid){
   const v=S.vendors[side].find(x=>x.id===vid);if(!v)return;

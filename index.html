@@ -209,7 +209,7 @@ details.card summary .cnt{font-size:11.5px;color:var(--mut);font-weight:500}
   <span class="sub">입고 · 창고이동 · 발주 · 사급 한 화면</span>
   <!-- 화면이 최신 버전인지 바로 확인할 수 있게 표시 — 이 값이 다르면 브라우저가
        예전 파일을 캐시해 둔 것이므로 강력 새로고침(Ctrl+F5 / 아이폰은 Safari 재실행) 필요 -->
-  <span class="sub" id="buildStamp" title="화면 버전 — 최신이 아니면 Ctrl+F5로 강력 새로고침">v2026-08-28a</span>
+  <span class="sub" id="buildStamp" title="화면 버전 — 최신이 아니면 Ctrl+F5로 강력 새로고침">v2026-08-28b</span>
   <span class="sp"></span>
   <span class="date">기준일 <input type="date" id="curDate" onchange="setDate(this.value)"></span>
   <span class="savebox" id="saveBox"><i></i><span id="saveTxt">불러오는 중</span></span>
@@ -418,6 +418,7 @@ details.card summary .cnt{font-size:11.5px;color:var(--mut);font-weight:500}
     <div class="hint">운영 규칙<br>· 전산 재고 차감은 <b>배차완료(실물 출고)</b> 시점<br>· 찢어진 지대는 사급 출고 금지(협의 후 자사 투입)<br>· 업체→업체 이동은 <b>거래명세서 수령 전 입고완료 금지</b><br>· 당월 사용분은 이월 불가(익월분만 승인 후 이월)<br>· M-210 월1회 입항분은 행선지 건별 확인 전 배차 금지</div>
     <div class="row" style="margin-bottom:10px">
       <select id="csFlt" onchange="renderCs()"><option value="">전체</option><option value="대기">대기(발주/출고 전)</option><option value="진행">진행(입고/출고 대기)</option><option value="완료">완료</option></select>
+      <select id="csActionFlt" onchange="renderCs()"><option value="">처리 전체</option><option value="발주">발주</option><option value="직접출고">직접출고</option><option value="확인">확인</option><option value="제외">제외</option></select>
       <input id="csSearch" placeholder="사급처·품목 검색" oninput="renderCs()" style="flex:1;min-width:140px">
       <div><label>납기 날짜</label><input type="date" id="csDueDateFlt" onchange="renderCs()"></div>
       <div><label>납기 월</label><input type="month" id="csDueMonthFlt" onchange="renderCs()"></div>
@@ -2099,9 +2100,10 @@ let csSort=null;   // null(등록순) → 'asc'(요청납기 빠른순) → 'des
 function csSortByDue(){csSort=csSort==='asc'?'desc':(csSort==='desc'?null:'asc');renderCs();}
 function csFilteredRows(){
   const f=csFlt.value,q=csSearch.value.trim().toUpperCase();
+  const actionFlt=document.getElementById('csActionFlt')?.value||'';
   const dueDate=document.getElementById('csDueDateFlt')?.value||'';
   const dueMonth=document.getElementById('csDueMonthFlt')?.value||'';
-  let rows=S.cons.filter(c=>{const st=csStatus(c);if(f==='대기'&&!/대기$|확인/.test(st))return false;if(f==='대기'&&/입고대기/.test(st))return false;if(f==='진행'&&st!=='입고대기'&&st!=='입고지연')return false;if(f==='완료'&&!c.done)return false;if(q&&!(c.consignee+c.item+c.supplier).toUpperCase().includes(q))return false;if(dueDate&&c.due!==dueDate)return false;if(dueMonth&&(!c.due||!c.due.startsWith(dueMonth)))return false;return true;});
+  let rows=S.cons.filter(c=>{const st=csStatus(c);if(f==='대기'&&!/대기$|확인/.test(st))return false;if(f==='대기'&&/입고대기/.test(st))return false;if(f==='진행'&&st!=='입고대기'&&st!=='입고지연')return false;if(f==='완료'&&!c.done)return false;if(actionFlt&&c.action!==actionFlt)return false;if(q&&!(c.consignee+c.item+c.supplier).toUpperCase().includes(q))return false;if(dueDate&&c.due!==dueDate)return false;if(dueMonth&&(!c.due||!c.due.startsWith(dueMonth)))return false;return true;});
   if(csSort){
     const withDue=rows.filter(c=>c.due),noDue=rows.filter(c=>!c.due);
     withDue.sort((a,b)=>csSort==='asc'?a.due.localeCompare(b.due):b.due.localeCompare(a.due));

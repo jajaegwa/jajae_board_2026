@@ -209,7 +209,7 @@ details.card summary .cnt{font-size:11.5px;color:var(--mut);font-weight:500}
   <span class="sub">입고 · 창고이동 · 발주 · 사급 한 화면</span>
   <!-- 화면이 최신 버전인지 바로 확인할 수 있게 표시 — 이 값이 다르면 브라우저가
        예전 파일을 캐시해 둔 것이므로 강력 새로고침(Ctrl+F5 / 아이폰은 Safari 재실행) 필요 -->
-  <span class="sub" id="buildStamp" title="화면 버전 — 최신이 아니면 Ctrl+F5로 강력 새로고침">v2026-08-28b</span>
+  <span class="sub" id="buildStamp" title="화면 버전 — 최신이 아니면 Ctrl+F5로 강력 새로고침">v2026-08-28c</span>
   <span class="sp"></span>
   <span class="date">기준일 <input type="date" id="curDate" onchange="setDate(this.value)"></span>
   <span class="savebox" id="saveBox"><i></i><span id="saveTxt">불러오는 중</span></span>
@@ -1785,6 +1785,9 @@ let draft=[];
 /* 처리 방식 — 등록 시 자동/수동 판정, 필터·수정 화면·표시에서 모두 공통으로 사용 */
 const CS_ACTIONS=['발주','직접출고','확인','제외'];
 const CS_ACTION_CLASS={'발주':'order','직접출고':'direct','확인':'check','제외':'none'};
+/* 사급 요청 추적 표 — 직접출고(14동 출고)와 발주(공급사 대리발주)를 한눈에 구분해 보이도록
+   섞어서 정렬하지 않고 처리 방식별로 묶어서 보여줌(그룹 순서). */
+const CS_ACTION_GROUPS=['직접출고','발주','확인','제외'];
 /* 발주 대응 품목 — 우리 공장(14동) 창고에서 출고되지 않고, 요청이 오면 공급사에 발주 → 사급처 직납.
    사급 발주서 자동 판정에서 절대 '직접출고'가 되지 않고 항상 '발주'로 처리됨. */
 const ORDER_RESP=['GM-00','LOX-600H','P-1000','P-3000','SB-102','L102','LOX-6005H','DWF-00','GO-00','MC-2575','PR701','RICHVIN329','GHD3923','PEH-7000L','BGY-01','BWH','HAC-01','HAC-05','KGY-01','X100G','Q100','NGY-00','J-293F-S','SP-390','COD01','COD01Z','AG-06','BK-001','DO73','DOTP-05','GN-002','HAC-05-05','LOX-05','AB00','AG04','AG09','AG32','BB00','BK03','BLACK-02','BLUE3240','BP-276S','BY002','CB-01','CH00','CR00','CW00','DB02','DO00','DOR00','DOZ00','DW-00','GO00','KA-100','LO00','LS00','MB838','MB839','MG00','NEO-P','NO00','RED114','ROZ00','SO00','SW00','TM00','WT00'].map(norm);
@@ -2120,7 +2123,13 @@ function renderCs(){
   const rows=csFilteredRows();
   const allSel=rows.length>0&&rows.every(c=>selCs.has(c.id));
   const selAllEl=document.getElementById('csSelAll');if(selAllEl)selAllEl.checked=allSel;
-  document.getElementById('csBody').innerHTML=rows.length?rows.map(c=>csRow(c,false)).join(''):'<tr><td colspan="12" class="empty">사급 요청 없음</td></tr>';
+  let body='';
+  CS_ACTION_GROUPS.forEach(a=>{
+    const grp=rows.filter(c=>c.action===a);
+    if(!grp.length)return;
+    body+=`<tr><td colspan="12" style="background:var(--head);text-align:left;font-weight:700;padding:6px 8px">${a} <span class="cnt" style="font-weight:400">${grp.length}건</span></td></tr>`+grp.map(c=>csRow(c,false)).join('');
+  });
+  document.getElementById('csBody').innerHTML=body||'<tr><td colspan="12" class="empty">사급 요청 없음</td></tr>';
   document.getElementById('cntCs2').textContent=`${rows.length}건`;
   const th=document.getElementById('csDueTh');if(th)th.textContent='요청납기'+(csSort==='asc'?' ▲':csSort==='desc'?' ▼':'');
   updateCsSelCnt();

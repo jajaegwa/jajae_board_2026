@@ -1812,6 +1812,9 @@ let draft=[];
 /* 처리 방식 — 등록 시 자동/수동 판정, 필터·수정 화면·표시에서 모두 공통으로 사용 */
 const CS_ACTIONS=['발주','직접출고','확인','제외'];
 const CS_ACTION_CLASS={'발주':'order','직접출고':'direct','확인':'check','제외':'none'};
+/* 사급 요청 추적 표 — 직접출고(14동 출고)와 발주(공급사 대리발주)를 한눈에 구분해 보이도록
+   섞어서 정렬하지 않고 처리 방식별로 묶어서 보여줌(그룹 순서). */
+const CS_ACTION_GROUPS=['직접출고','발주','확인','제외'];
 /* 발주 대응 품목 — 우리 공장(14동) 창고에서 출고되지 않고, 요청이 오면 공급사에 발주 → 사급처 직납.
    사급 발주서 자동 판정에서 절대 '직접출고'가 되지 않고 항상 '발주'로 처리됨. */
 const ORDER_RESP=['GM-00','LOX-600H','P-1000','P-3000','SB-102','L102','LOX-6005H','DWF-00','GO-00','MC-2575','PR701','RICHVIN329','GHD3923','PEH-7000L','BGY-01','BWH','HAC-01','HAC-05','KGY-01','X100G','Q100','NGY-00','J-293F-S','SP-390','COD01','COD01Z','AG-06','BK-001','DO73','DOTP-05','GN-002','HAC-05-05','LOX-05','AB00','AG04','AG09','AG32','BB00','BK03','BLACK-02','BLUE3240','BP-276S','BY002','CB-01','CH00','CR00','CW00','DB02','DO00','DOR00','DOZ00','DW-00','GO00','KA-100','LO00','LS00','MB838','MB839','MG00','NEO-P','NO00','RED114','ROZ00','SO00','SW00','TM00','WT00'].map(norm);
@@ -2139,7 +2142,8 @@ function csFilteredRows(){
     withDue.sort((a,b)=>csSort==='asc'?a.due.localeCompare(b.due):b.due.localeCompare(a.due));
     rows=[...withDue,...noDue];
   }else rows.sort((a,b)=>b.id-a.id);
-  // 출고완료·입고완료(c.done) 건은 정렬 기준과 무관하게 항상 맨 아래로
+  // 출고완료·입고완료(c.done) 건은 정렬 기준과 무관하게 항상 맨 아래로 — renderCs()가 이 순서를
+  // 유지한 채로 처리 방식별로 다시 묶어 보여주므로, 실제 화면에서는 "각 그룹 안에서 맨 아래"가 됨
   rows=[...rows.filter(c=>!c.done),...rows.filter(c=>c.done)];
   return rows;
 }
@@ -2147,7 +2151,16 @@ function renderCs(){
   const rows=csFilteredRows();
   const allSel=rows.length>0&&rows.every(c=>selCs.has(c.id));
   const selAllEl=document.getElementById('csSelAll');if(selAllEl)selAllEl.checked=allSel;
-  document.getElementById('csBody').innerHTML=rows.length?rows.map(c=>csRow(c,false)).join(''):'<tr><td colspan="12" class="empty">사급 요청 없음</td></tr>';
+  let body='';
+  const byAction={};
+  rows.forEach(c=>{(byAction[c.action]=byAction[c.action]||[]).push(c);});
+  const renderGroup=(label,grp)=>{
+    if(!grp||!grp.length)return;
+    body+=`<tr><td colspan="12" style="background:var(--head);text-align:left;font-weight:700;padding:6px 8px">${label} <span class="cnt" style="font-weight:400">${grp.length}건</span></td></tr>`+grp.map(c=>csRow(c,false)).join('');
+  };
+  CS_ACTION_GROUPS.forEach(a=>{renderGroup(a,byAction[a]);delete byAction[a];});
+  Object.keys(byAction).forEach(a=>renderGroup(a,byAction[a]));   // CS_ACTION_GROUPS에 없는 처리 값이 생겨도 누락되지 않게
+  document.getElementById('csBody').innerHTML=body||'<tr><td colspan="12" class="empty">사급 요청 없음</td></tr>';
   document.getElementById('cntCs2').textContent=`${rows.length}건`;
   const th=document.getElementById('csDueTh');if(th)th.textContent='요청납기'+(csSort==='asc'?' ▲':csSort==='desc'?' ▼':'');
   updateCsSelCnt();

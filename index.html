@@ -2115,7 +2115,8 @@ function csFilteredRows(){
     withDue.sort((a,b)=>csSort==='asc'?a.due.localeCompare(b.due):b.due.localeCompare(a.due));
     rows=[...withDue,...noDue];
   }else rows.sort((a,b)=>b.id-a.id);
-  // 출고완료·입고완료(c.done) 건은 정렬 기준과 무관하게 항상 맨 아래로
+  // 출고완료·입고완료(c.done) 건은 정렬 기준과 무관하게 항상 맨 아래로 — renderCs()가 이 순서를
+  // 유지한 채로 처리 방식별로 다시 묶어 보여주므로, 실제 화면에서는 "각 그룹 안에서 맨 아래"가 됨
   rows=[...rows.filter(c=>!c.done),...rows.filter(c=>c.done)];
   return rows;
 }
@@ -2124,11 +2125,14 @@ function renderCs(){
   const allSel=rows.length>0&&rows.every(c=>selCs.has(c.id));
   const selAllEl=document.getElementById('csSelAll');if(selAllEl)selAllEl.checked=allSel;
   let body='';
-  CS_ACTION_GROUPS.forEach(a=>{
-    const grp=rows.filter(c=>c.action===a);
-    if(!grp.length)return;
-    body+=`<tr><td colspan="12" style="background:var(--head);text-align:left;font-weight:700;padding:6px 8px">${a} <span class="cnt" style="font-weight:400">${grp.length}건</span></td></tr>`+grp.map(c=>csRow(c,false)).join('');
-  });
+  const byAction={};
+  rows.forEach(c=>{(byAction[c.action]=byAction[c.action]||[]).push(c);});
+  const renderGroup=(label,grp)=>{
+    if(!grp||!grp.length)return;
+    body+=`<tr><td colspan="12" style="background:var(--head);text-align:left;font-weight:700;padding:6px 8px">${label} <span class="cnt" style="font-weight:400">${grp.length}건</span></td></tr>`+grp.map(c=>csRow(c,false)).join('');
+  };
+  CS_ACTION_GROUPS.forEach(a=>{renderGroup(a,byAction[a]);delete byAction[a];});
+  Object.keys(byAction).forEach(a=>renderGroup(a,byAction[a]));   // CS_ACTION_GROUPS에 없는 처리 값이 생겨도 누락되지 않게
   document.getElementById('csBody').innerHTML=body||'<tr><td colspan="12" class="empty">사급 요청 없음</td></tr>';
   document.getElementById('cntCs2').textContent=`${rows.length}건`;
   const th=document.getElementById('csDueTh');if(th)th.textContent='요청납기'+(csSort==='asc'?' ▲':csSort==='desc'?' ▼':'');

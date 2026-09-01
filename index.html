@@ -209,7 +209,7 @@ details.card summary .cnt{font-size:11.5px;color:var(--mut);font-weight:500}
   <span class="sub">입고 · 창고이동 · 발주 · 사급 한 화면</span>
   <!-- 화면이 최신 버전인지 바로 확인할 수 있게 표시 — 이 값이 다르면 브라우저가
        예전 파일을 캐시해 둔 것이므로 강력 새로고침(Ctrl+F5 / 아이폰은 Safari 재실행) 필요 -->
-  <span class="sub" id="buildStamp" title="화면 버전 — 최신이 아니면 Ctrl+F5로 강력 새로고침">v2026-08-28b</span>
+  <span class="sub" id="buildStamp" title="화면 버전 — 최신이 아니면 Ctrl+F5로 강력 새로고침">v2026-08-28c</span>
   <span class="sp"></span>
   <span class="date">기준일 <input type="date" id="curDate" onchange="setDate(this.value)"></span>
   <span class="savebox" id="saveBox"><i></i><span id="saveTxt">불러오는 중</span></span>
@@ -238,6 +238,10 @@ details.card summary .cnt{font-size:11.5px;color:var(--mut);font-weight:500}
 <!-- ═══════ 오늘 작업판 ═══════ -->
 <section id="tab-board">
   <div class="stat" id="stats"></div>
+  <div class="card" id="mvErpAlertBoard" style="display:none;border-color:var(--amber);cursor:pointer" onclick="showTab('move')">
+    <h2 style="color:var(--amber)">⚠ 전산이동 미완료(이전 날짜) <span class="cnt" id="cntMvErpAlertBoard"></span></h2>
+    <div class="hint">기준일이 지났는데 전산이동완료 처리가 안 된 건이 있습니다 — 탭하면 배합실요청 화면에서 바로 처리할 수 있어요.</div>
+  </div>
   <div class="grid g2" id="boardCards">
     <div class="card">
       <h2>오늘 입고 예정 <span class="cnt" id="cntIn"></span></h2>
@@ -320,6 +324,11 @@ details.card summary .cnt{font-size:11.5px;color:var(--mut);font-weight:500}
         </form>
       </div>
     </div>
+  </div>
+  <div class="card" id="mvErpAlertCard" style="display:none;border-color:var(--amber)">
+    <h2 style="color:var(--amber)">⚠ 전산이동 미완료(이전 날짜) <span class="cnt" id="cntMvErpAlert"></span></h2>
+    <div class="hint" style="margin-bottom:8px">기준일이 지났는데 전산이동완료 처리가 안 된 건입니다 — 그냥 두면 목록에서 안 보여 잊기 쉬워요.</div>
+    <div class="tbl scroll"><table><thead><tr><th>날짜</th><th>부서</th><th>품목</th><th class="num">수량</th><th>출고창고</th><th></th></tr></thead><tbody id="mvErpAlertBody"></tbody></table></div>
   </div>
   <div class="card">
     <h2>기준일 요청 목록 <span class="cnt" id="cntMv2"></span><span style="margin-left:auto;display:flex;gap:8px;align-items:center;flex-wrap:wrap"><span class="tag" id="mvSelCnt"></span><button class="btn sm pri" onclick="bulkDoneMv()">실물이동완료</button><button class="btn sm" onclick="bulkErpMv()">전산이동완료</button></span></h2>
@@ -1233,6 +1242,14 @@ function applyCycSuggest(item,newCycle){
 }
 function orderStatus(o){if(o.skip)return'취소';if(o.inDate)return'입고완료';if(o.eta&&cur>o.eta)return'입고지연';return'발주완료';}
 function renderBoard(){
+  // 전산이동 미완료(이전 날짜) 알림 — 창고이동 요청 목록은 날짜별로 보여서 다음날이 되면
+  // 화면에서 사라져 버리므로, 잊지 않게 현황(기본 화면)에도 눈에 띄게 표시
+  const mvOverdue=overdueErpMoves();
+  const mvAlertEl=document.getElementById('mvErpAlertBoard');
+  if(mvAlertEl){
+    mvAlertEl.style.display=mvOverdue.length?'':'none';
+    document.getElementById('cntMvErpAlertBoard').textContent=mvOverdue.length?`${mvOverdue.length}건`:'';
+  }
   // 입고 예정
   const ins=S.orders.filter(o=>o.eta===cur&&o.type==='self'||(o.eta===cur&&o.type==='consign'&&false)).sort((a,b)=>(a.loc||'').localeCompare(b.loc||''));
   const late=S.orders.filter(o=>!o.inDate&&o.eta&&o.eta<cur&&o.type==='self');
@@ -1699,7 +1716,17 @@ function bulkErpMv(){
   selMv.clear();saveDB();refreshAll();
   toast(`${done}건 전산이동완료 처리됨`);
 }
+/* 기준일이 지났는데 전산이동완료(erp) 처리가 안 된 건 — 날짜별 요청 목록(date===cur)만
+   보면 다음날부터 화면에서 사라져 버려서 깜빡 잊기 쉬우므로, 지난 건이 있으면 따로 보여줌. */
+function overdueErpMoves(){return S.moves.filter(m=>m.date<cur&&!m.erp);}
 function renderMoves(){
+  const overdue=overdueErpMoves();
+  const alertCard=document.getElementById('mvErpAlertCard');
+  if(alertCard){
+    alertCard.style.display=overdue.length?'':'none';
+    document.getElementById('cntMvErpAlert').textContent=overdue.length?`${overdue.length}건`:'';
+    document.getElementById('mvErpAlertBody').innerHTML=overdue.map(m=>`<tr><td>${fmtK(m.date)}</td><td>${deptChip(m.dept)}</td><td><b>${esc(m.item)}</b></td><td class="num">${fmtN(m.qty)} ${esc(m.unit)}</td><td><span class="loc">${esc(m.loc||'?')}</span></td><td><button class="btn sm pri" onclick="toggleErp(${m.id})">전산완료</button> <button class="btn sm" onclick="editMove(${m.id})">수정</button> <button class="btn sm" style="color:var(--red)" onclick="delMove(${m.id})">${armLbl('mv'+m.id)}</button></td></tr>`).join('');
+  }
   const mv=S.moves.filter(m=>m.date===cur);
   const order={'경질':0,'창호':1,'타일':2,'DBP':3};
   mv.sort((a,b)=>(order[a.dept]??9)-(order[b.dept]??9)||a.id-b.id);

@@ -1725,7 +1725,7 @@ function renderMoves(){
   if(alertCard){
     alertCard.style.display=overdue.length?'':'none';
     document.getElementById('cntMvErpAlert').textContent=overdue.length?`${overdue.length}건`:'';
-    document.getElementById('mvErpAlertBody').innerHTML=overdue.map(m=>`<tr><td>${fmtK(m.date)}</td><td>${deptChip(m.dept)}</td><td><b>${esc(m.item)}</b></td><td class="num">${fmtN(m.qty)} ${esc(m.unit)}</td><td><span class="loc">${esc(m.loc||'?')}</span></td><td><button class="btn sm pri" onclick="toggleErp(${m.id})">전산완료</button></td></tr>`).join('');
+    document.getElementById('mvErpAlertBody').innerHTML=overdue.map(m=>`<tr><td>${fmtK(m.date)}</td><td>${deptChip(m.dept)}</td><td><b>${esc(m.item)}</b></td><td class="num">${fmtN(m.qty)} ${esc(m.unit)}</td><td><span class="loc">${esc(m.loc||'?')}</span></td><td><button class="btn sm pri" onclick="toggleErp(${m.id})">전산완료</button> <button class="btn sm" onclick="editMove(${m.id})">수정</button> <button class="btn sm" style="color:var(--red)" onclick="delMove(${m.id})">${armLbl('mv'+m.id)}</button></td></tr>`).join('');
   }
   const mv=S.moves.filter(m=>m.date===cur);
   const order={'경질':0,'창호':1,'타일':2,'DBP':3};

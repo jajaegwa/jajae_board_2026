@@ -1387,8 +1387,11 @@ const SP_BULK=new Set(['P-1000','P-800','P-1000F','P-700','SP-390']);
 const SP_ROPKEY={'NR-950':'NR-950','CPE':'CPE H-135','DWC4Z':'DWC4Z','DWC6Z':'DWC6Z','SJ-01':'SJ-01','SP-390':'DOTP'};
 let spSel='',spWhen=-1,spCustomDate='';
 function spWhens(){
-  const a=[{label:'오전',date:cur},{label:'오후',date:cur}];
-  for(let i=1;i<=4;i++){const d=addDays(cur,i);a.push({label:(i===1?'내일 ':'')+fmtK(d),date:d});}
+  // 기준일(cur)이 아니라 실제 오늘(realToday)을 기준으로 계산 — 관리자가 다른 날짜 게시판을
+  // 보고 있던 중이어도(cur가 오늘이 아니어도) "오전/오후"가 항상 진짜 오늘을 가리키게 함.
+  const rt=realToday();
+  const a=[{label:'오전',date:rt},{label:'오후',date:rt}];
+  for(let i=1;i<=4;i++){const d=addDays(rt,i);a.push({label:(i===1?'내일 ':'')+fmtK(d),date:d});}
   return a;
 }
 function renderSpQuick(){
@@ -1425,8 +1428,11 @@ function spAdd(n,isDae){
   const w=spWhen==='custom'&&spCustomDate?{label:fmtK(spCustomDate),date:spCustomDate}:(spWhen>=0?spWhens()[spWhen]:null);
   const note=(document.getElementById('sp2Note')?.value||'').trim();
   const entry=`${spSel} ${isDae?n+'대':fmtN(n)+'kg'}${w?' '+w.label:''}${note?' ('+note+')':''}`;
-  S.specials[cur]=S.specials[cur]||{};
-  S.specials[cur][d]=(S.specials[cur][d]?S.specials[cur][d]+', ':'')+entry;
+  // 오전/오후 등 날짜 라벨이 실제 오늘 기준이므로, 특이사항도 관리자가 보던 기준일(cur)이 아니라
+  // 실제 오늘 게시판에 남겨야 나중에 그 날짜 게시판에서 봤을 때 내용이 맞음(기준일이 밀려 있어도).
+  const sd=realToday();
+  S.specials[sd]=S.specials[sd]||{};
+  S.specials[sd][d]=(S.specials[sd][d]?S.specials[sd][d]+', ':'')+entry;
   const doOrd=document.getElementById('sp2Ord').checked;
   if(doOrd)spRegisterOrder(spSel,n,d,isDae,w&&w.date!==cur?w.date:'',note);
   spWhen=-1;spCustomDate='';

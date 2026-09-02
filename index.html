@@ -217,7 +217,7 @@ details.card summary .cnt{font-size:11.5px;color:var(--mut);font-weight:500}
   <span class="sub">입고 · 창고이동 · 발주 · 사급 한 화면</span>
   <!-- 화면이 최신 버전인지 바로 확인할 수 있게 표시 — 이 값이 다르면 브라우저가
        예전 파일을 캐시해 둔 것이므로 강력 새로고침(Ctrl+F5 / 아이폰은 Safari 재실행) 필요 -->
-  <span class="sub" id="buildStamp" title="화면 버전 — 최신이 아니면 Ctrl+F5로 강력 새로고침">v2026-09-02e</span>
+  <span class="sub" id="buildStamp" title="화면 버전 — 최신이 아니면 Ctrl+F5로 강력 새로고침">v2026-09-02f</span>
   <span class="sp"></span>
   <span class="date">기준일 <button class="btn sm" onclick="setDate(addDays(cur,-1))" title="하루 전 (기준일 −1)">◀</button><input type="date" id="curDate" onchange="setDate(this.value)"><button class="btn sm" onclick="setDate(addDays(cur,1))" title="하루 뒤 (기준일 +1)">▶</button></span>
   <span id="curWarn" class="tag" style="display:none;background:var(--amber-soft);color:var(--amber);border:1px solid var(--amber);padding:3px 8px;border-radius:2px;font-weight:700;cursor:pointer" title="기준일이 오늘이 아니면 등록·체크가 이 날짜로 기록됩니다" onclick="setDate(realToday())">⚠ 기준일이 오늘이 아님 — 오늘로</span>
@@ -486,7 +486,7 @@ details.card summary .cnt{font-size:11.5px;color:var(--mut);font-weight:500}
       <button class="btn sm ghost" onclick="calShift(1)">▶</button>
       <button class="btn sm" onclick="calToday()">오늘</button>
       <span style="flex:1;min-width:8px"></span>
-      <div id="calViewToggle" class="row" style="gap:4px"></div>
+      <span id="calViewToggle" style="display:inline-flex;gap:4px;flex:none"></span>   <!-- .row>div는 세로 배치 규칙이 있어 span으로 -->
     </div>
     <div class="hint" style="margin-bottom:8px"><span class="chip c-ord">■</span> 입고&nbsp; <span class="chip c-mut">■</span> 창고이동&nbsp; <span class="chip c-wait">■</span> 출고 — 날짜를 누르면 아래에 자세히 표시됩니다</div>
     <div id="calGrid"></div>
@@ -2329,11 +2329,11 @@ function renderMaster(){
   const q=(document.getElementById('matSearch').value||'').trim().toUpperCase();
   const rows=M.materials.filter(m=>!q||(m.name+m.vendor+m.loc+m.use+m.kind).toUpperCase().includes(q));
   document.getElementById('matBody').innerHTML=rows.map(m=>{const idx=M.materials.indexOf(m);
-    return `<tr><td><b>${esc(m.name)}</b></td><td><input value="${esc(m.kind)}" list="matKindList" placeholder="예: PVC" style="width:90px" onchange="matField(${idx},'kind',this.value)"></td><td>${esc(m.pack)}</td><td class="num">${fmtN(m.unitKg)}</td><td><b>${esc(m.vendor)}</b></td><td>${esc(m.use)}</td><td>${m.loc?`<span class="loc">${esc(m.loc)}</span>`:''}</td><td class="tag">${esc(m.note)}</td></tr>`;}).join('');
+    return `<tr><td><b>${esc(m.name)}</b></td><td><input value="${esc(m.kind)}" list="matKindList" placeholder="예: PVC" style="width:90px" onchange="matField(${idx},'kind',this.value)"></td><td>${esc(m.pack)}</td><td class="num">${fmtN(m.unitKg)}</td><td><b>${esc(m.vendor)}</b></td><td>${esc(m.use)}</td><td>${m.loc?`<span class="loc">${esc(m.loc)}</span>`:''}</td><td class="tag">${esc(m.note)}</td></tr>`;}).join('')||'<tr><td colspan="8" class="empty">'+(q?'검색 결과 없음':'등록된 원료 없음 — 발주·창고이동을 등록하면 자동으로 쌓입니다')+'</td></tr>';
   document.getElementById('cntMat').textContent=`${rows.length}개`;
   document.getElementById('respBody').innerHTML=M.consigneeResponse.map(r=>{
     const dir=r.directItems.filter(x=>!orderResp(x)),ex=r.directItems.filter(x=>orderResp(x));
-    return `<tr><td><b>${esc(r.consignee)}</b></td><td class="num">${r.reqCount}</td><td class="tag" style="color:var(--acc)">${esc(r.orderItems.join(', '))||'—'}${ex.length?`<div class="tag" style="color:var(--acc)">+ 발주 대응(직납): ${esc(ex.join(', '))}</div>`:''}</td><td class="tag" style="color:var(--amber)">${esc(dir.join(', '))||'—'}</td></tr>`;}).join('');
+    return `<tr><td><b>${esc(r.consignee)}</b></td><td class="num">${r.reqCount}</td><td class="tag" style="color:var(--acc)">${esc(r.orderItems.join(', '))||'—'}${ex.length?`<div class="tag" style="color:var(--acc)">+ 발주 대응(직납): ${esc(ex.join(', '))}</div>`:''}</td><td class="tag" style="color:var(--amber)">${esc(dir.join(', '))||'—'}</td></tr>`;}).join('')||'<tr><td colspan="4" class="empty">대응 이력 없음 — 사급 발주서를 등록하면 사급처별로 쌓입니다</td></tr>';
   renderRopMat();
   renderCycMat();
 }
@@ -2352,8 +2352,11 @@ function renderRopMat(){
 function ropField(idx,key,val){
   const r=M.rop[idx];if(!r)return;
   if(key==='item')r.item=val.trim();
-  else if(key==='rop'||key==='qty')r[key]=val===''?null:+val;
-  else if(key==='lt')r.lt=val===''?null:+val;
+  else if(key==='rop'||key==='qty'||key==='lt'){
+    const n=val===''?null:+val;
+    if(n!=null&&(isNaN(n)||n<0)){toast('0 이상 숫자를 입력하세요');renderMaster();return;}   // 음수·글자는 저장하지 않고 원래 값으로 되돌림
+    r[key]=n;
+  }
   else r[key]=val.trim();
   if(sb&&sbOK)sbSaveMasterRop();
   renderRopMat();
@@ -2876,15 +2879,14 @@ function markInDrv(id){const o=S.orders.find(x=>x.id===id);
 function editActKg(id){
   const m=S.moves.find(x=>x.id===id);if(!m)return;
   if(needName(()=>editActKg(id)))return;
-  const v=prompt('실출고 합계 kg (파레트 보정 — 예: SL-64 540+465=1,005)',m.actKg??'');
-  if(v===null)return;
-  const t=v.trim();
-  if(t===''){delete m.actKg;delete m.actKgBy;delete m.actKgAt;saveDB();refreshAll();toast('실출고 보정 삭제됨');return;}
-  const n=+t;
-  if(isNaN(n)||n<0){toast('숫자를 입력하세요');return;}
-  m.actKg=n;m.actKgBy=whoNow();m.actKgAt=realToday()+' '+new Date().toTimeString().slice(0,5);
-  saveDB();refreshAll();
-  toast('실출고 보정 저장됨');
+  // prompt() 대신 앱의 수정 창 사용 — 아티팩트 뷰어에서 브라우저 팝업이 막혀 있고, 폰에서도 Enter=저장·Esc=취소가 같은 방식으로 동작
+  openDlg(`실출고 보정 — ${m.item} ${fmtN(m.qty)} ${m.unit}`,[['actKg','실출고 합계 kg (파레트 보정 — 예: 540+465=1,005) · 비우면 보정 삭제','number']],{actKg:m.actKg??''},o=>{
+    if(o.actKg==null){delete m.actKg;delete m.actKgBy;delete m.actKgAt;saveDB();refreshAll();toast('실출고 보정 삭제됨');return;}
+    if(isNaN(o.actKg)||o.actKg<0){toast('0 이상 숫자를 입력하세요');return false;}
+    m.actKg=o.actKg;m.actKgBy=whoNow();m.actKgAt=realToday()+' '+new Date().toTimeString().slice(0,5);
+    saveDB();refreshAll();toast('실출고 보정 저장됨');
+  },()=>{});
+  document.getElementById('dlgDelBtn').style.display='none';
 }
 /* 기사 직접 등록 — 품목별 부서·창고 위치를 함께 지정, 1,000kg 단위로 탭 등록 */
 const DRV_ADD=[

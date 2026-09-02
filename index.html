@@ -209,7 +209,7 @@ details.card summary .cnt{font-size:11.5px;color:var(--mut);font-weight:500}
   <span class="sub">입고 · 창고이동 · 발주 · 사급 한 화면</span>
   <!-- 화면이 최신 버전인지 바로 확인할 수 있게 표시 — 이 값이 다르면 브라우저가
        예전 파일을 캐시해 둔 것이므로 강력 새로고침(Ctrl+F5 / 아이폰은 Safari 재실행) 필요 -->
-  <span class="sub" id="buildStamp" title="화면 버전 — 최신이 아니면 Ctrl+F5로 강력 새로고침">v2026-09-02b</span>
+  <span class="sub" id="buildStamp" title="화면 버전 — 최신이 아니면 Ctrl+F5로 강력 새로고침">v2026-09-02c</span>
   <span class="sp"></span>
   <span class="date">기준일 <input type="date" id="curDate" onchange="setDate(this.value)"></span>
   <span id="curWarn" class="tag" style="display:none;background:var(--amber-soft);color:var(--amber);border:1px solid var(--amber);padding:3px 8px;border-radius:2px;font-weight:700;cursor:pointer" title="기준일이 오늘이 아니면 등록·체크가 이 날짜로 기록됩니다" onclick="setDate(realToday())">⚠ 기준일이 오늘이 아님 — 오늘로</span>
@@ -1656,7 +1656,8 @@ function whoNow(){
 const isThird=n=>!!n&&!/자재과|김성진/.test(n);
 function byBadge(n,label){if(!n)return'';return isThird(n)?` <span class="chip c-wait" title="제3자 처리">✋ ${esc(n)} ${label||'완료'}</span>`:'';}
 /* id로 찾은 건이 이미 없으면(다른 기기에서 삭제) 조용히 실패하지 않고 안내 후 화면 갱신 */
-function findLive(list,id){const x=list.find(o=>o.id===id);if(!x){toast('이미 삭제된 건입니다 (다른 기기에서 변경됨)');refreshAll();}return x;}
+function notifyGone(){toast('이미 삭제된 건입니다 (다른 기기에서 변경됨)');refreshAll();}
+function findLive(list,id){const x=list.find(o=>o.id===id);if(!x)notifyGone();return x;}
 function toggleMove(id){const m=findLive(S.moves,id);if(!m)return;
   if(!m.done&&needName(()=>toggleMove(id)))return;
   if(!m.done&&isR696(m.item)&&!m.r696){openR696(m);return;}
@@ -2172,11 +2173,15 @@ function csMarkGroup(ids,f){
   }
 }
 /* 직접출고 건 — 출고 체크를 잘못 눌렀거나 실제로 안 나갔을 때 출고 대기로 되돌림 */
-function csUndoOut(id){
-  const c=S.cons.find(x=>x.id===id);if(!c)return;
-  delete c.outDate;c.done=false;delete c.outBy;
+function csUndoOut(id){csUndoOutGroup([id]);}
+/* 지게차 화면의 완료 체크 해제 — 합쳐 보여준 행에 묶인 건 전부 되돌림.
+   화면이 오래된 사이 자재과에서 발주 건으로 바꿔 입고 완료한 경우는 건드리지 않게 '완료된 직접출고'만 되돌림 */
+function csUndoOutGroup(ids){
+  const list=ids.map(id=>S.cons.find(x=>x.id===id)).filter(c=>c&&c.action==='직접출고'&&c.done);
+  if(!list.length){notifyGone();return;}
+  list.forEach(c=>{delete c.outDate;c.done=false;delete c.outBy;});
   saveDB();refreshAll();
-  toast(`${c.item} 출고 처리 취소 — 출고 대기로 되돌림`);
+  toast(list.length===1?`${list[0].item} 출고 처리 취소 — 출고 대기로 되돌림`:`${list.length}건 출고 체크 취소 — 출고 대기로 되돌림`);
 }
 let csSort=null;   // null(등록순) → 'asc'(요청납기 빠른순) → 'desc'(늦은순) → null
 function csSortByDue(){csSort=csSort==='asc'?'desc':(csSort==='desc'?null:'asc');renderCs();}
@@ -2720,7 +2725,10 @@ function renderDriver(){
   const el=document.getElementById('tab-driver');
   const ins=S.orders.filter(o=>!o.skip&&o.type==='self'&&o.eta&&o.eta<=cur&&(!o.inDate||o.inDate===cur)&&!isPvcItem(o.item)&&!isDriverHiddenItem(o.item)).sort((a,b)=>(a.loc||'').localeCompare(b.loc||''));
   const mv=S.moves.filter(m=>m.date===cur);const order={'경질':0,'창호':1,'타일':2,'DBP':3};mv.sort((a,b)=>(order[a.dept]??9)-(order[b.dept]??9));
-  const outs=S.cons.filter(c=>c.action==='직접출고'&&!c.done&&(!c.due||c.due<=addDays(cur,1)));
+  // 오늘 완료 체크한 건(outDate===cur)은 목록에서 바로 사라지지 않고 완료 표시로 남겨둠 — 기사가 잘못 눌렀을 때 되돌리고,
+  // "오늘 뭐 나갔지"를 화면에서 바로 볼 수 있게(입고·창고이동과 같은 방식)
+  const outs=S.cons.filter(c=>c.action==='직접출고'&&(c.done?c.outDate===cur:(!c.due||c.due<=addDays(cur,1))));
+  const outsLeft=outs.filter(c=>!c.done).length;
   const sp=S.specials[cur]||{};const spTxt=Object.entries(sp).filter(([k,v])=>v&&!isPvcText(v)&&!isDriverHiddenText(v)).map(([k,v])=>`${k}: ${v}`).join(' · ');
   // 읽기 전용은 아티팩트 권한(readOnly)만 기준 — cap이 없는 일반 배포(Supabase 공유)에서도 체크는 정상 저장됨.
   // 진짜 읽기 전용이면 체크박스를 실제로 막아 "체크했는데 자재과에 안 보인다"가 안 생기게 함.
@@ -2728,7 +2736,7 @@ function renderDriver(){
   const cb=(fn,done)=>`<label><input type="checkbox" ${done?'checked':''} ${ro?'disabled':''} onchange="${fn}">완료</label>`;
   const meName=localStorage.getItem('jjUser')||'';
   const insLeft=ins.filter(o=>!o.inDate).length;
-  let h=`<div class="banner"><div><b>${fmtK(cur)}</b> 지게차 작업 <span style="opacity:.7;font-size:13px">(${cur})</span><input type="date" class="drv-date" value="${cur}" onchange="setDate(this.value)"></div><div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">입고 ${insLeft} · 창고이동 ${mv.filter(m=>!m.done).length} · 사급출고 ${outs.length}${drvVisibleNotes().filter(n=>!n.done).length?' · 전달사항 '+drvVisibleNotes().filter(n=>!n.done).length:''}${notifSupported()&&Notification.permission!=='granted'?`<button class="btn sm warn" onclick="askNotifPerm()" title="폰 알림 받기">🔔 알림 켜기</button>`:(notifSupported()?`<span class="chip c-done" title="새 작업이 등록되면 폰 알림이 옵니다">🔔 알림 켜짐</span>`:'')}<button class="btn sm" style="background:transparent;color:var(--navy-ink);border-color:#4a5b6c" onclick="askName()">👤 ${esc(meName)||'이름 입력'}</button><button class="btn sm" style="background:transparent;color:var(--navy-ink);border-color:#4a5b6c" onclick="location.reload()">새로고침</button></div></div>`;
+  let h=`<div class="banner"><div><b>${fmtK(cur)}</b> 지게차 작업 <span style="opacity:.7;font-size:13px">(${cur})</span><input type="date" class="drv-date" value="${cur}" onchange="setDate(this.value)"></div><div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">입고 ${insLeft} · 창고이동 ${mv.filter(m=>!m.done).length} · 사급출고 ${outsLeft}${drvVisibleNotes().filter(n=>!n.done).length?' · 전달사항 '+drvVisibleNotes().filter(n=>!n.done).length:''}${notifSupported()&&Notification.permission!=='granted'?`<button class="btn sm warn" onclick="askNotifPerm()" title="폰 알림 받기">🔔 알림 켜기</button>`:(notifSupported()?`<span class="chip c-done" title="새 작업이 등록되면 폰 알림이 옵니다">🔔 알림 켜짐</span>`:'')}<button class="btn sm" style="background:transparent;color:var(--navy-ink);border-color:#4a5b6c" onclick="askName()">👤 ${esc(meName)||'이름 입력'}</button><button class="btn sm" style="background:transparent;color:var(--navy-ink);border-color:#4a5b6c" onclick="location.reload()">새로고침</button></div></div>`;
   if(cur!==localISO(new Date()))h+=`<div class="card" style="margin-top:10px;font-size:13px;color:var(--amber)">⚠ 오늘(${fmtK(localISO(new Date()))}) 날짜가 아닙니다 · <b onclick="setDate('${localISO(new Date())}')" style="cursor:pointer;text-decoration:underline">오늘로 돌아가기</b></div>`;
   if(spTxt)h+=`<div class="card" style="margin-top:10px;font-size:15px"><b>특이사항</b> ${esc(spTxt)}</div>`;
   h+=drvCalendarHTML();
@@ -2762,19 +2770,23 @@ function renderDriver(){
     </form>
     <div class="tag" style="margin-top:6px">등록하면 자재과 화면에 ✋ 이름과 함께 표시됩니다.</div>
   </div>`;
-  h+=`<h2>③ 사급 출고 (오늘·내일 나갈 것) <span class="cnt">${outs.length}건</span></h2>`;
+  h+=`<h2>③ 사급 출고 (오늘·내일 나갈 것) <span class="cnt">${outsLeft}건 남음</span></h2>`;
   h+=`<div class="tag" style="margin:-4px 0 8px">⚠ 찢어진 지대는 사급 출고 금지 — 자재과 협의 후 자사 생산 투입 · 전산 재고 차감은 배차완료(실물 출고) 시점</div>`;
   const outsGroup=list=>{
     const byC={};list.forEach(c=>(byC[c.consignee]=byC[c.consignee]||[]).push(c));
     return list.length?Object.entries(byC).map(([k,l])=>{const kj=esc(k).replace(/'/g,"\\'");
       // 같은 사급처 안에서 동일 품목이면 한 행으로 합쳐 수량을 더하고, 완료 체크도 묶어서 한 번에 처리
       // 품목명이 같아도 출고창고(loc)·포장(pack)이 다르면 실물 위치가 달라 헷갈릴 수 있어 별도 행 유지
-      const byItem={};l.forEach(c=>{const key=norm(c.item)+'|'+norm(c.loc)+'|'+norm(c.pack);const g=byItem[key]=byItem[key]||{item:c.item,loc:c.loc,pack:c.pack,qty:0,ids:[]};g.qty+=c.qty;g.ids.push(c.id);});
-      return `<div class="grp" style="cursor:pointer" onclick="showCsInstr('${kj}')">${esc(k)} 행 ${l[0].due?' · 납기 '+fmtK(l.map(c=>c.due).filter(Boolean).sort()[0]):''} · 약 ${Math.max(1,Math.ceil(l.reduce((a,c)=>a+c.qty,0)/1000))} PLT · 📦 지시서 보기</div>`+Object.values(byItem).map(g=>`<div class="item"><div><div class="name" style="cursor:pointer" onclick="showCsInstr('${kj}')">${esc(g.item)} <span class="loc">${esc(g.loc||'14동')}</span></div><div class="meta">${esc(k)}${g.pack?' · '+esc(g.pack):''}</div></div><div><div class="qty">${fmtN(g.qty)} kg</div>${cb(`csMarkGroup(${JSON.stringify(g.ids)},'outDate')`,false)}</div></div>`).join('');}).join(''):'<div class="empty">없음</div>';
+      // 완료된 건은 미완료 건과 한 행으로 섞지 않음(체크 해제가 어느 건을 되돌리는지 분명하게)
+      const byItem={};l.forEach(c=>{const key=norm(c.item)+'|'+norm(c.loc)+'|'+norm(c.pack)+'|'+(c.done?1:0);const g=byItem[key]=byItem[key]||{item:c.item,loc:c.loc,pack:c.pack,done:!!c.done,outBy:[],qty:0,ids:[]};g.qty+=c.qty;g.ids.push(c.id);if(c.outBy&&!g.outBy.includes(c.outBy))g.outBy.push(c.outBy);});
+      // 납기·PLT는 남은 건 기준(전부 끝났으면 전체 기준으로 표시)
+      const pend=l.filter(c=>!c.done),base=pend.length?pend:l,plt=Math.max(1,Math.ceil(base.reduce((a,c)=>a+c.qty,0)/1000));
+      return `<div class="grp" style="cursor:pointer" onclick="showCsInstr('${kj}')">${esc(k)} 행 ${pend.some(c=>c.due)?' · 납기 '+fmtK(pend.map(c=>c.due).filter(Boolean).sort()[0]):''} · 약 ${plt} PLT${pend.length?'':' · ✓ 출고 완료'} · 📦 지시서 보기</div>`+Object.values(byItem).map(g=>`<div class="item ${g.done?'done':''}"><div><div class="name" style="cursor:pointer" onclick="showCsInstr('${kj}')">${esc(g.item)} <span class="loc">${esc(g.loc||'14동')}</span></div><div class="meta">${esc(k)}${g.pack?' · '+esc(g.pack):''}${g.done&&g.outBy.length?' · 완료: '+esc(g.outBy.join(', ')):''}</div></div><div><div class="qty">${fmtN(g.qty)} kg</div>${g.done?cb(`csUndoOutGroup(${JSON.stringify(g.ids)})`,true):cb(`csMarkGroup(${JSON.stringify(g.ids)},'outDate')`,false)}</div></div>`).join('');}).join(''):'<div class="empty">없음</div>';
   };
-  const outsToday=outs.filter(c=>!c.due||c.due<=cur);
-  const outsTomorrow=outs.filter(c=>c.due===addDays(cur,1));
-  h+=`<div class="grp-lbl">오늘 나갈 것 <span class="cnt">${outsToday.length}건</span></div>`+outsGroup(outsToday);
+  const outsToday=outs.filter(c=>c.done||!c.due||c.due<=cur);   // 오늘 완료한 건은 납기와 상관없이 오늘 칸에
+  const outsTomorrow=outs.filter(c=>!c.done&&c.due===addDays(cur,1));
+  const todayDone=outsToday.filter(c=>c.done).length,todayLeft=outsToday.length-todayDone;
+  h+=`<div class="grp-lbl">오늘 나갈 것 <span class="cnt">${todayLeft}건 남음${todayDone?' · 완료 '+todayDone+'건':''}</span></div>`+outsGroup(outsToday);
   h+=`<div class="grp-lbl" style="margin-top:12px">내일 나갈 것 <span class="cnt">${outsTomorrow.length}건</span></div>`+outsGroup(outsTomorrow);
   h+=`<div class="tag" style="margin-top:20px">${ro?'보기 전용 — 체크는 자재과 화면에서 저장됩니다.':'체크하면 자재과 화면에도 반영됩니다.'} · 문의: 자재과 김성진 010-5730-6623</div>`;
   el.innerHTML=h;

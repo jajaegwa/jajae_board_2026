@@ -209,7 +209,7 @@ details.card summary .cnt{font-size:11.5px;color:var(--mut);font-weight:500}
   <span class="sub">입고 · 창고이동 · 발주 · 사급 한 화면</span>
   <!-- 화면이 최신 버전인지 바로 확인할 수 있게 표시 — 이 값이 다르면 브라우저가
        예전 파일을 캐시해 둔 것이므로 강력 새로고침(Ctrl+F5 / 아이폰은 Safari 재실행) 필요 -->
-  <span class="sub" id="buildStamp" title="화면 버전 — 최신이 아니면 Ctrl+F5로 강력 새로고침">v2026-08-28c</span>
+  <span class="sub" id="buildStamp" title="화면 버전 — 최신이 아니면 Ctrl+F5로 강력 새로고침">v2026-08-28d</span>
   <span class="sp"></span>
   <span class="date">기준일 <input type="date" id="curDate" onchange="setDate(this.value)"></span>
   <span class="savebox" id="saveBox"><i></i><span id="saveTxt">불러오는 중</span></span>
@@ -1452,7 +1452,9 @@ function spAdd(n,isDae){
   S.specials[sd]=S.specials[sd]||{};
   S.specials[sd][d]=(S.specials[sd][d]?S.specials[sd][d]+', ':'')+entry;
   const doOrd=document.getElementById('sp2Ord').checked;
-  if(doOrd)spRegisterOrder(spSel,n,d,isDae,w&&w.date!==cur?w.date:'',note);
+  // 날짜 버튼(오전/오후/+N일/달력)을 골랐으면 그 날짜가 곧 납품일 — 발주 착일(eta)도 그대로 맞춤.
+  // (예전엔 오전/오후는 "오늘"이라 착일을 안 넘겨서 리드타임 기본값(+2일)으로 잡히는 문제가 있었음)
+  if(doOrd)spRegisterOrder(spSel,n,d,isDae,w?w.date:'',note);
   spWhen=-1;spCustomDate='';
   const noteEl=document.getElementById('sp2Note');if(noteEl)noteEl.value='';
   saveDB();refreshAll();toast(`${d}: ${entry}${doOrd?' + 발주 등록':''}`);
@@ -2789,7 +2791,14 @@ function openDlg(title,fields,obj,onSave,onDel){
   dlgCtx={obj,onSave,onDel,fields};dlg.showModal();
 }
 function dlgSave(){dlgBody.querySelectorAll('input,select').forEach(i=>{const k=i.dataset.k;if(!k)return;dlgCtx.obj[k]=i.type==='number'?(i.value===''?null:+i.value):i.value.trim();});if(dlgCtx.onSave(dlgCtx.obj)===false)return;dlg.close();}
-dlg.addEventListener('keydown',e=>{if(e.key==='Enter'&&e.target.tagName==='INPUT'){e.preventDefault();dlgSave();}});
+/* 수정 창에서 Enter = 저장. 입력칸뿐 아니라 셀렉트·창 자체에 포커스가 있을 때도 저장되게 하고,
+   한글 조합 중(IME) Enter는 무시. 버튼(취소/삭제)에 포커스가 있을 땐 그 버튼의 원래 동작을 따름. */
+dlg.addEventListener('keydown',e=>{
+  if(e.key!=='Enter'||e.isComposing||e.keyCode===229)return;
+  const t=e.target.tagName;
+  if(t==='BUTTON'||t==='TEXTAREA')return;
+  e.preventDefault();dlgSave();
+});
 function dlgDelete(){const b=document.getElementById('dlgDelBtn');
   if(b.dataset.arm!=='1'){b.dataset.arm='1';b.textContent='정말 삭제?';setTimeout(()=>{if(dlg.open){b.dataset.arm='';b.textContent='삭제';}},3000);return;}
   b.dataset.arm='';b.textContent='삭제';dlg.close();dlgCtx.onDel();}

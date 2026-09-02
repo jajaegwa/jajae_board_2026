@@ -697,6 +697,15 @@ function vendorDlg(title,v,onSave,onDel){
     {onDel();dlg.close();saveDB();refreshAll();}};
   dlg.showModal();
 }
+/* 업체 추가/수정 창에서 Enter = 저장 (한글 조합 중 Enter는 무시, 버튼에 포커스가 있을 땐 그 버튼 동작) */
+document.getElementById('dlg').addEventListener('keydown',e=>{
+  if(e.key!=='Enter'||e.isComposing||e.keyCode===229)return;
+  const t=e.target.tagName;
+  if(t==='BUTTON'||t==='TEXTAREA')return;
+  const save=document.querySelector('#dlg #vSave');
+  if(!save)return;
+  e.preventDefault();save.click();
+});
 function addVendor(side){
   const v={id:side[0]+Date.now().toString(36)};
   vendorDlg('업체 추가 — '+SIDE_LB[side],v,()=>{

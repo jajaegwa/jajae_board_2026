@@ -216,7 +216,15 @@ function normalize(d){
 }
 let S=(()=>{try{const v=normalize(JSON.parse(localStorage.getItem('magamDB')));if(v)return v;}catch(e){}return emptyState();})();
 
-function ensureMonth(m){if(!S.months[m])S.months[m]={sales:{},purchase:{},targets:{sales:null,purchase:null},targetsMeta:{sales:null,purchase:null},excluded:{sales:[],purchase:[]}};if(!S.months[m].excluded)S.months[m].excluded={sales:[],purchase:[]};return S.months[m];}
+function ensureMonth(m){
+  if(!S.months[m])S.months[m]={sales:{},purchase:{},targets:{sales:null,purchase:null},targetsMeta:{sales:null,purchase:null},excluded:{sales:[],purchase:[]}};
+  const mm=S.months[m];
+  // 예전 데이터나 초기화 직후엔 하위 객체가 빠져 있을 수 있어 항상 채워둠(업로드 시 TypeError 방지)
+  if(!mm.excluded)mm.excluded={sales:[],purchase:[]};
+  if(!mm.targets)mm.targets={sales:null,purchase:null};
+  if(!mm.targetsMeta)mm.targetsMeta={sales:null,purchase:null};
+  return mm;
+}
 function entry(side,vid,m){const mm=ensureMonth(m||mon);if(!mm[side][vid])mm[side][vid]={sent:'',via:'',st:STEPS.sales.map(()=>false),note:'',toBuyer:false};return mm[side][vid];}
 function entryRO(side,vid,m){const mm=S.months[m||mon];return mm&&mm[side]&&mm[side][vid]?mm[side][vid]:{sent:'',via:'',st:STEPS.sales.map(()=>false),note:'',toBuyer:false};}
 /* 매입 금액이 안 맞으면 자재과가 아니라 구매팀이 월말에 마감 처리함 — toBuyer로 표시해두면
@@ -233,7 +241,8 @@ let orders=[];      // 작업판 발주 목록 (읽기 전용)
 
 function saveDB(){
   try{localStorage.setItem('magamDB',JSON.stringify(S));}catch(e){}
-  if(sbOK&&!sbApplying){clearTimeout(sbSaveT);sbSaveT=setTimeout(sbPush,700);}
+  // sbSaveT를 실행 후 null로 되돌려야 45초 폴링(`!sbSaveT` 조건)이 첫 저장 뒤에도 계속 동작함
+  if(sbOK&&!sbApplying){clearTimeout(sbSaveT);sbSaveT=setTimeout(()=>{sbSaveT=null;sbPush();},700);}
 }
 async function sbPush(){
   if(!sb||!sbOK)return;
@@ -264,6 +273,9 @@ async function sbConnect(pass){
     const r1=await sb.rpc('get_board',{p_id:B_MAGAM,p_passcode:pass});magam=r1.error?undefined:r1.data;
     const r2=await sb.rpc('get_board',{p_id:B_MAIN,p_passcode:pass});main=r2.error?undefined:r2.data;
   }catch(e){toast('연결 실패 — 네트워크 확인');return;}
+  // undefined = RPC 오류(네트워크 등), null = 보드 없음/비밀번호 불일치 — 오류일 땐 비밀번호를 저장하지 않고
+  // "마감 보드 미생성"으로 오해하게 만들지 않음
+  if(main===undefined&&magam===undefined){setSave('local','연결 실패 — 네트워크 확인 후 다시 [연결]');toast('연결 실패 — 네트워크 확인');return;}
   if(main===null&&magam===null){toast('비밀번호가 올바르지 않습니다');try{localStorage.removeItem('jjPass');}catch(e){}sbPass='';return;}
   try{localStorage.setItem('jjPass',pass);}catch(e){}
   if(main&&isObj(main)){mainOK=true;orders=arrOfObj(main.orders);}
@@ -421,7 +433,7 @@ function uploadMonthly(side,inp){
   inp.value='';
 }
 function clearTargets(side){
-  if(!confirm(mon+' '+SIDE_LB[side]+' 마감대상 필터를 해제할까요? (체크 데이터는 유지됩니다)'))return;
+  if(!confirm(mon+' '+SIDE_LB[side]+' 마감대상 업로드(파일 목록)를 삭제할까요?\n다시 쓰려면 엑셀을 다시 올려야 합니다. 체크 데이터는 유지됩니다.\n(잠깐 전체 업체를 보고 싶은 거라면 옆의 "마감대상만 보기" 체크만 끄면 됩니다)'))return;
   const mm=ensureMonth(mon);mm.targets[side]=null;mm.targetsMeta[side]=null;
   saveDB();refreshAll();
 }
@@ -443,7 +455,8 @@ function renderNav(){
   n.innerHTML=VIEWS.map(([k,lb])=>{
     let b='';
     if(k==='sales'||k==='purchase'){
-      const miss=S.vendors[k].filter(v=>pct(k,entryRO(k,v.id))<1).length;
+      // 표와 같은 범위(제외·마감대상 반영)로 세야 표가 다 끝났을 때 배지도 0이 됨
+      const miss=scopedVendors(k).filter(v=>pct(k,entryRO(k,v.id))<1).length;
       if(S.vendors[k].length)b=`<span class="b">${miss}</span>`;
     }
     return`<button class="${view===k?'on':''}" onclick="setView('${k}')">${lb}${b}</button>`;
@@ -478,6 +491,9 @@ function renderView(){
   const scrollBox=document.querySelector('.tbl.scroll');
   const boxTop=scrollBox?scrollBox.scrollTop:0;
   const pageTop=window.scrollY;
+  // 체크박스 하나 누를 때마다 표가 통째로 다시 그려져 포커스가 날아가면 Tab+Space로 한 열을
+  // 내려가며 체크할 수 없음 — 눌렀던 칸(data-fk)을 기억했다가 다시 그린 뒤 포커스 복원
+  const fk=document.activeElement&&document.activeElement.dataset?document.activeElement.dataset.fk:'';
   const m=document.getElementById('main');
   if(view==='dash')m.innerHTML=dashHTML();
   else if(view==='setup')m.innerHTML=setupHTML();
@@ -485,10 +501,11 @@ function renderView(){
   const newBox=document.querySelector('.tbl.scroll');
   if(newBox)newBox.scrollTop=boxTop;
   window.scrollTo(window.scrollX,pageTop);
+  if(fk){const el=m.querySelector(`[data-fk="${fk}"]`);if(el)el.focus({preventScroll:true});}
 }
 
 /* --- 대시보드 --- */
-function dashVendors(side){return S.vendors[side].filter(v=>!dashWho||(v.handler||'').includes(dashWho));}
+function dashVendors(side){return scopedVendors(side).filter(v=>!dashWho||(v.handler||'').includes(dashWho));}
 function sideStat(side){
   const vs=dashVendors(side);
   const es=vs.map(v=>entryRO(side,v.id));
@@ -552,7 +569,7 @@ function uploadBarHTML(side,tgt,tm){
     <span class="pill b">${tm?tm.fileName:''}</span>
     <span class="mut" style="font-size:11.5px">${tm?`매칭 ${tm.matched}·자동연동 ${tm.created}${tm.unmatched.length?`·미매칭 ${tm.unmatched.length}`:''} (${tm.at})`:''}</span>
     <span class="sp" style="flex:1"></span>
-    <button class="btn sm ghost" onclick="clearTargets('${side}')">필터 해제</button>
+    <button class="btn sm ghost" onclick="clearTargets('${side}')" title="업로드한 마감대상 파일 목록을 지웁니다(다시 올려야 함)">업로드 삭제</button>
   </div>
   ${tm&&tm.unmatched.length?`<div class="hint" style="background:var(--amber-soft);border:1px solid var(--amber);border-radius:2px;padding:8px 10px;margin-bottom:8px">
     <b style="color:var(--amber)">파일에 있지만 업체 목록과 매칭 안 된 이름 ${tm.unmatched.length}곳</b><br>
@@ -577,19 +594,31 @@ function liveTgtIds(side,tm){
   tm.names.forEach(nm=>{const m=matchFileName(nm,side);if(m.id)ids.add(m.id);});
   return[...ids];
 }
-function listHTML(side){
-  const f=flt[side];
-  const tm=S.months[mon]&&S.months[mon].targetsMeta?S.months[mon].targetsMeta[side]:null;
-  const tgtLegacy=S.months[mon]&&S.months[mon].targets?S.months[mon].targets[side]:null;
+/* 이번달 범위(제외 목록 + 마감대상 필터) — 체크리스트 표, 대시보드 집계, 탭 배지가 모두 같은
+   기준을 써야 "표는 다 끝났는데 배지는 아직 남았다"는 불일치가 안 생김 */
+function monthScope(side){
+  const mmCur=S.months[mon];
+  const tm=mmCur&&mmCur.targetsMeta?mmCur.targetsMeta[side]:null;
+  const tgtLegacy=mmCur&&mmCur.targets?mmCur.targets[side]:null;
   const tgt=liveTgtIds(side,tm)||tgtLegacy;
   const tgtEmpty=!!(tm&&tm.names&&tm.names.length&&tgt&&!tgt.length);
-  const applyTgt=tgt&&tgt.length&&tgtOnly[side];
-  const mmCur=S.months[mon];
+  const applyTgt=!!(tgt&&tgt.length&&tgtOnly[side]);
   const excluded=(mmCur&&mmCur.excluded&&mmCur.excluded[side])||[];
+  return{tm,tgt,tgtEmpty,applyTgt,excluded};
+}
+function inScope(side,v,sc){return !sc.excluded.includes(v.id)&&!(sc.applyTgt&&!sc.tgt.includes(v.id));}
+function scopedVendors(side){const sc=monthScope(side);return S.vendors[side].filter(v=>inScope(side,v,sc));}
+function clearFilters(side){
+  flt[side]={q:'',st:'',who:'',ty:'',buyer:''};tgtOnly[side]=false;dashWho='';
+  renderView();toast('필터를 모두 해제했습니다');
+}
+function listHTML(side){
+  const f=flt[side];
+  const sc=monthScope(side);
+  const{tm,tgt,tgtEmpty,excluded}=sc;
   const rows=S.vendors[side].filter(v=>{
     const e=entryRO(side,v.id);
-    if(excluded.includes(v.id))return false;
-    if(applyTgt&&!tgt.includes(v.id))return false;
+    if(!inScope(side,v,sc))return false;
     if(f.q&&!(v.name+v.type+v.items+v.handler+v.buyer).toUpperCase().includes(f.q.toUpperCase()))return false;
     if(f.st==='done'&&pct(side,e)<1)return false;
     if(f.st==='open'&&pct(side,e)===1)return false;
@@ -637,7 +666,11 @@ function listHTML(side){
   </div>
   <div class="tbl scroll"><table>
     <tr><th><input type="checkbox" class="ck" id="vSelAll_${side}" onchange="toggleAllVendorFromDom(this)"></th><th>업체명</th><th>유형·품목</th><th>${side==='sales'?'처리자':'처리자·구매팀'}</th><th>발주↔입고</th><th>보낸날짜</th><th>방식</th>${short.map((s,i)=>`<th style="text-align:center;border-top:2.5px solid var(--ink);${stepBorder(side,i)}">${s}</th>`).join('')}<th>비고</th>${side==='purchase'?'<th title="금액 불일치 — 구매팀이 월말에 직접 마감 처리">구매팀행</th>':''}<th>진행률</th><th>상태</th><th></th></tr>
-    ${rows.map((v,idx)=>rowHTML(side,v,idx===rows.length-1)).join('')}
+    ${rows.length?rows.map((v,idx)=>rowHTML(side,v,idx===rows.length-1)).join('')
+      :`<tr><td colspan="23" style="padding:14px;text-align:left;white-space:normal"><div class="mut" style="font-size:13px">
+        표시할 업체가 없습니다 — 저장이 안 된 게 아니라 <b>필터 때문에 안 보이는</b> 경우가 대부분입니다.
+        ${[sc.applyTgt?'마감대상만 보기':'',f.q?`검색 "${esc(f.q)}"`:'',f.st?(f.st==='done'?'완료만':'미완만'):'',f.who?`처리자 ${esc(f.who)}`:'',f.buyer?`구매팀 ${esc(f.buyer)}`:'',f.ty?`유형 ${esc(f.ty)}`:'',excluded.length?`이번달 제외 ${excluded.length}곳`:''].filter(Boolean).map(x=>`<span class="pill m">${x}</span>`).join(' ')||''}
+        </div><button class="btn sm" style="margin-top:8px" onclick="clearFilters('${side}')">필터 모두 해제</button></td></tr>`}
   </table></div>
   <div class="hint" style="margin-top:8px">업체명 클릭 → 연락처·미입고 상세. 발주↔입고는 자재과 작업판 데이터와 실시간 대사(사급=사급처 출고분, 매입=매입처 발주분). 체크박스로 여러 곳을 선택해 "선택 제외"하면 이번달 목록에서만 빠지고(완전 삭제 아님), 다음달엔 다시 보입니다.</div>
   </div>`;
@@ -654,9 +687,9 @@ function rowHTML(side,v,isLast){
     <td>${linkBadge(side,v)}</td>
     <td><input type="date" value="${esc(e.sent)}" onchange="setSent('${side}','${v.id}','sent',this.value)"></td>
     <td><select onchange="setSent('${side}','${v.id}','via',this.value)">${VIAS.map(x=>`<option${e.via===x?' selected':''}>${x}</option>`).join('')}</select></td>
-    ${e.st.slice(0,STEPS[side].length).map((c,i)=>`<td style="text-align:center;${stepBorder(side,i,isLast)}"><input type="checkbox" class="ck"${c?' checked':''} onchange="setStep('${side}','${v.id}',${i},this.checked)"></td>`).join('')}
+    ${e.st.slice(0,STEPS[side].length).map((c,i)=>`<td style="text-align:center;${stepBorder(side,i,isLast)}"><input type="checkbox" class="ck" data-fk="${side}|${esc(v.id)}|${i}"${c?' checked':''} onchange="setStep('${side}','${v.id}',${i},this.checked)"></td>`).join('')}
     <td><input type="text" value="${esc(e.note)}" placeholder="비고" style="width:130px" onchange="setSent('${side}','${v.id}','note',this.value)"></td>
-    ${side==='purchase'?`<td style="text-align:center" title="금액 불일치 — 구매팀이 월말에 직접 마감 처리(자재과 미완료 집계에서 제외)"><input type="checkbox" class="ck"${e.toBuyer?' checked':''} onchange="setToBuyer('${side}','${v.id}',this.checked)"></td>`:''}
+    ${side==='purchase'?`<td style="text-align:center" title="금액 불일치 — 구매팀이 월말에 직접 마감 처리(자재과 미완료 집계에서 제외)"><input type="checkbox" class="ck" data-fk="${side}|${esc(v.id)}|buyer"${e.toBuyer?' checked':''} onchange="setToBuyer('${side}','${v.id}',this.checked)"></td>`:''}
     <td><span class="prog${p===1?' done':''}"><i style="width:${p*100}%"></i></span><span class="pct num">${Math.round(p*100)}%</span></td>
     <td>${side==='purchase'&&e.toBuyer?'<span class="pill b">구매팀 처리</span>':p===1?'<span class="pill g">완료</span>':`<span class="pill ${p>0?'a':'r'}">${dl||'미완'}</span>`}</td>
     <td><button class="btn sm ghost" onclick="editVendor('${side}','${v.id}')">✎</button></td>
@@ -689,11 +722,14 @@ function vendorDlg(title,v,onSave,onDel){
   <div class="acts">${onDel?'<button class="btn danger" id="vDel">삭제</button>':''}<span style="flex:1"></span>
   <button class="btn" onclick="dlg.close()">취소</button><button class="btn pri" id="vSave">저장</button></div>`;
   dlg.querySelector('#vSave').onclick=()=>{
-    FIELDS.forEach(([k])=>v[k]=dlg.querySelector('#vf_'+k).value.trim());
-    if(!v.name){toast('업체명은 필수입니다');return;}
+    // 검증을 통과한 뒤에만 실제 업체 객체(v)에 써야 함 — 먼저 덮어쓰면 업체명을 지우고 취소해도
+    // 메모리상 업체가 이름 없이 남아 다음 저장 때 그대로 공유됨
+    const vals={};FIELDS.forEach(([k])=>vals[k]=dlg.querySelector('#vf_'+k).value.trim());
+    if(!vals.name){toast('업체명은 필수입니다');dlg.querySelector('#vf_name').focus();return;}
+    Object.assign(v,vals);
     onSave();dlg.close();saveDB();refreshAll();
   };
-  if(onDel)dlg.querySelector('#vDel').onclick=()=>{if(confirm('이 업체를 삭제할까요? (월별 체크 이력도 함께 삭제)'))
+  if(onDel)dlg.querySelector('#vDel').onclick=()=>{if(confirm(`"${v.name}" 업체를 삭제할까요?\n(모든 달의 체크 이력도 함께 삭제됩니다 — 이번달만 빼려면 목록에서 "선택 제외"를 쓰세요)`))
     {onDel();dlg.close();saveDB();refreshAll();}};
   dlg.showModal();
 }
@@ -775,6 +811,11 @@ function showExcludedDlg(side){
 function bulkRenameHandler(from,to){
   from=(from||'').trim();to=(to||'').trim();
   if(!from||!to)return;
+  const hasFrom=v=>(v.handler||'').split('/').map(x=>x.trim()).includes(from);
+  const cnt=S.vendors.sales.filter(hasFrom).length+S.vendors.purchase.filter(hasFrom).length;
+  if(!cnt){toast(`처리자에 "${from}"이(가) 있는 업체가 없습니다`);return;}
+  // 되돌릴 수 없는 일괄 변경이라 몇 곳이 바뀌는지 먼저 보여주고 확인받음
+  if(!confirm(`처리자 "${from}" → "${to}"\n사급·매입 합쳐 ${cnt}곳이 바뀝니다. 진행할까요?`))return;
   let n=0;
   ['sales','purchase'].forEach(side=>{
     S.vendors[side].forEach(v=>{
@@ -785,14 +826,13 @@ function bulkRenameHandler(from,to){
       }
     });
   });
-  if(!n){toast(`처리자에 "${from}"이(가) 있는 업체가 없습니다`);return;}
   saveDB();refreshAll();
   toast(`${n}곳의 처리자를 "${from}"→"${to}"로 변경했습니다`);
 }
 function bulkRenameHandlerPrompt(){
   const from=prompt('바꿀 기존 처리자 이름을 입력하세요');
   if(from==null||!from.trim())return;
-  const to=prompt(`"${from.trim()}"을(를) 무엇으로 바꿀까요?`,'김성진');
+  const to=prompt(`"${from.trim()}"을(를) 무엇으로 바꿀까요?`);
   if(to==null||!to.trim())return;
   bulkRenameHandler(from,to);
 }
@@ -845,7 +885,7 @@ function importJSON(inp){
       if((S.vendors.sales.length||S.vendors.purchase.length)&&!confirm('기존 데이터를 가져온 내용으로 교체할까요?'))return;
       S=n;saveDB();refreshAll();toast('가져오기 완료 — 업체 '+(S.vendors.sales.length+S.vendors.purchase.length)+'곳');
     }catch(e){toast('JSON을 읽을 수 없습니다');}
-    inp.value='';
+    finally{inp.value='';}   // 취소해도 비워야 같은 파일을 다시 골랐을 때 change가 다시 발생함
   };
   rd.readAsText(f);
 }
@@ -867,8 +907,10 @@ function exportCSV(side){
   dl(`${side==='sales'?'사급매출마감':'매입마감'}-${mon}.csv`,'﻿'+lines.join('\r\n'),'text/csv');
 }
 function resetMonth(){
-  if(!confirm('⚠️ 정말 초기화할까요?\n\n'+mon+' 한 달치 체크리스트(사급+매입 전체)가 모두 해제됩니다.\n이 작업은 되돌릴 수 없습니다.'))return;
-  S.months[mon]={sales:{},purchase:{}};saveDB();refreshAll();toast(mon+' 전체 초기화됨');
+  if(!confirm('⚠️ 정말 초기화할까요?\n\n'+mon+' 한 달치 체크리스트(사급+매입 전체)가 모두 해제됩니다.\n(업로드한 마감대상·이번달 제외 목록은 유지됩니다)\n이 작업은 되돌릴 수 없습니다.'))return;
+  // 체크만 비우고 마감대상 업로드·제외 목록은 남김 — 통째로 바꾸면 이후 업로드가 TypeError로 조용히 실패했음
+  const mm=ensureMonth(mon);mm.sales={};mm.purchase={};
+  saveDB();refreshAll();toast(mon+' 체크 전체 초기화됨');
 }
 function resetSide(side){
   if(!confirm('⚠️ 정말 초기화할까요?\n\n'+mon+' '+SIDE_LB[side]+' 체크리스트가 모두 해제됩니다.\n(보낸날짜·방식 포함, 다른 탭과 다른 달은 유지)\n이 작업은 되돌릴 수 없습니다.'))return;

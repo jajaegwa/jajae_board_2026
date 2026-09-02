@@ -217,7 +217,7 @@ details.card summary .cnt{font-size:11.5px;color:var(--mut);font-weight:500}
   <span class="sub">입고 · 창고이동 · 발주 · 사급 한 화면</span>
   <!-- 화면이 최신 버전인지 바로 확인할 수 있게 표시 — 이 값이 다르면 브라우저가
        예전 파일을 캐시해 둔 것이므로 강력 새로고침(Ctrl+F5 / 아이폰은 Safari 재실행) 필요 -->
-  <span class="sub" id="buildStamp" title="화면 버전 — 최신이 아니면 Ctrl+F5로 강력 새로고침">v2026-09-02f</span>
+  <span class="sub" id="buildStamp" title="화면 버전 — 최신이 아니면 Ctrl+F5로 강력 새로고침">v2026-09-02g</span>
   <span class="sp"></span>
   <span class="date">기준일 <button class="btn sm" onclick="setDate(addDays(cur,-1))" title="하루 전 (기준일 −1)">◀</button><input type="date" id="curDate" onchange="setDate(this.value)"><button class="btn sm" onclick="setDate(addDays(cur,1))" title="하루 뒤 (기준일 +1)">▶</button></span>
   <span id="curWarn" class="tag" style="display:none;background:var(--amber-soft);color:var(--amber);border:1px solid var(--amber);padding:3px 8px;border-radius:2px;font-weight:700;cursor:pointer" title="기준일이 오늘이 아니면 등록·체크가 이 날짜로 기록됩니다" onclick="setDate(realToday())">⚠ 기준일이 오늘이 아님 — 오늘로</span>
@@ -305,6 +305,11 @@ details.card summary .cnt{font-size:11.5px;color:var(--mut);font-weight:500}
   <div class="card">
     <h2>📞 전화 모드 <span class="cnt">부서 먼저 탭 → 이동 요청 또는 벌크·라인 직납 발주 품목 탭</span></h2>
     <div class="qm-dept" id="qmDeptBox"></div>
+    <div class="row" style="align-items:center;margin:8px 0 4px">
+      <input id="qmMemoTxt" placeholder="메모 (예: 신규 원료 OOO 추가 필요, 특이사항 등)" style="flex:1;min-width:220px" maxlength="200" onkeydown="if(event.key==='Enter'){event.preventDefault();qmAddMemo();}">
+      <button class="btn sm pri" onclick="qmAddMemo()">메모 추가</button>
+    </div>
+    <div class="tag" id="qmMemoCur" style="margin-bottom:8px"></div>
     <div class="qm-group">
       <div class="grp-lbl">📦 벌크·라인 직납 발주</div>
       <div class="quick qm-items" id="sp2Items" style="margin:0 0 8px"></div>
@@ -1511,17 +1516,21 @@ function spCustomDateSet(v){
   spCustomDate=v;spWhen='custom';
   renderSpQuick();
 }
+/* 부서별 특이사항에 문구를 이어붙임 — 항상 실제 오늘(realToday) 게시판 기준. 기준일(cur)을 과거·미래로
+   옮겨놓고 전화모드를 쓰는 경우에도, 특이사항은 지게차 화면(실제 오늘 기준)에 남아야 그 날 보임. */
+function addSpecialNote(dept,text){
+  const sd=realToday();
+  S.specials[sd]=S.specials[sd]||{};
+  S.specials[sd][dept]=(S.specials[sd][dept]?S.specials[sd][dept]+', ':'')+text;
+  return sd;
+}
 function spAdd(n,isDae){
   if(!spSel){toast('품목을 먼저 탭하세요');return;}
   const d=qmDept;
   const w=spWhen==='custom'&&spCustomDate?{label:fmtK(spCustomDate),date:spCustomDate}:(spWhen>=0?spWhens()[spWhen]:null);
   const note=(document.getElementById('sp2Note')?.value||'').trim();
   const entry=`${spSel} ${isDae?n+'대':fmtN(n)+'kg'}${w?' '+w.label:''}${note?' ('+note+')':''}`;
-  // 오전/오후 등 날짜 라벨이 실제 오늘 기준이므로, 특이사항도 관리자가 보던 기준일(cur)이 아니라
-  // 실제 오늘 게시판에 남겨야 나중에 그 날짜 게시판에서 봤을 때 내용이 맞음(기준일이 밀려 있어도).
-  const sd=realToday();
-  S.specials[sd]=S.specials[sd]||{};
-  S.specials[sd][d]=(S.specials[sd][d]?S.specials[sd][d]+', ':'')+entry;
+  const sd=addSpecialNote(d,entry);
   const doOrd=document.getElementById('sp2Ord').checked;
   // 날짜 버튼(오전/오후/+N일/달력)을 골랐으면 그 날짜가 곧 납품일 — 발주 착일(eta)도 그대로 맞춤.
   // (예전엔 오전/오후는 "오늘"이라 착일을 안 넘겨서 리드타임 기본값(+2일)으로 잡히는 문제가 있었음)
@@ -1654,6 +1663,10 @@ function qmGrouped(dept){
 }
 function renderQm(){
   document.getElementById('qmDeptBox').innerHTML=['경질','창호','타일','DBP'].map(d=>`<button class="${qmDept===d?'on':''}" onclick="qmDept='${d}';qmItem='';spSel='';renderQm();renderSpQuick()">${d}</button>`).join('');
+  // 전화 중에 바로 메모(신규 원료·특이사항 등) — 지금 고른 부서의 특이사항에 이어붙임. 이미 있는 내용은 여기 보여줘서 뭘 적어놨는지 통화 중에도 바로 확인 가능.
+  const memoTxt=document.getElementById('qmMemoTxt');if(memoTxt&&document.activeElement!==memoTxt)memoTxt.placeholder=`${qmDept} 메모 (예: 신규 원료 OOO 추가 필요, 특이사항 등)`;
+  const curNote=(S.specials[realToday()]||{})[qmDept]||'';   // 특이사항은 실제 오늘 기준 — cur이 다른 날이어도 오늘 내용을 보여줌
+  document.getElementById('qmMemoCur').textContent=curNote?`${qmDept} 특이사항(오늘): ${curNote}`:'';
   document.getElementById('qmItems').innerHTML=qmGrouped(qmDept).map(it=>`<button class="${qmItem===it?'sel':''}" onclick="qmPick('${it.replace(/'/g,"\\'")}')">${it}</button>`).join('');
   const box=document.getElementById('qmQtyBox');
   if(qmItem){
@@ -1670,6 +1683,18 @@ function renderQm(){
   }else box.style.display='none';
 }
 function qmPick(it){qmItem=it;renderQm();document.getElementById('qmCustom')?.focus();}
+/* 전화 모드에서 바로 메모 — 신규 원료 추가 요청·특이사항 등 품목 탭으로는 못 남기는 내용을
+   현재 고른 부서의 특이사항(부서별 메모)에 이어붙임. 기존 내용을 덮어쓰지 않고 ", "로 이어붙여
+   통화 중 여러 번 남겨도 앞서 적은 내용이 사라지지 않게 함. */
+function qmAddMemo(){
+  const el=document.getElementById('qmMemoTxt');
+  const text=(el.value||'').trim();
+  if(!text){toast('메모 내용을 입력하세요');return;}
+  addSpecialNote(qmDept,text);
+  el.value='';
+  saveDB();refreshAll();
+  toast(`${qmDept} 특이사항에 추가됨 — 지게차 화면에도 표시됩니다`);
+}
 function qmAdd(n){
   if(!qmItem){toast('품목을 먼저 탭하세요');return;}
   if(!n||n<=0){toast('수량을 선택하세요');return;}

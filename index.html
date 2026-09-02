@@ -217,7 +217,7 @@ details.card summary .cnt{font-size:11.5px;color:var(--mut);font-weight:500}
   <span class="sub">입고 · 창고이동 · 발주 · 사급 한 화면</span>
   <!-- 화면이 최신 버전인지 바로 확인할 수 있게 표시 — 이 값이 다르면 브라우저가
        예전 파일을 캐시해 둔 것이므로 강력 새로고침(Ctrl+F5 / 아이폰은 Safari 재실행) 필요 -->
-  <span class="sub" id="buildStamp" title="화면 버전 — 최신이 아니면 Ctrl+F5로 강력 새로고침">v2026-09-02d</span>
+  <span class="sub" id="buildStamp" title="화면 버전 — 최신이 아니면 Ctrl+F5로 강력 새로고침">v2026-09-02e</span>
   <span class="sp"></span>
   <span class="date">기준일 <button class="btn sm" onclick="setDate(addDays(cur,-1))" title="하루 전 (기준일 −1)">◀</button><input type="date" id="curDate" onchange="setDate(this.value)"><button class="btn sm" onclick="setDate(addDays(cur,1))" title="하루 뒤 (기준일 +1)">▶</button></span>
   <span id="curWarn" class="tag" style="display:none;background:var(--amber-soft);color:var(--amber);border:1px solid var(--amber);padding:3px 8px;border-radius:2px;font-weight:700;cursor:pointer" title="기준일이 오늘이 아니면 등록·체크가 이 날짜로 기록됩니다" onclick="setDate(realToday())">⚠ 기준일이 오늘이 아님 — 오늘로</span>
@@ -394,7 +394,8 @@ details.card summary .cnt{font-size:11.5px;color:var(--mut);font-weight:500}
       <div><label>착일 월</label><input type="month" id="odEtaMonthFlt" onchange="renderOrders()"></div>
       <button class="btn sm ghost" onclick="odEtaDateFlt.value='';odEtaMonthFlt.value='';renderOrders()">착일 필터 지우기</button>
       <label style="display:flex;align-items:center;gap:5px;margin:0"><input type="checkbox" id="odHide" checked onchange="renderOrders()">입고완료 7일 지난 건 숨김</label>
-      <button class="btn sm pri" onclick="bulkMarkIn()">선택 입고 처리</button>
+      <button class="btn sm pri" onclick="bulkMarkIn()">입고처리</button>
+      <button class="btn sm" id="odBulkDelBtn" style="color:var(--red)" onclick="bulkDelOrder()">삭제</button>
       <span class="tag" id="odSelCnt"></span>
     </div>
     <div class="tbl scroll"><table><thead><tr><th><input type="checkbox" id="odSelAll" onchange="toggleAllOd(this.checked)" title="전체 선택"></th><th class="due-hl" id="odEtaTh" style="cursor:pointer" onclick="odSortByEta()" title="클릭하면 착일 기준 정렬">착일</th><th>구분</th><th>매입처</th><th>품목</th><th>납품처</th><th class="num">수량</th><th>발주일</th><th>D-day</th><th>창고</th><th>상태</th><th></th></tr></thead><tbody id="odBody"></tbody></table></div>
@@ -1856,6 +1857,19 @@ function bulkMarkIn(){
   selOd.clear();saveDB();refreshAll();
   toast(`${done}건 입고 처리됨`);
 }
+/* 선택한 발주 건 일괄 삭제 — 다른 삭제와 같은 두 번 탭 방식(아티팩트 뷰어에서 confirm() 팝업이 막혀 있어 armDel 사용).
+   확인 키에 선택된 id를 그대로 담아서, 첫 탭과 두 번째 탭 사이에 체크를 바꾸면 다른 키가 되어 다시 확인부터
+   — 엉뚱하게 바뀐 선택이 그대로 삭제되는 사고 방지 */
+function odBulkDelKey(){return 'odBulk:'+[...selOd].sort((a,b)=>a-b).join(',');}
+function bulkDelOrder(){
+  if(!selOd.size){toast('선택된 항목이 없습니다');return;}
+  if(!armDel(odBulkDelKey()))return;
+  const items=S.orders.filter(o=>selOd.has(o.id));
+  toTrash('order',items);
+  S.orders=S.orders.filter(o=>!selOd.has(o.id));
+  selOd.clear();saveDB();refreshAll();
+  toast(`${items.length}건 삭제됨 — 휴지통에서 되살릴 수 있음`);
+}
 function renderOrders(){
   let rows=odFilteredRows();
   if(!odSort)rows=rows.sort((a,b)=>(!!a.inDate-!!b.inDate)||((b.ordDate+b.id)<(a.ordDate+a.id)?-1:1));
@@ -1865,6 +1879,7 @@ function renderOrders(){
     const actBtns=o.skip?`<button class="btn sm pri" onclick="restoreOrder(${o.id})">복구</button> `:(!o.inDate?`<button class="btn sm" onclick="markIn(${o.id})">입고</button> <button class="btn sm ghost" onclick="cancelOrder(${o.id})">발주취소</button> `:`<button class="btn sm ghost" onclick="cancelIn(${o.id})" title="입고 취소">↩ 입고취소</button> `);
     return `<tr class="${o.inDate||o.skip?'done':''}"><td><input type="checkbox" ${selOd.has(o.id)?'checked':''} onchange="toggleSelOd(${o.id},this.checked)" title="선택"></td><td class="due-hl"><b>${o.eta||''}</b></td><td>${o.type==='self'?'자가':'사급'}</td><td><b>${esc(o.vendor)}</b></td><td><b>${esc(o.item)}</b>${o.note?`<div class="tag">${esc(o.note)}</div>`:''}</td><td>${esc(o.dest)}</td><td class="num">${fmtN(o.qty)} ${esc(o.unit)}</td><td>${o.ordDate||''}</td><td class="dday ${d!=null&&d<0?'late':(d===0?'soon':'')}">${d==null?(o.inDate?'입고 '+o.inDate:''):(d<0?`D+${-d}`:`D-${d}`)}</td><td>${o.loc?`<span class="loc">${esc(o.loc)}</span>`:''}</td><td><span class="chip ${cls}">${st}</span></td><td>${actBtns}<button class="btn sm" onclick="editOrder(${o.id})">수정</button> <button class="btn sm" style="color:var(--red)" onclick="delOrder(${o.id})">${armLbl('od'+o.id)}</button></td></tr>`;}).join(''):'<tr><td colspan="12" class="empty">발주 건 없음</td></tr>';
   document.getElementById('cntOd').textContent=`${rows.length}건`;
+  const bulkDelBtn=document.getElementById('odBulkDelBtn');if(bulkDelBtn)bulkDelBtn.textContent=selOd.size?armLbl(odBulkDelKey()):'삭제';
   const th=document.getElementById('odEtaTh');if(th)th.textContent='착일'+(odSort==='asc'?' ▲':odSort==='desc'?' ▼':'');
   updateOdSelCnt();
 }

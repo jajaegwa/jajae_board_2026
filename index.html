@@ -2345,16 +2345,18 @@ function renderRopMat(){
   const rows=M.rop.filter(r=>!q||(r.item+(r.vendor||'')+(r.loc||'')).toUpperCase().includes(q));
   box.innerHTML=rows.length?rows.map(r=>{
     const idx=M.rop.indexOf(r);
-    return `<tr><td><input value="${esc(r.item)}" style="width:150px;font-weight:700" onchange="ropField(${idx},'item',this.value)"></td><td class="num"><input type="number" value="${r.rop??''}" style="width:90px;text-align:right" onchange="ropField(${idx},'rop',this.value)"></td><td class="num"><input type="number" value="${r.qty??''}" style="width:90px;text-align:right" onchange="ropField(${idx},'qty',this.value)"></td><td class="num"><input type="number" step="any" value="${r.lt??''}" style="width:70px;text-align:right" onchange="ropField(${idx},'lt',this.value)"></td><td><input value="${esc(r.vendor||'')}" list="vendorList" style="width:110px" onchange="ropField(${idx},'vendor',this.value)"></td><td><input value="${esc(r.loc||'')}" style="width:90px" onchange="ropField(${idx},'loc',this.value)"></td><td><button class="btn sm" style="color:var(--red)" onclick="delRopRow(${idx})">${armLbl('rop'+idx)}</button></td></tr>`;
+    return `<tr><td><input value="${esc(r.item)}" style="width:150px;font-weight:700" onchange="ropField(${idx},'item',this.value)"></td><td class="num"><input type="number" value="${r.rop??''}" style="width:90px;text-align:right" onchange="ropField(${idx},'rop',this.value,this)"></td><td class="num"><input type="number" value="${r.qty??''}" style="width:90px;text-align:right" onchange="ropField(${idx},'qty',this.value,this)"></td><td class="num"><input type="number" step="any" value="${r.lt??''}" style="width:70px;text-align:right" onchange="ropField(${idx},'lt',this.value,this)"></td><td><input value="${esc(r.vendor||'')}" list="vendorList" style="width:110px" onchange="ropField(${idx},'vendor',this.value)"></td><td><input value="${esc(r.loc||'')}" style="width:90px" onchange="ropField(${idx},'loc',this.value)"></td><td><button class="btn sm" style="color:var(--red)" onclick="delRopRow(${idx})">${armLbl('rop'+idx)}</button></td></tr>`;
   }).join(''):'<tr><td colspan="7" class="empty">등록된 발주 기준 품목 없음</td></tr>';
   document.getElementById('cntRopMat').textContent=`${M.rop.length}개`;
 }
-function ropField(idx,key,val){
+function ropField(idx,key,val,el){
   const r=M.rop[idx];if(!r)return;
   if(key==='item')r.item=val.trim();
   else if(key==='rop'||key==='qty'||key==='lt'){
+    // 숫자칸에 글자가 섞이면 브라우저가 value를 ''로 비워버려 "비움(null)"과 구분이 안 됨 → validity.badInput으로 잡음
+    const bad=!!(el&&el.validity&&el.validity.badInput);
     const n=val===''?null:+val;
-    if(n!=null&&(isNaN(n)||n<0)){toast('0 이상 숫자를 입력하세요');renderMaster();return;}   // 음수·글자는 저장하지 않고 원래 값으로 되돌림
+    if(bad||(n!=null&&(isNaN(n)||n<0))){toast('0 이상 숫자를 입력하세요');renderRopMat();return;}   // 음수·글자는 저장하지 않고 원래 값으로 되돌림
     r[key]=n;
   }
   else r[key]=val.trim();
@@ -2880,13 +2882,12 @@ function editActKg(id){
   const m=S.moves.find(x=>x.id===id);if(!m)return;
   if(needName(()=>editActKg(id)))return;
   // prompt() 대신 앱의 수정 창 사용 — 아티팩트 뷰어에서 브라우저 팝업이 막혀 있고, 폰에서도 Enter=저장·Esc=취소가 같은 방식으로 동작
-  openDlg(`실출고 보정 — ${m.item} ${fmtN(m.qty)} ${m.unit}`,[['actKg','실출고 합계 kg (파레트 보정 — 예: 540+465=1,005) · 비우면 보정 삭제','number']],{actKg:m.actKg??''},o=>{
+  openDlg(`실출고 보정 — ${m.item} ${fmtN(m.qty)} ${m.unit}`,[['actKg','실출고 합계 kg (파레트 보정 — 합계 숫자만, 예: 1005) · 비우면 보정 삭제','number']],{actKg:m.actKg??''},o=>{
     if(o.actKg==null){delete m.actKg;delete m.actKgBy;delete m.actKgAt;saveDB();refreshAll();toast('실출고 보정 삭제됨');return;}
     if(isNaN(o.actKg)||o.actKg<0){toast('0 이상 숫자를 입력하세요');return false;}
     m.actKg=o.actKg;m.actKgBy=whoNow();m.actKgAt=realToday()+' '+new Date().toTimeString().slice(0,5);
     saveDB();refreshAll();toast('실출고 보정 저장됨');
-  },()=>{});
-  document.getElementById('dlgDelBtn').style.display='none';
+  });
 }
 /* 기사 직접 등록 — 품목별 부서·창고 위치를 함께 지정, 1,000kg 단위로 탭 등록 */
 const DRV_ADD=[
@@ -2926,11 +2927,17 @@ function drvAddCustomDo(it,q,d){
 let dlgCtx=null;
 function openDlg(title,fields,obj,onSave,onDel){
   dlgTitle.textContent=title;dlgBody.innerHTML=fields.map(([k,l,t])=>`<div><label>${l}</label><input data-k="${k}" type="${t||'text'}" value="${esc(obj[k]??'')}"></div>`).join('');
-  const db2=document.getElementById('dlgDelBtn');db2.style.display='';db2.dataset.arm='';db2.textContent='삭제';
+  const db2=document.getElementById('dlgDelBtn');db2.style.display=onDel?'':'none';db2.dataset.arm='';db2.textContent='삭제';   // onDel이 없으면 [삭제] 숨김
   dlgCtx={obj,onSave,onDel,fields};dlg.showModal();
 }
 const dlgVal=i=>i.type==='number'?(i.value===''?null:+i.value):i.value.trim();
-function dlgSave(){dlgBody.querySelectorAll('input,select').forEach(i=>{const k=i.dataset.k;if(!k)return;dlgCtx.obj[k]=dlgVal(i);});if(dlgCtx.onSave(dlgCtx.obj)===false)return;dlg.close();}
+function dlgSave(){
+  // 숫자칸에 '540+465' 같은 글자가 들어가면 브라우저가 value를 ''로 비워 "삭제/미입력"으로 저장돼 버림 — 저장 전에 걸러냄
+  const bad=Array.from(dlgBody.querySelectorAll('input[type=number]')).find(i=>i.validity&&i.validity.badInput);
+  if(bad){toast('숫자 칸에는 숫자만 입력하세요 (예: 1005)');bad.focus();return;}
+  dlgBody.querySelectorAll('input,select').forEach(i=>{const k=i.dataset.k;if(!k)return;dlgCtx.obj[k]=dlgVal(i);});
+  if(dlgCtx.onSave(dlgCtx.obj)===false)return;dlg.close();
+}
 /* 수정 창에서 Enter = 저장. 입력칸에 있을 때와, 아무 칸에도 포커스가 없어 창 자체에 있을 때 저장.
    셀렉트(Enter는 목록 열기/선택)·textarea(줄바꿈)·버튼(취소/삭제 등 원래 동작)은 건드리지 않음.
    한글 입력 중 조합을 끝내는 Enter도 그대로 저장으로 이어지게 둠(예전과 동일 — 한 번만 누르면 됨). */

@@ -149,20 +149,21 @@ const SB_URL='https://druppuarqowdmskgldlw.supabase.co';
 const SB_ANON='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRydXBwdWFycW93ZG1za2dsZGx3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODc2MTE4OTcsImV4cCI6MjEwMzE4Nzg5N30.RIDSNGJfa0huV_MnpCbzToajuOo7KTDMckaSvf9oDYw';
 const B_MAGAM='jajae-magam', B_MAIN='jajae-main';
 /* 노션 "08-3. AR/AP 마감 프로세스" 매뉴얼 기준 — 실제 마감 순서·체크포인트에 맞춤.
-   사급(AR): 업체확인→매출전표→전표증빙→매출승인→수금전표→수금증빙→입금표발행→입금표수취→증빙→회계보고(신은진 사원 메일)
+   사급(AR): 업체확인→매출전표→전표증빙→매출승인→수금전표→수금증빙→입금표발행→입금표수취→회계보고(신은진 사원 메일)
    (입금표전송은 실사용상 불필요해 제외. 사급은 수량·금액을 따로 안 나누고 "업체확인" 하나로 합침.
-   전표증빙·수금증빙은 매출전표·수금전표 각각의 증빙 여부를 따로 체크)
+   전표증빙·수금증빙은 매출전표·수금전표 각각의 증빙 여부를 따로 체크하므로 입금표수취 옆의
+   별도 "증빙" 항목은 중복이라 제외)
    매입(AP): 계산서수취→매입전표(PO전표)→매입승인(AP결재/일괄결재) — 대금지급·계산서요청은
    매뉴얼상 자재과 마감 범위 밖이라 제외 */
 const STEPS={
-  sales:['업체확인','매출전표','전표증빙','매출승인','수금전표','수금증빙','입금표발행','입금표수취','증빙','회계보고'],
+  sales:['업체확인','매출전표','전표증빙','매출승인','수금전표','수금증빙','입금표발행','입금표수취','회계보고'],
   purchase:['수량일치','금액일치','계산서수취','매입전표','매입승인']
 };
 /* 체크 칸이 많아서 구분이 안 되는 문제 — 흐름상 한 단계로 묶이는 항목들 사이에
    굵은 세로선을 그어 구역을 나눔. 값은 각 구역이 "시작하는" STEPS 인덱스.
-   사급: [업체확인] [매출전표·증빙·매출승인] [수금전표·증빙] [입금표발행·수취·증빙] [회계보고]
+   사급: [업체확인] [매출전표·증빙·매출승인] [수금전표·증빙] [입금표발행·수취] [회계보고]
    체크 구역 전체는 진한 테두리로 감싸고, 그 안의 소구역 경계는 더 연한 선으로 구분. */
-const STEP_GROUPS={sales:[1,4,6,9],purchase:[]};
+const STEP_GROUPS={sales:[1,4,6,8],purchase:[]};
 function stepBorder(side,i,isLastRow){
   const n=STEPS[side].length;
   let s='';
@@ -647,7 +648,7 @@ function listHTML(side){
   });
   const tySet=new Set();
   S.vendors[side].forEach(v=>(v.type||'').split(/[·,+]/).forEach(t=>{t=t.trim();if(t)tySet.add(t);}));
-  const short=side==='sales'?['업체확인','매출전표','전표증빙','매출승인','수금전표','수금증빙','입금표발행','입금표수취','증빙','회계보고']:['수량','금액','계산서수취','매입전표','매입승인'];
+  const short=side==='sales'?['업체확인','매출전표','전표증빙','매출승인','수금전표','수금증빙','입금표발행','입금표수취','회계보고']:['수량','금액','계산서수취','매입전표','매입승인'];
   return`<div class="card">
   <h2>${SIDE_LB[side]} <span class="cnt">${mon} · ${rows.length}/${S.vendors[side].length}개 업체${tgt?` · 마감대상 ${tgt.length}곳`:''}</span></h2>
   ${tgtEmpty?`<div class="hint" style="background:var(--red-soft);border:1px solid var(--red);border-radius:2px;padding:8px 10px;margin-bottom:8px">

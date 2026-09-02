@@ -62,6 +62,11 @@ main{max-width:1800px;margin:14px auto;padding:0 16px 60px}
 .tbl.scroll th,.tbl.scroll td{border-width:0 1px 1px 0}
 .tbl.scroll tr>*:first-child{border-left-width:1px}
 .tbl.scroll tr:first-child th{border-top-width:1px}
+/* 체크리스트 표(.frz): 체크 칸이 많아 화면보다 넓을 때 옆으로 넘겨도 선택칸·업체명은 왼쪽에 고정 — 어느 업체 줄인지 잃지 않게 */
+.frz th:nth-child(1),.frz td:nth-child(1){position:sticky;left:0;z-index:2;background:var(--card);width:36px;min-width:36px;max-width:36px;box-sizing:border-box}
+.frz th:nth-child(2),.frz td:nth-child(2){position:sticky;left:36px;z-index:2;background:var(--card)}
+.frz th:nth-child(1),.frz th:nth-child(2){z-index:3;background:var(--head)}
+.frz tr:hover td:nth-child(1),.frz tr:hover td:nth-child(2){background:var(--row-hover)}   /* 고정 열도 줄 강조 색을 같이 받게 */
 table{width:100%;border-collapse:collapse}
 th{background:var(--head);color:var(--mut);font-size:11.5px;font-weight:700;text-align:left;padding:6px 8px;border:1px solid var(--line);position:sticky;top:0;white-space:nowrap;z-index:1}
 td{padding:5px 8px;border:1px solid var(--line2);font-size:12.5px;vertical-align:middle;white-space:nowrap}
@@ -678,7 +683,7 @@ function listHTML(side){
     <span class="sp" style="flex:1"></span>
     <button class="btn sm ghost" onclick="showExcludedDlg('${side}')">이번달 제외 목록${excluded.length?` (${excluded.length})`:''}</button>
   </div>
-  <div class="tbl scroll"><table>
+  <div class="tbl scroll frz"><table>
     <tr><th><input type="checkbox" class="ck" id="vSelAll_${side}" onchange="toggleAllVendorFromDom(this)"></th><th>업체명</th><th>유형·품목</th><th>${side==='sales'?'처리자':'처리자·구매팀'}</th><th>발주↔입고</th><th>보낸날짜</th><th>방식</th>${short.map((s,i)=>{const bulk=STEPS[side][i]==='매출승인';return`<th style="text-align:center;border-top:2.5px solid var(--ink);${stepBorder(side,i)}${bulk?'cursor:pointer':''}"${bulk?` onclick="bulkCheckStep('${side}','${STEPS[side][i]}')" title="클릭하면 지금 보이는 업체 전체를 한 번에 체크합니다"`:''}>${s}${bulk?' ⚡':''}</th>`;}).join('')}<th>비고</th>${side==='purchase'?'<th title="금액 불일치 — 구매팀이 월말에 직접 마감 처리">구매팀행</th>':''}<th>진행률</th><th>상태</th><th></th></tr>
     ${rows.length?rows.map((v,idx)=>rowHTML(side,v,idx===rows.length-1)).join('')
       :`<tr><td colspan="23" style="padding:14px;text-align:left;white-space:normal"><div class="mut" style="font-size:13px">

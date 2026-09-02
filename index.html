@@ -46,7 +46,8 @@ header{background:var(--card);color:var(--ink);border-bottom:1px solid var(--lin
 header h1{font-size:15px;font-weight:700;letter-spacing:-.1px}
 header .sub{font-size:11.5px;color:var(--mut);font-weight:300}
 header .sp{flex:1}
-header .date{font-size:12.5px;display:flex;align-items:center;gap:6px}
+header .date{font-size:12.5px;display:flex;align-items:center;gap:4px}
+header .date .btn{padding:3px 7px;line-height:1.2}
 header input[type=date]{background:var(--card);color:var(--ink);border:1px solid var(--line);border-radius:2px;padding:3px 6px;font-family:inherit;color-scheme:light}
 .savebox{font-size:11.5px;padding:3px 9px;border-radius:2px;border:1px solid var(--line);background:var(--head);display:flex;gap:6px;align-items:center}
 .savebox i{width:7px;height:7px;border-radius:50%;background:#98a6b3;display:inline-block}
@@ -74,7 +75,11 @@ main{max-width:1280px;margin:14px auto;padding:0 16px 60px}
 table{width:100%;border-collapse:collapse}
 th{background:var(--head);color:var(--ink);font-size:11.5px;font-weight:700;text-align:center;padding:6px 8px;border:1px solid var(--line);white-space:nowrap;letter-spacing:0}
 td{padding:6px 8px;border:1px solid var(--line2);font-size:12.5px;vertical-align:middle}
-td.num{text-align:right}
+td.num{text-align:right;white-space:nowrap}
+td b{white-space:nowrap}   /* 품목·업체명이 글자 단위로 쪼개지지 않게 */
+td.dday,td.due-hl{white-space:nowrap}
+/* 넓은 화면에서는 탭 줄이 상단에 고정 — 긴 현황 화면을 내려봐도 탭 이동·배지 확인이 바로 됨 */
+@media(min-width:900px){nav{position:sticky;top:0;z-index:5}}
 td b{font-weight:700}
 tr:hover td{background:var(--row-hover)}
 tr.done td{color:var(--mut);text-decoration:line-through}
@@ -83,7 +88,7 @@ tr.done td .chip,tr.done td .loc,tr.done td input{text-decoration:none}
 th.due-hl,td.due-hl{background:var(--head);color:var(--ink)}
 tr:hover td.due-hl,tr.done td.due-hl{background:var(--head);color:var(--ink)}
 .tbl{overflow-x:auto}
-.btn{border:1px solid var(--line);background:var(--card);color:var(--ink);border-radius:2px;padding:5px 10px;font:inherit;font-size:12.5px;font-weight:500;cursor:pointer}
+.btn{border:1px solid var(--line);background:var(--card);color:var(--ink);border-radius:2px;padding:5px 10px;font:inherit;font-size:12.5px;font-weight:500;cursor:pointer;white-space:nowrap}
 .btn:hover{border-color:var(--acc);color:var(--acc)}
 .btn.pri{background:var(--acc);border-color:var(--acc);color:#fff}
 .btn.pri:hover{color:#fff;opacity:.9}
@@ -105,7 +110,7 @@ label{font-size:11px;color:var(--mut);font-weight:500;display:block;margin-botto
 .c-late{color:var(--red);border:1px solid var(--red)}
 .c-done{color:var(--green);border:1px solid var(--green)}
 .c-mut{color:var(--mut);border:1px solid var(--line)}
-.dept{display:inline-block;padding:1px 7px;border-radius:2px;font-size:11px;font-weight:700;color:#fff}
+.dept{display:inline-block;padding:1px 7px;border-radius:2px;font-size:11px;font-weight:700;color:#fff;white-space:nowrap}
 .d-경질{background:var(--dept-gj)}.d-창호{background:var(--dept-ch)}.d-타일{background:var(--dept-tl)}.d-DBP{background:var(--dept-dbp)}.d-기타{background:var(--mut)}
 .loc{font-family:Consolas,'Courier New',monospace;font-size:11.5px;font-weight:500;padding:1px 6px;border:1px solid var(--line);border-radius:2px;white-space:nowrap;background:var(--head)}
 .stat{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px;margin-bottom:12px}
@@ -170,7 +175,10 @@ details.card summary::-webkit-details-marker{display:none}
 details.card summary::before{content:'▸';color:var(--mut);transition:transform .15s}
 details.card[open] summary::before{transform:rotate(90deg)}
 details.card summary .cnt{font-size:11.5px;color:var(--mut);font-weight:500}
-@media(max-width:640px){.dlg .grid2{grid-template-columns:1fr}.drv .item{grid-template-columns:1fr}.drv .item .qty{text-align:left}}
+@media(max-width:640px){.dlg .grid2{grid-template-columns:1fr}.drv .item{grid-template-columns:1fr}.drv .item .qty{text-align:left}
+  /* 폰에서는 표가 카드 안에서 가로 스크롤 — 카드가 화면 밖으로 밀려나거나 셀이 글자 단위로 쪼개지지 않게 */
+  .card{overflow-x:auto;min-width:0}.grid>*{min-width:0}
+  td{white-space:nowrap}td .tag,td.wrap{white-space:normal}}
 @media (prefers-reduced-motion: reduce){.toast{transition:none}}
 /* ── 캘린더 탭 ── */
 .calWeekHead{display:grid;grid-template-columns:repeat(7,1fr);gap:1px;background:var(--line2);border:1px solid var(--line2);border-bottom:none;font-size:11.5px;font-weight:700;color:var(--mut);text-align:center}
@@ -209,9 +217,9 @@ details.card summary .cnt{font-size:11.5px;color:var(--mut);font-weight:500}
   <span class="sub">입고 · 창고이동 · 발주 · 사급 한 화면</span>
   <!-- 화면이 최신 버전인지 바로 확인할 수 있게 표시 — 이 값이 다르면 브라우저가
        예전 파일을 캐시해 둔 것이므로 강력 새로고침(Ctrl+F5 / 아이폰은 Safari 재실행) 필요 -->
-  <span class="sub" id="buildStamp" title="화면 버전 — 최신이 아니면 Ctrl+F5로 강력 새로고침">v2026-09-02c</span>
+  <span class="sub" id="buildStamp" title="화면 버전 — 최신이 아니면 Ctrl+F5로 강력 새로고침">v2026-09-02d</span>
   <span class="sp"></span>
-  <span class="date">기준일 <input type="date" id="curDate" onchange="setDate(this.value)"></span>
+  <span class="date">기준일 <button class="btn sm" onclick="setDate(addDays(cur,-1))" title="하루 전 (기준일 −1)">◀</button><input type="date" id="curDate" onchange="setDate(this.value)"><button class="btn sm" onclick="setDate(addDays(cur,1))" title="하루 뒤 (기준일 +1)">▶</button></span>
   <span id="curWarn" class="tag" style="display:none;background:var(--amber-soft);color:var(--amber);border:1px solid var(--amber);padding:3px 8px;border-radius:2px;font-weight:700;cursor:pointer" title="기준일이 오늘이 아니면 등록·체크가 이 날짜로 기록됩니다" onclick="setDate(realToday())">⚠ 기준일이 오늘이 아님 — 오늘로</span>
   <span class="savebox" id="saveBox"><i></i><span id="saveTxt">불러오는 중</span></span>
   <span class="chip c-wait" id="drvNotif" style="display:none;cursor:pointer" onclick="clearDrvNotif()" title="눌러서 확인"></span>
@@ -361,15 +369,15 @@ details.card summary .cnt{font-size:11.5px;color:var(--mut);font-weight:500}
     <div class="row">
       <div style="flex:2;min-width:260px"><label>빠른선택</label><select id="odPreset" onchange="applyPreset()"><option value="">— 프리셋 선택 —</option></select><div id="presetGate" style="display:none;margin-top:4px"></div></div>
       <div><label>구분</label><select id="odType"><option value="self">자가(부강 입고)</option><option value="consign">사급(업체 직납)</option></select></div>
-      <div><label>발주일</label><input id="odDate" type="date"></div>
+      <div><label>발주일</label><input id="odDate" type="date" onchange="odEtaAuto()"></div>
     </div>
     <div class="row" style="margin-top:8px">
       <div style="min-width:150px"><label>매입처</label><input id="odVendor" list="vendorList"></div>
-      <div style="flex:2;min-width:180px"><label>품목</label><input id="odItem" list="itemList" oninput="autoLoc('od')"></div>
+      <div style="flex:2;min-width:180px"><label>품목</label><input id="odItem" list="itemList" oninput="autoLoc('od')" onchange="odEtaAuto()"></div>
       <div style="min-width:120px"><label>납품처</label><input id="odDest" list="destList" value="자가(세종·부강)"></div>
       <div><label>수량</label><input id="odQty" type="number" step="any" style="width:90px;text-align:right"></div>
       <div><label>단위</label><select id="odUnit"><option>kg</option><option>Bag</option><option>드럼</option><option>대</option><option>PLT</option></select></div>
-      <div><label>착일(입고예정)</label><input id="odEta" type="date"></div>
+      <div><label>착일(입고예정)</label><input id="odEta" type="date" onchange="odEtaTouched=!!this.value"></div>
       <div><label>창고</label><input id="odLoc" style="width:110px"></div>
       <div><label>부서</label><select id="odDept"><option>경질</option><option>창호</option><option>타일</option><option>DBP</option><option>전사</option><option>사급</option></select></div>
       <div style="flex:1;min-width:120px"><label>비고</label><input id="odNote" placeholder="도착시간, 2대 등"></div>
@@ -1299,7 +1307,7 @@ function renderBoard(){
     }).join(''):'<tr><td colspan="7" class="empty">발주점 도달 품목 없음 — 전 품목 재고 여유</td></tr>';
     document.getElementById('cntRop').textContent=rop.length?`부족 ${rop.filter(r=>r.stk<=r.rop).length} · 임박 ${rop.filter(r=>r.stk>r.rop).length}`:'';
   }
-  document.getElementById('boardDue').innerHTML=due.length?due.map((p,i)=>`<tr><td>${p.type==='self'?'<span class="chip c-mut">자가</span>':'<span class="chip c-ord">'+esc(p.dest)+'</span>'}</td><td><b>${esc(short(p.item))}</b></td><td class="num">${fmtN(p.qty)} ${esc(p.unit)}</td><td>${esc(p.cycle)}</td><td>${p.last?fmtK(p.last):'<span class="tag">이력 없음</span>'}</td><td class="dday ${p.gap!=null&&p.gap>p.cyc+1?'late':'soon'}">${p.gap!=null?`+${p.gap}일`:'—'}</td><td><button class="btn sm warn" onclick="quickOrder('${p.type}',${p.type==='self'?M.presetSelf.indexOf(M.presetSelf.find(x=>x.label===p.label)):M.presetConsign.indexOf(M.presetConsign.find(x=>x.label===p.label))})">발주 체크</button> <button class="btn sm ghost" onclick="skipOrder('${p.type}',${p.type==='self'?M.presetSelf.indexOf(M.presetSelf.find(x=>x.label===p.label)):M.presetConsign.indexOf(M.presetConsign.find(x=>x.label===p.label))})" title="오늘은 발주 안 함 (주기 리셋)">건너뜀</button></td></tr>`).join(''):'<tr><td colspan="7" class="empty">오늘 주기 도래 품목 없음</td></tr>';
+  document.getElementById('boardDue').innerHTML=due.length?due.map((p,i)=>`<tr><td>${p.type==='self'?'<span class="chip c-mut">자가</span>':'<span class="chip c-ord">'+esc(p.dest)+'</span>'}</td><td><b>${esc(short(p.item))}</b></td><td class="num">${p.qty?fmtN(p.qty)+' '+esc(p.unit):'—'}</td><td>${esc(p.cycle)}</td><td>${p.last?fmtK(p.last):'<span class="tag">이력 없음</span>'}</td><td class="dday ${p.gap!=null&&p.gap>p.cyc+1?'late':'soon'}">${p.gap!=null?`+${p.gap}일`:'—'}</td><td><button class="btn sm warn" onclick="quickOrder('${p.type}',${p.type==='self'?M.presetSelf.indexOf(M.presetSelf.find(x=>x.label===p.label)):M.presetConsign.indexOf(M.presetConsign.find(x=>x.label===p.label))})">발주 체크</button> <button class="btn sm ghost" onclick="skipOrder('${p.type}',${p.type==='self'?M.presetSelf.indexOf(M.presetSelf.find(x=>x.label===p.label)):M.presetConsign.indexOf(M.presetConsign.find(x=>x.label===p.label))})" title="오늘은 발주 안 함 (주기 리셋)">건너뜀</button></td></tr>`).join(''):'<tr><td colspan="7" class="empty">오늘 주기 도래 품목 없음</td></tr>';
   document.getElementById('cntDue').textContent=dueN?(hasInv?`재고부족 ${rop.filter(r=>r.stk<=r.rop).length} · 주기 ${due.length}건`:`${due.length}건`):'';
   const cycSug=cycleSuggestions();
   document.getElementById('cycSugLbl').style.display=cycSug.length?'':'none';
@@ -1795,6 +1803,12 @@ function applyPreset(){
   odQty.value=p.qty;odUnit.value=p.unit;odLoc.value=m?m.loc.replace('(경질창고)',''):(v[0]==='c'?'직납':'');
   odDept.value=v[0]==='c'?'사급':(deptOf(m)||'전사');odEta.value=addDays(odDate.value||cur,leadOf(p.item));
 }
+/* 품목·발주일을 고르면 착일을 발주일+리드타임으로 자동 채움(기준표 없으면 2일). 사용자가 착일을 직접 고친 뒤에는 건드리지 않음 */
+let odEtaTouched=false;
+function odEtaAuto(){
+  const it=odItem.value.trim();if(!it||odEtaTouched)return;
+  odEta.value=addDays(odDate.value||cur,leadOf(it));
+}
 function addOrder(){
   const item=odItem.value.trim();if(!item){toast('품목을 입력하세요');return;}
   // 수량 0·착일 공백으로 등록되면 입고예정·D-day·캘린더 어디에도 안 떠서 "등록했는데 안 보인다"가 됨
@@ -1802,7 +1816,7 @@ function addOrder(){
   if(!odEta.value){toast('착일(입고 예정일)을 입력하세요');odEta.focus();return;}
   const isNew=ensureMaterial(item,{vendor:odVendor.value.trim(),loc:odLoc.value.trim()});
   S.orders.push({id:S.seq++,type:odType.value,ordDate:odDate.value||cur,vendor:odVendor.value.trim(),item,dest:odDest.value.trim(),qty:+odQty.value||0,unit:odUnit.value,eta:odEta.value,inDate:'',loc:odLoc.value.trim(),dept:odDept.value,note:odNote.value.trim()});
-  odPreset.value='';odItem.value='';odQty.value='';odNote.value='';odLoc.value='';saveDB();refreshAll();
+  odPreset.value='';odItem.value='';odQty.value='';odNote.value='';odLoc.value='';odEta.value='';odEtaTouched=false;saveDB();refreshAll();
   toast(isNew?`발주 등록됨 · 신규 품목 '${item}' 기준정보에 추가됨${sbOK?'':' (이 기기에만 — 공유 연결 시 전체 반영)'}`:'발주 등록됨');
 }
 function markIn(id){const o=findLive(S.orders,id);if(!o)return;o.inDate=cur;o.inBy=whoNow();saveDB();refreshAll();toast(`입고 처리됨 (${fmtK(cur)}) — 날짜 변경은 [수정]에서`);}
@@ -1849,7 +1863,7 @@ function renderOrders(){
   const selAllEl=document.getElementById('odSelAll');if(selAllEl)selAllEl.checked=allSel;
   document.getElementById('odBody').innerHTML=rows.length?rows.map(o=>{const st=orderStatus(o),d=o.eta&&!o.inDate?diffDays(o.eta,cur):null;const cls={'발주완료':'c-ord','입고지연':'c-late','입고완료':'c-done','취소':'c-mut'}[st];
     const actBtns=o.skip?`<button class="btn sm pri" onclick="restoreOrder(${o.id})">복구</button> `:(!o.inDate?`<button class="btn sm" onclick="markIn(${o.id})">입고</button> <button class="btn sm ghost" onclick="cancelOrder(${o.id})">발주취소</button> `:`<button class="btn sm ghost" onclick="cancelIn(${o.id})" title="입고 취소">↩ 입고취소</button> `);
-    return `<tr class="${o.inDate||o.skip?'done':''}"><td><input type="checkbox" ${selOd.has(o.id)?'checked':''} onchange="toggleSelOd(${o.id},this.checked)" title="선택"></td><td class="due-hl"><b>${o.eta||''}</b></td><td>${o.type==='self'?'자가':'사급'}</td><td><b>${esc(o.vendor)}</b></td><td><b>${esc(o.item)}</b>${o.note?`<div class="tag">${esc(o.note)}</div>`:''}</td><td>${esc(o.dest)}</td><td class="num">${fmtN(o.qty)} ${esc(o.unit)}</td><td>${o.ordDate}</td><td class="dday ${d!=null&&d<0?'late':(d===0?'soon':'')}">${d==null?(o.inDate?'입고 '+o.inDate:''):(d<0?`D+${-d}`:`D-${d}`)}</td><td>${o.loc?`<span class="loc">${esc(o.loc)}</span>`:''}</td><td><span class="chip ${cls}">${st}</span></td><td>${actBtns}<button class="btn sm" onclick="editOrder(${o.id})">수정</button> <button class="btn sm" style="color:var(--red)" onclick="delOrder(${o.id})">${armLbl('od'+o.id)}</button></td></tr>`;}).join(''):'<tr><td colspan="12" class="empty">발주 건 없음</td></tr>';
+    return `<tr class="${o.inDate||o.skip?'done':''}"><td><input type="checkbox" ${selOd.has(o.id)?'checked':''} onchange="toggleSelOd(${o.id},this.checked)" title="선택"></td><td class="due-hl"><b>${o.eta||''}</b></td><td>${o.type==='self'?'자가':'사급'}</td><td><b>${esc(o.vendor)}</b></td><td><b>${esc(o.item)}</b>${o.note?`<div class="tag">${esc(o.note)}</div>`:''}</td><td>${esc(o.dest)}</td><td class="num">${fmtN(o.qty)} ${esc(o.unit)}</td><td>${o.ordDate||''}</td><td class="dday ${d!=null&&d<0?'late':(d===0?'soon':'')}">${d==null?(o.inDate?'입고 '+o.inDate:''):(d<0?`D+${-d}`:`D-${d}`)}</td><td>${o.loc?`<span class="loc">${esc(o.loc)}</span>`:''}</td><td><span class="chip ${cls}">${st}</span></td><td>${actBtns}<button class="btn sm" onclick="editOrder(${o.id})">수정</button> <button class="btn sm" style="color:var(--red)" onclick="delOrder(${o.id})">${armLbl('od'+o.id)}</button></td></tr>`;}).join(''):'<tr><td colspan="12" class="empty">발주 건 없음</td></tr>';
   document.getElementById('cntOd').textContent=`${rows.length}건`;
   const th=document.getElementById('odEtaTh');if(th)th.textContent='착일'+(odSort==='asc'?' ▲':odSort==='desc'?' ▼':'');
   updateOdSelCnt();
@@ -2139,7 +2153,7 @@ function csRow(c,board){const st=csStatus(c);const cls={'발주대기':'c-wait',
   const act=`<span class="act-${CS_ACTION_CLASS[c.action]}">${c.action}</span>`;
   const btn=c.action==='발주'&&!c.ordDate?`<button class="btn sm warn" onclick="csMark(${c.id},'ordDate')">발주 체크</button>`:(c.action==='직접출고'&&!c.outDate?`<button class="btn sm warn" onclick="csMark(${c.id},'outDate')">출고 체크</button>`:(c.action==='직접출고'&&c.outDate?`<button class="btn sm ghost" onclick="csUndoOut(${c.id})" title="출고 처리를 취소하고 출고 대기로 되돌림">↩ 출고 취소</button>`:(!c.done?`<button class="btn sm" onclick="csMark(${c.id},'done')">${c.action==='발주'?'입고 완료':'완료'}</button>`:'')));
   if(board)return`<tr class="${c.done?'done':''}"><td><b>${esc(c.consignee)}</b></td><td><b>${esc(c.item)}</b></td><td class="num">${fmtN(c.qty)}</td><td>${act}</td><td>${c.due?fmtK(c.due):''}</td><td><span class="chip ${cls}">${st}</span></td><td>${btn}</td></tr>`;
-  return`<tr class="${c.done?'done':''}"><td><input type="checkbox" class="csSel" value="${c.id}" ${selCs.has(c.id)?'checked':''} onchange="toggleSelCs(${c.id},this.checked)"></td><td class="due-hl"><b>${c.due||''}</b></td><td><b>${esc(c.consignee)}</b></td><td><b>${esc(c.item)}</b>${c.loc?` <span class="loc">${esc(c.loc)}</span>`:''}</td><td class="num">${fmtN(c.qty)}</td><td>${act}</td><td><b>${esc(c.supplier)}</b></td><td>${c.recvDate}</td><td>${c.ordDate||''}</td><td>${c.outDate||(c.done?'✓':'')}${isThird(c.outBy)?` <span class="chip c-wait">✋ ${esc(c.outBy)}</span>`:''}</td><td><span class="chip ${cls}">${st}</span></td><td>${btn} <button class="btn sm" onclick="editCs(${c.id})">수정</button> <button class="btn sm" style="color:var(--red)" onclick="delCs(${c.id})">${armLbl('cs'+c.id)}</button></td></tr>`;}
+  return`<tr class="${c.done?'done':''}"><td><input type="checkbox" class="csSel" value="${c.id}" ${selCs.has(c.id)?'checked':''} onchange="toggleSelCs(${c.id},this.checked)"></td><td class="due-hl"><b>${c.due||''}</b></td><td><b>${esc(c.consignee)}</b></td><td><b>${esc(c.item)}</b>${c.loc?` <span class="loc">${esc(c.loc)}</span>`:''}</td><td class="num">${fmtN(c.qty)}</td><td>${act}</td><td><b>${esc(c.supplier)}</b></td><td>${c.recvDate||''}</td><td>${c.ordDate||''}</td><td>${c.outDate||(c.done?'✓':'')}${isThird(c.outBy)?` <span class="chip c-wait">✋ ${esc(c.outBy)}</span>`:''}</td><td><span class="chip ${cls}">${st}</span></td><td>${btn} <button class="btn sm" onclick="editCs(${c.id})">수정</button> <button class="btn sm" style="color:var(--red)" onclick="delCs(${c.id})">${armLbl('cs'+c.id)}</button></td></tr>`;}
 function csMark(id,f){const c=findLive(S.cons,id);if(!c)return;
   if((f==='outDate'||f==='done')&&needName(()=>csMark(id,f)))return;
   // M-210: 월1회 입항분은 행선지 건별 확인 전 배차·출고·완료 금지

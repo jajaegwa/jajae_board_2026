@@ -46,7 +46,8 @@ header{background:var(--card);color:var(--ink);border-bottom:1px solid var(--lin
 header h1{font-size:15px;font-weight:700;letter-spacing:-.1px}
 header .sub{font-size:11.5px;color:var(--mut);font-weight:300}
 header .sp{flex:1}
-header .date{font-size:12.5px;display:flex;align-items:center;gap:6px}
+header .date{font-size:12.5px;display:flex;align-items:center;gap:4px}
+header .date .btn{line-height:1.2}
 header input[type=date]{background:var(--card);color:var(--ink);border:1px solid var(--line);border-radius:2px;padding:3px 6px;font-family:inherit;color-scheme:light}
 .savebox{font-size:11.5px;padding:3px 9px;border-radius:2px;border:1px solid var(--line);background:var(--head);display:flex;gap:6px;align-items:center}
 .savebox i{width:7px;height:7px;border-radius:50%;background:#98a6b3;display:inline-block}
@@ -74,7 +75,11 @@ main{max-width:1280px;margin:14px auto;padding:0 16px 60px}
 table{width:100%;border-collapse:collapse}
 th{background:var(--head);color:var(--ink);font-size:11.5px;font-weight:700;text-align:center;padding:6px 8px;border:1px solid var(--line);white-space:nowrap;letter-spacing:0}
 td{padding:6px 8px;border:1px solid var(--line2);font-size:12.5px;vertical-align:middle}
-td.num{text-align:right}
+td.num{text-align:right;white-space:nowrap}
+td b{white-space:nowrap}   /* 품목·업체명이 글자 단위로 쪼개지지 않게 */
+td.dday,td.due-hl{white-space:nowrap}
+/* 넓은 화면에서는 탭 줄이 상단에 고정 — 긴 현황 화면을 내려봐도 탭 이동·배지 확인이 바로 됨 */
+@media(min-width:900px){nav{position:sticky;top:0;z-index:5}}
 td b{font-weight:700}
 tr:hover td{background:var(--row-hover)}
 tr.done td{color:var(--mut);text-decoration:line-through}
@@ -83,7 +88,7 @@ tr.done td .chip,tr.done td .loc,tr.done td input{text-decoration:none}
 th.due-hl,td.due-hl{background:var(--head);color:var(--ink)}
 tr:hover td.due-hl,tr.done td.due-hl{background:var(--head);color:var(--ink)}
 .tbl{overflow-x:auto}
-.btn{border:1px solid var(--line);background:var(--card);color:var(--ink);border-radius:2px;padding:5px 10px;font:inherit;font-size:12.5px;font-weight:500;cursor:pointer}
+.btn{border:1px solid var(--line);background:var(--card);color:var(--ink);border-radius:2px;padding:5px 10px;font:inherit;font-size:12.5px;font-weight:500;cursor:pointer;white-space:nowrap}
 .btn:hover{border-color:var(--acc);color:var(--acc)}
 .btn.pri{background:var(--acc);border-color:var(--acc);color:#fff}
 .btn.pri:hover{color:#fff;opacity:.9}
@@ -105,7 +110,7 @@ label{font-size:11px;color:var(--mut);font-weight:500;display:block;margin-botto
 .c-late{color:var(--red);border:1px solid var(--red)}
 .c-done{color:var(--green);border:1px solid var(--green)}
 .c-mut{color:var(--mut);border:1px solid var(--line)}
-.dept{display:inline-block;padding:1px 7px;border-radius:2px;font-size:11px;font-weight:700;color:#fff}
+.dept{display:inline-block;padding:1px 7px;border-radius:2px;font-size:11px;font-weight:700;color:#fff;white-space:nowrap}
 .d-경질{background:var(--dept-gj)}.d-창호{background:var(--dept-ch)}.d-타일{background:var(--dept-tl)}.d-DBP{background:var(--dept-dbp)}.d-기타{background:var(--mut)}
 .loc{font-family:Consolas,'Courier New',monospace;font-size:11.5px;font-weight:500;padding:1px 6px;border:1px solid var(--line);border-radius:2px;white-space:nowrap;background:var(--head)}
 .stat{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px;margin-bottom:12px}
@@ -136,7 +141,7 @@ textarea.mail:not(:read-only){background:var(--card);border-color:var(--acc)}
 body.driver main{max-width:900px}
 body.driver header .date{display:none}
 body.driver header button:not(#btnDrv):not(#sbGateBtn){display:none}
-body.driver #drvNotif{display:none!important}
+body.driver #drvNotif,body.driver #curWarn{display:none!important}
 .drv h2{font-size:19px;font-weight:700;margin:22px 0 10px;display:flex;align-items:center;gap:10px}
 .drv h2 .cnt{font-size:13.5px;color:var(--mut)}
 .drv .item{display:grid;grid-template-columns:1fr auto;gap:8px 14px;align-items:center;background:var(--card);border:1px solid var(--line);border-radius:4px;padding:14px 16px;margin-bottom:8px;font-size:17px}
@@ -170,8 +175,41 @@ details.card summary::-webkit-details-marker{display:none}
 details.card summary::before{content:'▸';color:var(--mut);transition:transform .15s}
 details.card[open] summary::before{transform:rotate(90deg)}
 details.card summary .cnt{font-size:11.5px;color:var(--mut);font-weight:500}
-@media(max-width:640px){.dlg .grid2{grid-template-columns:1fr}.drv .item{grid-template-columns:1fr}.drv .item .qty{text-align:left}}
+@media(max-width:640px){.dlg .grid2{grid-template-columns:1fr}.drv .item{grid-template-columns:1fr}.drv .item .qty{text-align:left}
+  /* 폰에서는 표가 카드 안에서 가로 스크롤 — 카드가 화면 밖으로 밀려나거나 셀이 글자 단위로 쪼개지지 않게 */
+  .card{overflow-x:auto;min-width:0}.grid>*{min-width:0}
+  td{white-space:nowrap}td .tag,td.empty{white-space:normal}}
 @media (prefers-reduced-motion: reduce){.toast{transition:none}}
+/* ── 캘린더 탭 ── */
+.calWeekHead{display:grid;grid-template-columns:repeat(7,1fr);gap:1px;background:var(--line2);border:1px solid var(--line2);border-bottom:none;font-size:11.5px;font-weight:700;color:var(--mut);text-align:center}
+.calWeekHead>div{background:var(--head);padding:5px 0}
+.calRows{display:grid;grid-template-columns:repeat(7,1fr);gap:1px;background:var(--line2);border:1px solid var(--line2);border-top:none}
+.calCell{background:var(--card);min-height:74px;padding:4px 5px;cursor:pointer;overflow:hidden}
+.calCell:hover{background:var(--row-hover)}
+.calCell.out{opacity:.4}
+.calCell.today .calDayNum{color:#fff;background:var(--acc);border-radius:50%;display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px}
+.calCell.sel{outline:2px solid var(--acc);outline-offset:-2px}
+.calDayNum{font-size:12px;font-weight:700;margin-bottom:3px}
+.calChips{display:flex;flex-wrap:wrap;gap:2px}
+.calChips .chip{font-size:9.5px;padding:0 4px}
+.calPreview{font-size:10.5px;color:var(--mut);margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.calGridWeek{display:grid;grid-template-columns:repeat(7,1fr);gap:1px;background:var(--line2);border:1px solid var(--line2)}
+.calWeekCell{background:var(--card);min-height:160px;padding:6px}
+.calWeekCell.today{background:var(--acc-soft)}
+.calGrpLbl{font-size:10.5px;font-weight:700;margin:6px 0 2px;padding:1px 4px;border-radius:2px;display:inline-block}
+.calGrpLbl.c-ord{color:var(--acc);background:transparent}
+.calGrpLbl.c-mut{color:var(--mut)}
+.calGrpLbl.c-wait{color:var(--amber)}
+.calTbl{margin-bottom:6px}
+.calTbl th{font-size:10px;padding:3px 6px}
+.calTbl td{font-size:11px;padding:3px 6px}
+.calEmpty{font-size:11px;color:var(--mut);margin-top:20px;text-align:center}
+@media(max-width:640px){.calWeekHead,.calRows,.calGridWeek{grid-template-columns:repeat(7,minmax(34px,1fr))}.calCell{min-height:56px}.calPreview{display:none}}
+/* 지게차 화면의 캘린더 — 손가락으로 탭하기 쉽게 셀·글자를 좀 더 크게 */
+.drvCal .calCell{min-height:56px;padding:7px}
+.drvCal .calDayNum{font-size:14.5px}
+.drvCal .calChips .chip{font-size:11px;padding:1px 5px}
+.drvCal .btn{font-size:14px;padding:8px 14px}
 </style>
 
 <header>
@@ -179,9 +217,10 @@ details.card summary .cnt{font-size:11.5px;color:var(--mut);font-weight:500}
   <span class="sub">입고 · 창고이동 · 발주 · 사급 한 화면</span>
   <!-- 화면이 최신 버전인지 바로 확인할 수 있게 표시 — 이 값이 다르면 브라우저가
        예전 파일을 캐시해 둔 것이므로 강력 새로고침(Ctrl+F5 / 아이폰은 Safari 재실행) 필요 -->
-  <span class="sub" id="buildStamp" title="화면 버전 — 최신이 아니면 Ctrl+F5로 강력 새로고침">v2026-08-27h</span>
+  <span class="sub" id="buildStamp" title="화면 버전 — 최신이 아니면 Ctrl+F5로 강력 새로고침">v2026-09-02d</span>
   <span class="sp"></span>
-  <span class="date">기준일 <input type="date" id="curDate" onchange="setDate(this.value)"></span>
+  <span class="date">기준일 <button class="btn sm" onclick="setDate(addDays(cur,-1))" title="하루 전 (기준일 −1)">◀</button><input type="date" id="curDate" onchange="setDate(this.value)"><button class="btn sm" onclick="setDate(addDays(cur,1))" title="하루 뒤 (기준일 +1)">▶</button></span>
+  <span id="curWarn" class="tag" style="display:none;background:var(--amber-soft);color:var(--amber);border:1px solid var(--amber);padding:3px 8px;border-radius:2px;font-weight:700;cursor:pointer" title="기준일이 오늘이 아니면 등록·체크가 이 날짜로 기록됩니다" onclick="setDate(realToday())">⚠ 기준일이 오늘이 아님 — 오늘로</span>
   <span class="savebox" id="saveBox"><i></i><span id="saveTxt">불러오는 중</span></span>
   <span class="chip c-wait" id="drvNotif" style="display:none;cursor:pointer" onclick="clearDrvNotif()" title="눌러서 확인"></span>
   <span class="chip c-late" id="delAlert" style="display:none;cursor:pointer" onclick="ackDeletes()" title="눌러서 삭제 기록 보기"></span>
@@ -193,6 +232,7 @@ details.card summary .cnt{font-size:11.5px;color:var(--mut);font-weight:500}
 </header>
 <nav id="nav">
   <button data-t="board" class="on" onclick="showTab('board')">현황</button>
+  <button data-t="cal" onclick="showTab('cal')">캘린더</button>
   <button data-t="move" onclick="showTab('move')">배합실요청<span class="b" id="bMove" hidden></span></button>
   <button data-t="order" onclick="showTab('order')">발주 · 입고<span class="b" id="bOrder" hidden></span></button>
   <button data-t="consign" onclick="showTab('consign')">사급발주<span class="b" id="bCons" hidden></span></button>
@@ -207,6 +247,10 @@ details.card summary .cnt{font-size:11.5px;color:var(--mut);font-weight:500}
 <!-- ═══════ 오늘 작업판 ═══════ -->
 <section id="tab-board">
   <div class="stat" id="stats"></div>
+  <div class="card" id="mvErpAlertBoard" style="display:none;border-color:var(--amber);cursor:pointer" onclick="showTab('move')">
+    <h2 style="color:var(--amber)">⚠ 전산이동 미완료(이전 날짜) <span class="cnt" id="cntMvErpAlertBoard"></span></h2>
+    <div class="hint">기준일이 지났는데 전산이동완료 처리가 안 된 건이 있습니다 — 탭하면 배합실요청 화면에서 바로 처리할 수 있어요.</div>
+  </div>
   <div class="grid g2" id="boardCards">
     <div class="card">
       <h2>오늘 입고 예정 <span class="cnt" id="cntIn"></span></h2>
@@ -268,7 +312,9 @@ details.card summary .cnt{font-size:11.5px;color:var(--mut);font-weight:500}
         <div class="tag" style="margin-bottom:4px">납품 날짜(선택 · 주말 포함) → 수량 탭 = 기록</div>
         <div class="quick" id="sp2When" style="margin:0 0 8px"></div>
         <div class="quick qm-qty" id="sp2Qty" style="margin:0 0 10px"></div>
+        <input id="sp2Note" placeholder="비고 (선택)" style="width:100%;margin-bottom:8px">
         <label style="display:flex;align-items:center;gap:5px;font-size:12.5px;color:var(--ink)"><input type="checkbox" id="sp2Ord" checked>발주도 같이 등록</label>
+        <div id="sp2Undo" class="row" style="align-items:center;margin-top:6px"></div>
       </div>
     </div>
     <div class="qm-group" style="margin-top:16px">
@@ -277,7 +323,7 @@ details.card summary .cnt{font-size:11.5px;color:var(--mut);font-weight:500}
       <div id="qmQtyBox" style="display:none">
         <div class="row" style="align-items:center;margin-top:6px">
           <b id="qmSelName" style="font-size:16px"></b>
-          <select id="qmUnit"><option>kg</option><option>Bag</option><option>PLT</option><option>드럼</option><option>Box</option><option>대</option></select>
+          <select id="qmUnit" onchange="qmUnitSel=this.value"><option>kg</option><option>Bag</option><option>PLT</option><option>드럼</option><option>Box</option><option>대</option></select>
           <span class="tag" id="qmLoc"></span>
         </div>
         <div class="quick qm-qty" id="qmQty" style="margin:8px 0 4px"></div>
@@ -288,6 +334,11 @@ details.card summary .cnt{font-size:11.5px;color:var(--mut);font-weight:500}
         </form>
       </div>
     </div>
+  </div>
+  <div class="card" id="mvErpAlertCard" style="display:none;border-color:var(--amber)">
+    <h2 style="color:var(--amber)">⚠ 전산이동 미완료(이전 날짜) <span class="cnt" id="cntMvErpAlert"></span></h2>
+    <div class="hint" style="margin-bottom:8px">기준일이 지났는데 전산이동완료 처리가 안 된 건입니다 — 그냥 두면 목록에서 안 보여 잊기 쉬워요.</div>
+    <div class="tbl scroll"><table><thead><tr><th>날짜</th><th>부서</th><th>품목</th><th class="num">수량</th><th>출고창고</th><th></th></tr></thead><tbody id="mvErpAlertBody"></tbody></table></div>
   </div>
   <div class="card">
     <h2>기준일 요청 목록 <span class="cnt" id="cntMv2"></span><span style="margin-left:auto;display:flex;gap:8px;align-items:center;flex-wrap:wrap"><span class="tag" id="mvSelCnt"></span><button class="btn sm pri" onclick="bulkDoneMv()">실물이동완료</button><button class="btn sm" onclick="bulkErpMv()">전산이동완료</button></span></h2>
@@ -318,15 +369,15 @@ details.card summary .cnt{font-size:11.5px;color:var(--mut);font-weight:500}
     <div class="row">
       <div style="flex:2;min-width:260px"><label>빠른선택</label><select id="odPreset" onchange="applyPreset()"><option value="">— 프리셋 선택 —</option></select><div id="presetGate" style="display:none;margin-top:4px"></div></div>
       <div><label>구분</label><select id="odType"><option value="self">자가(부강 입고)</option><option value="consign">사급(업체 직납)</option></select></div>
-      <div><label>발주일</label><input id="odDate" type="date"></div>
+      <div><label>발주일</label><input id="odDate" type="date" onchange="odEtaAuto()"></div>
     </div>
     <div class="row" style="margin-top:8px">
       <div style="min-width:150px"><label>매입처</label><input id="odVendor" list="vendorList"></div>
-      <div style="flex:2;min-width:180px"><label>품목</label><input id="odItem" list="itemList" oninput="autoLoc('od')"></div>
+      <div style="flex:2;min-width:180px"><label>품목</label><input id="odItem" list="itemList" oninput="autoLoc('od')" onchange="odEtaAuto()"></div>
       <div style="min-width:120px"><label>납품처</label><input id="odDest" list="destList" value="자가(세종·부강)"></div>
       <div><label>수량</label><input id="odQty" type="number" step="any" style="width:90px;text-align:right"></div>
       <div><label>단위</label><select id="odUnit"><option>kg</option><option>Bag</option><option>드럼</option><option>대</option><option>PLT</option></select></div>
-      <div><label>착일(입고예정)</label><input id="odEta" type="date"></div>
+      <div><label>착일(입고예정)</label><input id="odEta" type="date" onchange="odEtaTouched=!!this.value"></div>
       <div><label>창고</label><input id="odLoc" style="width:110px"></div>
       <div><label>부서</label><select id="odDept"><option>경질</option><option>창호</option><option>타일</option><option>DBP</option><option>전사</option><option>사급</option></select></div>
       <div style="flex:1;min-width:120px"><label>비고</label><input id="odNote" placeholder="도착시간, 2대 등"></div>
@@ -386,6 +437,7 @@ details.card summary .cnt{font-size:11.5px;color:var(--mut);font-weight:500}
     <div class="hint">운영 규칙<br>· 전산 재고 차감은 <b>배차완료(실물 출고)</b> 시점<br>· 찢어진 지대는 사급 출고 금지(협의 후 자사 투입)<br>· 업체→업체 이동은 <b>거래명세서 수령 전 입고완료 금지</b><br>· 당월 사용분은 이월 불가(익월분만 승인 후 이월)<br>· M-210 월1회 입항분은 행선지 건별 확인 전 배차 금지</div>
     <div class="row" style="margin-bottom:10px">
       <select id="csFlt" onchange="renderCs()"><option value="">전체</option><option value="대기">대기(발주/출고 전)</option><option value="진행">진행(입고/출고 대기)</option><option value="완료">완료</option></select>
+      <select id="csActionFlt" onchange="renderCs()"><option value="">처리 전체</option><option value="발주">발주</option><option value="직접출고">직접출고</option><option value="확인">확인</option><option value="제외">제외</option></select>
       <input id="csSearch" placeholder="사급처·품목 검색" oninput="renderCs()" style="flex:1;min-width:140px">
       <div><label>납기 날짜</label><input type="date" id="csDueDateFlt" onchange="renderCs()"></div>
       <div><label>납기 월</label><input type="month" id="csDueMonthFlt" onchange="renderCs()"></div>
@@ -414,12 +466,33 @@ details.card summary .cnt{font-size:11.5px;color:var(--mut);font-weight:500}
   <div class="card">
     <h2>주기 기준 대상 (자가 발주) <span class="cnt" id="cntCycMat"></span></h2>
     <div class="hint">"자가 아님"에 체크하면 현황 화면 "주기 기준" 표에서 빠집니다. 주기·1회 발주량도 여기서 바로 수정됩니다.</div>
-    <input id="cycSearch" placeholder="품목 검색" oninput="renderCycMat()" style="width:100%;margin:10px 0">
-    <div class="tbl scroll"><table><thead><tr><th>품목</th><th>주기</th><th class="num">1회 발주량</th><th>단위</th><th>자가 아님(제외)</th></tr></thead><tbody id="cycMatBody"></tbody></table></div>
+    <div class="row" style="margin:10px 0"><input id="cycSearch" placeholder="품목 검색" oninput="renderCycMat()" style="flex:1;min-width:160px"><button class="btn sm pri" onclick="addCycRow()">+ 품목 추가</button></div>
+    <div class="tbl scroll"><table><thead><tr><th>품목</th><th>주기</th><th class="num">1회 발주량</th><th>단위</th><th>자가 아님(제외)</th><th></th></tr></thead><tbody id="cycMatBody"></tbody></table></div>
   </div>
   <div class="card">
     <h2>사급처별 요청 대응 이력 (발주 대응 vs 14동 직접출고)</h2>
     <div class="tbl scroll"><table><thead><tr><th>사급처</th><th class="num">요청건수</th><th>발주 대응 품목</th><th>직접출고 품목</th></tr></thead><tbody id="respBody"></tbody></table></div>
+  </div>
+</section>
+
+<!-- ═══════ 캘린더 ═══════ -->
+<section id="tab-cal" style="display:none">
+  <div class="card">
+    <h2>캘린더 <span class="cnt">입고 · 창고이동 · 출고 한눈에 보기</span></h2>
+    <div class="row" style="align-items:center;margin-bottom:8px;flex-wrap:wrap">
+      <button class="btn sm ghost" onclick="calShift(-1)">◀</button>
+      <b id="calLabel" style="min-width:110px;text-align:center"></b>
+      <button class="btn sm ghost" onclick="calShift(1)">▶</button>
+      <button class="btn sm" onclick="calToday()">오늘</button>
+      <span style="flex:1;min-width:8px"></span>
+      <div id="calViewToggle" class="row" style="gap:4px"></div>
+    </div>
+    <div class="hint" style="margin-bottom:8px"><span class="chip c-ord">■</span> 입고&nbsp; <span class="chip c-mut">■</span> 창고이동&nbsp; <span class="chip c-wait">■</span> 출고 — 날짜를 누르면 아래에 자세히 표시됩니다</div>
+    <div id="calGrid"></div>
+  </div>
+  <div class="card" id="calDayCard" style="display:none">
+    <h2>상세 <span class="cnt" id="calDayLabel"></span></h2>
+    <div id="calDayDetail"></div>
   </div>
 </section>
 
@@ -632,7 +705,7 @@ const short=s=>String(s||'').replace(/^.*?_(?=[^_]+$)/,'');  // 'TiO2_TIONA-696'
    이 함수를 다시 호출해야 패치가 사라지지 않음 — sb 연결 코드에서 재호출하는 부분 참고.
    M._patchVersion으로 딱 한 번만 실행되게 막아둠 — 기준정보 탭에서 사람이 직접 고친 값을
    다음 로그인 때 또 덮어쓰지 않기 위함. 새 패치를 추가할 땐 MASTER_PATCH_VERSION을 올릴 것. */
-const MASTER_PATCH_VERSION=3;
+const MASTER_PATCH_VERSION=6;
 function applyMasterPatches(){
   if((M._patchVersion||0)>=MASTER_PATCH_VERSION)return;
   const bag=M.rop.find(r=>r.item==='BAG'&&/단석/.test(r.vendor||''));if(bag)bag.item='DS356S1';
@@ -685,6 +758,16 @@ function applyMasterPatches(){
   // _patchVersion으로 한 번만 실행되도록 잠겨 있어서, 서버 마스터가 이미 최신 버전이면
   // 영원히 다시 실행되지 않는 게 문제였음. 지금은 isCycleExcluded()가 렌더링할 때마다
   // 이름으로 걸러내므로 저장된 플래그나 패치 버전과 무관하게 항상 제외됨.
+  // v5: 주기 기준 대상은 P-1000F·P-1000·P-800·P-700 4개만 남김 — 없으면 추가하고
+  // 나머지는 정리(최초 1회만 — 이후 기준정보 탭에서 사람이 다시 추가한 품목까지 지우지는 않음).
+  ['P-1000F','P-1000','P-800','P-700'].forEach(name=>{
+    if(!M.presetSelf.find(p=>norm(p.item)===norm(name)))M.presetSelf.push({item:name,label:name,cycle:'격주',qty:null,unit:'대'});
+  });
+  const CYC_KEEP=new Set(['P-1000F','P-1000','P-800','P-700'].map(norm));
+  M.presetSelf=M.presetSelf.filter(p=>CYC_KEEP.has(norm(p.item)));
+  // v6: M301P2(주택용·장판) 라인 철거 — 이제 아예 입고 자체가 없으므로 발주 기준(M.rop)
+  // 표에서 관련 품목을 완전히 제거(최초 1회만 — 이후 사람이 다시 등록한 건 안 건드림).
+  M.rop=M.rop.filter(r=>norm(r.loc)!=='M301P2');
   M._patchVersion=MASTER_PATCH_VERSION;
   if(sb&&sbOK)sbSaveMasterAfterPatch();
 }
@@ -802,10 +885,15 @@ function sbNormalize(d){
     fcPlan:arrOfObj(d.fcPlan),invHist:arrOfObj(d.invHist),
     inv:isObj(d.inv)?d.inv:undefined};
 }
+/* 20초 폴링/브로드캐스트로 받은 서버 데이터가 지금 화면과 같으면 다시 그리지 않음 —
+   매번 innerHTML을 갈아엎으면 보고 있던 스크롤·입력 중 포커스가 날아가기 때문 */
+let sbLastJson='';
 function sbApply(raw){
   const n=sbNormalize(raw);if(!n)return false;
+  const j=JSON.stringify(n);
+  if(j===sbLastJson)return true;
   sbApplying=true;
-  try{S=n;refreshAll();}finally{sbApplying=false;}
+  try{S=n;sbLastJson=j;refreshAll();}finally{sbApplying=false;}
   return true;
 }
 function sbInit(){
@@ -874,6 +962,7 @@ async function sbConnect(pass){
   clearInterval(sbPollT);
   sbPollT=setInterval(async()=>{
     if(sbApplying||sbPendingSave)return;
+    if(sbSaveFailed){sbQueueSave();return;}   // 못 보낸 편집이 있으면 받기 전에 먼저 재전송
     try{const{data:nd}=await sb.rpc('get_board',{p_id:SB_BOARD,p_passcode:sbPass});if(nd)sbApply(nd);}catch(e){}
   },20000);
 }
@@ -881,22 +970,26 @@ function sbSubscribe(){
   if(!sb||sbCh)return;
   sbCh=sb.channel('board-'+SB_BOARD).on('broadcast',{event:'update'},async({payload})=>{
     if(payload&&payload.by===sbClientId)return;
-    if(sbApplying||sbPendingSave)return;
+    if(sbApplying||sbPendingSave||sbSaveFailed)return;
     try{const{data}=await sb.rpc('get_board',{p_id:SB_BOARD,p_passcode:sbPass});if(data)sbApply(data);}catch(e){}
   }).subscribe();
 }
 /* 이 기기가 아직 서버로 못 보낸 로컬 수정이 있는 동안은(디바운스 대기·전송 중)
    다른 기기에서 온 데이터로 로컬을 덮어쓰지 않음 — 안 그러면 "수정하고 저장했는데
    반영이 안 됨"처럼 방금 한 편집이 원격 데이터에 덮여 사라지는 경합이 생김. */
-let sbPendingSave=false;
+let sbPendingSave=false,sbSaveFailed=false,sbSaveFails=0;
+const SB_SAVE_MAX_RETRY=5;   // 이만큼 연달아 실패하면 재시도를 멈추고 수신 동기화를 다시 연다(무한 루프 방지)
+function sbSaveErr(msg){sbSaveFails++;if(sbSaveFails>=SB_SAVE_MAX_RETRY){sbSaveFailed=false;sbSaveFails=0;setSave('ro',msg+' — 새로고침 후 다시 입력하세요');toast('저장이 계속 실패해 자동 재시도를 멈췄습니다 — 새로고침 후 확인');return;}sbSaveFailed=true;setSave('ro',msg+' (자동 재시도 중)');}
 function sbQueueSave(){
   if(!sb||!sbOK)return;
   sbPendingSave=true;
   clearTimeout(sbSaveT);
   sbSaveT=setTimeout(async()=>{
     try{
-      let res;try{res=await sb.rpc('set_board',{p_id:SB_BOARD,p_passcode:sbPass,p_data:S});}catch(e){setSave('ro','저장 실패 — 네트워크 확인');return;}
-      if(res&&res.error){setSave('ro','저장 실패: '+res.error.message);return;}
+      // 실패하면 sbSaveFailed를 켜서, 다음 폴링이 서버 데이터로 방금 한 편집을 덮어쓰지 않고 재전송하게 함
+      let res;try{res=await sb.rpc('set_board',{p_id:SB_BOARD,p_passcode:sbPass,p_data:S});}catch(e){sbSaveErr('저장 실패 — 네트워크 확인');return;}
+      if(res&&res.error){sbSaveErr('저장 실패: '+res.error.message);return;}
+      sbSaveFailed=false;sbSaveFails=0;sbLastJson=JSON.stringify(S);
       setSave('ok','실시간 저장됨 '+new Date().toTimeString().slice(0,5));
       try{sbCh?.send({type:'broadcast',event:'update',payload:{by:sbClientId,ts:Date.now()}});}catch(e){}
       sendServerPush();   // 앱을 꺼둔 기사에게도 알림
@@ -938,12 +1031,15 @@ async function matField(idx,key,val){
     if(res&&res.error)toast('저장 실패 — 네트워크 확인');else toast(`${m.name} 저장됨`);
   }catch(e){toast('저장 실패 — 네트워크 확인');}
 }
-function ensureMaterial(item,extra){
+function materialExists(name){return M.materials.some(m=>norm(m.name)===norm(name));}
+function addMaterial(item,extra){
   const name=String(item||'').trim();
-  if(!name)return false;
-  const n=norm(name);
-  if(M.materials.some(m=>norm(m.name)===n))return false;
+  if(!name||materialExists(name))return false;
   M.materials.push({name,kind:'',pack:'',unitKg:null,vendor:(extra&&extra.vendor)||'',use:(extra&&extra.use)||'',loc:(extra&&extra.loc)||'',note:'자동 등록'});
+  return true;
+}
+function ensureMaterial(item,extra){
+  if(!addMaterial(item,extra))return false;
   fillLists();
   if(sb&&sbOK)sbSaveMasterMaterials();
   return true;
@@ -963,7 +1059,8 @@ function showTab(t){
   if(t==='driver')renderDriver();
   if(t==='trash')markLogSeen();   // 열어본 시점에만 경고 해제
 }
-function setDate(d){cur=d;refreshAll();}
+/* 기준일을 바꾸면 이전 날짜에서 체크해 둔 선택(일괄 처리용)은 비움 — 안 보이는 행이 일괄 완료되는 사고 방지 */
+function setDate(d){cur=/^\d{4}-\d{2}-\d{2}$/.test(d||'')?d:realToday();selMv.clear();selOd.clear();selCs.clear();refreshAll();}   // 날짜칸을 비우거나 잘못된 값이면 오늘로
 /* 기사 모드 잠금 — #driver 링크로 연 기기는 기사 모드 고정, 관리 화면 진입은 비밀번호 필요 */
 const ADMIN_PIN='6623';
 /* 삭제기록 탭 잠금 — 지운 이력과 되살리기는 자재과만 볼 수 있어야 함.
@@ -1005,14 +1102,18 @@ function toggleDriver(){
   document.body.classList.add('driver');
   document.getElementById('nav').style.display='none';
   document.getElementById('btnDrv').textContent='관리 화면';
-  location.hash='driver';
+  // 여기서 location.hash를 'driver'로 바꾸면 hashchange→applyHashMode가 이 기기를 기사 전용으로
+  // 고정(jjDrvDevice)해 버려서, PC에서 "어떻게 보이나" 눌러본 뒤 비밀번호 없이는 못 돌아왔음.
+  // 미리보기 토글은 화면만 바꾸고, 기기 고정은 #driver 링크로 열었을 때만.
   showTab('driver');
 }
 
 /* ═════════ 공통 렌더 ═════════ */
 function refreshAll(){
   document.getElementById('curDate').value=cur;
-  renderBoard();renderMoves();renderOrders();renderCs();renderMaster();renderDriver();fillLists();renderSpQuick();renderQm();renderStats();renderFc();
+  // 관리 화면에도 "기준일 ≠ 오늘" 경고(기사 화면엔 원래 있음) — 다른 날짜로 옮겨둔 채 등록·체크하는 사고 방지
+  const cw=document.getElementById('curWarn');if(cw)cw.style.display=cur!==realToday()?'':'none';
+  renderBoard();renderMoves();renderOrders();renderCs();renderMaster();renderDriver();fillLists();renderSpQuick();renderQm();renderCalendar();renderStats();renderFc();
   const odN=S.orders.filter(o=>!o.skip&&!o.inDate).length, mvN=S.moves.filter(m=>m.date===cur&&!m.done).length, csN=S.cons.filter(c=>!c.done&&!c.ordDate&&!c.outDate).length;
   badge('bMove',mvN);badge('bOrder',odN);badge('bCons',csN);
   updateDrvNotif();
@@ -1095,7 +1196,7 @@ function fillLists(){
   if(!document.getElementById('odDate').value)document.getElementById('odDate').value=cur;
 }
 function autoLoc(p){const v=document.getElementById(p+'Item').value;const m=matchItem(v);document.getElementById(p+'Loc').value=m?m.loc.replace('(경질창고)',''):'';
-  if(p==='od'&&m){document.getElementById('odVendor').value=document.getElementById('odVendor').value||m.vendor;const d=deptOf(m);if(d)document.getElementById('odDept').value=d;document.getElementById('odEta').value=addDays(document.getElementById('odDate').value||cur,leadOf(v));}}
+  if(p==='od'&&m){document.getElementById('odVendor').value=document.getElementById('odVendor').value||m.vendor;const d=deptOf(m);if(d)document.getElementById('odDept').value=d;odEtaAuto();}}
 function deptChip(d){return `<span class="dept d-${['경질','창호','타일','DBP'].includes(d)?d:'기타'}">${esc(d)}</span>`;}
 
 /* ═════════ 오늘 작업판 ═════════ */
@@ -1166,6 +1267,14 @@ function applyCycSuggest(item,newCycle){
 }
 function orderStatus(o){if(o.skip)return'취소';if(o.inDate)return'입고완료';if(o.eta&&cur>o.eta)return'입고지연';return'발주완료';}
 function renderBoard(){
+  // 전산이동 미완료(이전 날짜) 알림 — 창고이동 요청 목록은 날짜별로 보여서 다음날이 되면
+  // 화면에서 사라져 버리므로, 잊지 않게 현황(기본 화면)에도 눈에 띄게 표시
+  const mvOverdue=overdueErpMoves();
+  const mvAlertEl=document.getElementById('mvErpAlertBoard');
+  if(mvAlertEl){
+    mvAlertEl.style.display=mvOverdue.length?'':'none';
+    document.getElementById('cntMvErpAlertBoard').textContent=mvOverdue.length?`${mvOverdue.length}건`:'';
+  }
   // 입고 예정
   const ins=S.orders.filter(o=>o.eta===cur&&o.type==='self'||(o.eta===cur&&o.type==='consign'&&false)).sort((a,b)=>(a.loc||'').localeCompare(b.loc||''));
   const late=S.orders.filter(o=>!o.inDate&&o.eta&&o.eta<cur&&o.type==='self');
@@ -1198,7 +1307,7 @@ function renderBoard(){
     }).join(''):'<tr><td colspan="7" class="empty">발주점 도달 품목 없음 — 전 품목 재고 여유</td></tr>';
     document.getElementById('cntRop').textContent=rop.length?`부족 ${rop.filter(r=>r.stk<=r.rop).length} · 임박 ${rop.filter(r=>r.stk>r.rop).length}`:'';
   }
-  document.getElementById('boardDue').innerHTML=due.length?due.map((p,i)=>`<tr><td>${p.type==='self'?'<span class="chip c-mut">자가</span>':'<span class="chip c-ord">'+esc(p.dest)+'</span>'}</td><td><b>${esc(short(p.item))}</b></td><td class="num">${fmtN(p.qty)} ${esc(p.unit)}</td><td>${esc(p.cycle)}</td><td>${p.last?fmtK(p.last):'<span class="tag">이력 없음</span>'}</td><td class="dday ${p.gap!=null&&p.gap>p.cyc+1?'late':'soon'}">${p.gap!=null?`+${p.gap}일`:'—'}</td><td><button class="btn sm warn" onclick="quickOrder('${p.type}',${p.type==='self'?M.presetSelf.indexOf(M.presetSelf.find(x=>x.label===p.label)):M.presetConsign.indexOf(M.presetConsign.find(x=>x.label===p.label))})">발주 체크</button> <button class="btn sm ghost" onclick="skipOrder('${p.type}',${p.type==='self'?M.presetSelf.indexOf(M.presetSelf.find(x=>x.label===p.label)):M.presetConsign.indexOf(M.presetConsign.find(x=>x.label===p.label))})" title="오늘은 발주 안 함 (주기 리셋)">건너뜀</button></td></tr>`).join(''):'<tr><td colspan="7" class="empty">오늘 주기 도래 품목 없음</td></tr>';
+  document.getElementById('boardDue').innerHTML=due.length?due.map((p,i)=>`<tr><td>${p.type==='self'?'<span class="chip c-mut">자가</span>':'<span class="chip c-ord">'+esc(p.dest)+'</span>'}</td><td><b>${esc(short(p.item))}</b></td><td class="num">${p.qty?fmtN(p.qty)+' '+esc(p.unit):'—'}</td><td>${esc(p.cycle)}</td><td>${p.last?fmtK(p.last):'<span class="tag">이력 없음</span>'}</td><td class="dday ${p.gap!=null&&p.gap>p.cyc+1?'late':'soon'}">${p.gap!=null?`+${p.gap}일`:'—'}</td><td><button class="btn sm warn" onclick="quickOrder('${p.type}',${p.type==='self'?M.presetSelf.indexOf(M.presetSelf.find(x=>x.label===p.label)):M.presetConsign.indexOf(M.presetConsign.find(x=>x.label===p.label))})">발주 체크</button> <button class="btn sm ghost" onclick="skipOrder('${p.type}',${p.type==='self'?M.presetSelf.indexOf(M.presetSelf.find(x=>x.label===p.label)):M.presetConsign.indexOf(M.presetConsign.find(x=>x.label===p.label))})" title="오늘은 발주 안 함 (주기 리셋)">건너뜀</button></td></tr>`).join(''):'<tr><td colspan="7" class="empty">오늘 주기 도래 품목 없음</td></tr>';
   document.getElementById('cntDue').textContent=dueN?(hasInv?`재고부족 ${rop.filter(r=>r.stk<=r.rop).length} · 주기 ${due.length}건`:`${due.length}건`):'';
   const cycSug=cycleSuggestions();
   document.getElementById('cycSugLbl').style.display=cycSug.length?'':'none';
@@ -1210,7 +1319,8 @@ function renderBoard(){
   document.getElementById('cntCs').textContent=cs.length?`${cs.length}건`:'';
   // 특이사항
   const sp=S.specials[cur]||{};
-  document.querySelectorAll('[data-sp]').forEach(i=>{i.value=sp[i.dataset.sp]||'';i.onchange=()=>{S.specials[cur]=S.specials[cur]||{};S.specials[cur][i.dataset.sp]=i.value;saveDB();renderDriver();};});
+  // 타이핑 중인 칸(포커스)은 20초 동기화 리렌더가 덮어쓰지 않게 건너뜀 — blur(onchange) 때 저장됨
+  document.querySelectorAll('[data-sp]').forEach(i=>{if(document.activeElement!==i)i.value=sp[i.dataset.sp]||'';i.onchange=()=>{S.specials[cur]=S.specials[cur]||{};S.specials[cur][i.dataset.sp]=i.value;saveDB();renderDriver();};});
   renderNotes();
   // 통계
   const lateN=S.orders.filter(o=>orderStatus(o)==='입고지연').length;
@@ -1313,16 +1423,19 @@ function ropOrder(item){
 
 /* ═════════ 특이사항 · 벌크/직납 발주 원터치 ═════════ */
 const SP_ITEMS={
- '경질':['P-1000','P-800','DOTP(드럼)','TIONA-696(백)','TIONA-696(지대)','K-2450(백)','K-2450(지대)'],
+ '경질':['P-1000','P-800'],
  '창호':['P-1000F','NR-950','CPE','DWC4Z','DWC6Z','SJ-01'],
- '타일':['P-1000','GPPS(재생)','GPPS(유니드글로벌)','DHA-100','ROSIN C-9'],
+ '타일':['P-700'],
  'DBP':['P-700','SP-390']};
-const SP_BULK=new Set(['P-1000','P-800','P-1000F','P-700','SP-390','DOTP(드럼)']);
-const SP_ROPKEY={'TIONA-696(백)':'TIONA-696','TIONA-696(지대)':'TIONA-666(696)','K-2450(백)':'Kronos2450','K-2450(지대)':'Kronos2450','GPPS(재생)':'PSGNT1TPZ','GPPS(유니드글로벌)':'125EB','DHA-100':'DHA-100','ROSIN C-9':'ROSIN C-9','NR-950':'NR-950','CPE':'CPE H-135','DWC4Z':'DWC4Z','DWC6Z':'DWC6Z','SJ-01':'SJ-01','SP-390':'DOTP'};
-let spSel='',spWhen=-1;
+const SP_BULK=new Set(['P-1000','P-800','P-1000F','P-700','SP-390']);
+const SP_ROPKEY={'NR-950':'NR-950','CPE':'CPE H-135','DWC4Z':'DWC4Z','DWC6Z':'DWC6Z','SJ-01':'SJ-01','SP-390':'DOTP'};
+let spSel='',spWhen=-1,spCustomDate='';
 function spWhens(){
-  const a=[{label:'오전',date:cur},{label:'오후',date:cur}];
-  for(let i=1;i<=4;i++){const d=addDays(cur,i);a.push({label:(i===1?'내일 ':'')+fmtK(d),date:d});}
+  // 기준일(cur)이 아니라 실제 오늘(realToday)을 기준으로 계산 — 관리자가 다른 날짜 게시판을
+  // 보고 있던 중이어도(cur가 오늘이 아니어도) "오전/오후"가 항상 진짜 오늘을 가리키게 함.
+  const rt=realToday();
+  const a=[{label:'오전',date:rt},{label:'오후',date:rt}];
+  for(let i=1;i<=4;i++){const d=addDays(rt,i);a.push({label:(i===1?'내일 ':'')+fmtK(d),date:d});}
   return a;
 }
 function renderSpQuick(){
@@ -1331,51 +1444,94 @@ function renderSpQuick(){
   if(spSel&&!(SP_ITEMS[d]||[]).includes(spSel))spSel='';
   document.getElementById('sp2Items').innerHTML=(SP_ITEMS[d]||[]).map((it,i)=>`<button class="${spSel===it?'sel':''}" onclick="spPick(${i})">${it}</button>`).join('');
   const ex=document.getElementById('sp2Extra');if(ex)ex.style.display=spSel?'':'none';
-  document.getElementById('sp2When').innerHTML=spWhens().map((w,i)=>`<button class="${spWhen===i?'sel':''}" onclick="spWhenSet(${i})">${w.label}</button>`).join('');
+  // 버튼으로 없는 날짜(주말 포함 임의 날짜)도 고를 수 있게 맨 끝에 달력 아이콘 추가 —
+  // 기존 오전·오후·+1~4일 버튼은 그대로 두고 직접선택 옵션만 더함.
+  document.getElementById('sp2When').innerHTML=spWhens().map((w,i)=>`<button class="${spWhen===i?'sel':''}" onclick="spWhenSet(${i})">${w.label}</button>`).join('')
+    // 달력 버튼 바로 옆에서 날짜창이 뜨도록 버튼·입력칸을 relative 컨테이너로 묶음
+    // (감싸는 요소 없이 그냥 absolute만 주면 더 위에 있는 조상 기준으로 잡혀 화면 왼쪽에 떠버림).
+    +`<span style="position:relative;display:inline-block"><button class="${spWhen==='custom'?'sel':''}" onclick="spOpenCustomDate()" title="날짜 직접 선택">📅${spWhen==='custom'&&spCustomDate?' '+fmtK(spCustomDate):''}</button><input type="date" id="sp2CustomDate" value="${esc(spCustomDate)}" style="position:absolute;left:0;top:100%;width:1px;height:1px;opacity:0;pointer-events:none" onchange="spCustomDateSet(this.value)"></span>`;
   document.getElementById('sp2Qty').innerHTML=spSel?(SP_BULK.has(spSel)
     ?[1,2,3].map(n2=>`<button onclick="spAdd(${n2},true)"><b>${n2}대</b></button>`).join('')
     :[500,1000,2000,3000,4000,5000,8000,10000].map(n2=>`<button onclick="spAdd(${n2},false)">${n2>=1000?(n2/1000)+'t':n2+'kg'}</button>`).join('')
   ):'<span class="tag">품목을 먼저 탭</span>';
+  const ub=document.getElementById('sp2Undo');
+  if(ub)ub.innerHTML=spLast?`<span class="tag">방금 등록: <b>${esc(spLast.entry)}</b>${spLast.orderIds.length?' + 발주':''}</span> <button class="btn sm ghost" onclick="spUndo()">↩ 방금 등록 취소</button>`:'';
 }
 function spPick(i){spSel=(SP_ITEMS[qmDept]||[])[i];renderSpQuick();}
-function spWhenSet(i){spWhen=spWhen===i?-1:i;renderSpQuick();}
+function spWhenSet(i){spWhen=spWhen===i?-1:i;spCustomDate='';renderSpQuick();}
+function spOpenCustomDate(){
+  const el=document.getElementById('sp2CustomDate');if(!el)return;
+  if(el.showPicker)el.showPicker();else el.click();
+}
+function spCustomDateSet(v){
+  if(!v)return;
+  spCustomDate=v;spWhen='custom';
+  renderSpQuick();
+}
 function spAdd(n,isDae){
   if(!spSel){toast('품목을 먼저 탭하세요');return;}
   const d=qmDept;
-  const w=spWhen>=0?spWhens()[spWhen]:null;
-  const entry=`${spSel} ${isDae?n+'대':fmtN(n)+'kg'}${w?' '+w.label:''}`;
-  S.specials[cur]=S.specials[cur]||{};
-  S.specials[cur][d]=(S.specials[cur][d]?S.specials[cur][d]+', ':'')+entry;
+  const w=spWhen==='custom'&&spCustomDate?{label:fmtK(spCustomDate),date:spCustomDate}:(spWhen>=0?spWhens()[spWhen]:null);
+  const note=(document.getElementById('sp2Note')?.value||'').trim();
+  const entry=`${spSel} ${isDae?n+'대':fmtN(n)+'kg'}${w?' '+w.label:''}${note?' ('+note+')':''}`;
+  // 오전/오후 등 날짜 라벨이 실제 오늘 기준이므로, 특이사항도 관리자가 보던 기준일(cur)이 아니라
+  // 실제 오늘 게시판에 남겨야 나중에 그 날짜 게시판에서 봤을 때 내용이 맞음(기준일이 밀려 있어도).
+  const sd=realToday();
+  S.specials[sd]=S.specials[sd]||{};
+  S.specials[sd][d]=(S.specials[sd][d]?S.specials[sd][d]+', ':'')+entry;
   const doOrd=document.getElementById('sp2Ord').checked;
-  if(doOrd)spRegisterOrder(spSel,n,d,isDae,w&&w.date!==cur?w.date:'');
-  spWhen=-1;
+  // 날짜 버튼(오전/오후/+N일/달력)을 골랐으면 그 날짜가 곧 납품일 — 발주 착일(eta)도 그대로 맞춤.
+  // (예전엔 오전/오후는 "오늘"이라 착일을 안 넘겨서 리드타임 기본값(+2일)으로 잡히는 문제가 있었음)
+  const seqBefore=S.seq;
+  if(doOrd)spRegisterOrder(spSel,n,d,isDae,w?w.date:'',note);
+  // 방금 등록한 1건은 [취소]로 되돌릴 수 있게 기억 — 수량을 먼저 탭해 날짜 없이 잘못 등록된 경우 대비
+  spLast={sd,d,entry,orderIds:S.orders.filter(o=>o.id>=seqBefore&&o.id<S.seq).map(o=>o.id)};
+  spWhen=-1;spCustomDate='';
+  const noteEl=document.getElementById('sp2Note');if(noteEl)noteEl.value='';
   saveDB();refreshAll();toast(`${d}: ${entry}${doOrd?' + 발주 등록':''}`);
 }
-function spRegisterOrder(name,n,dept,isDae,etaOv){
+let spLast=null;
+function spUndo(){
+  if(!spLast)return;
+  const{sd,d,entry,orderIds}=spLast;
+  const cur2=(S.specials[sd]||{})[d]||'';
+  // 문구 안에 ', '가 들어갈 수 있으므로(비고) split 대신 원문에서 위치를 찾아 앞뒤 구분자까지 잘라냄
+  const i=cur2.lastIndexOf(entry);
+  if(i>=0){
+    let a=i,b=i+entry.length;
+    if(cur2.startsWith(', ',b))b+=2;else if(cur2.endsWith(', ',a))a-=2;
+    S.specials[sd][d]=cur2.slice(0,a)+cur2.slice(b);
+  }
+  if(orderIds.length){toTrash('order',S.orders.filter(o=>orderIds.includes(o.id)));S.orders=S.orders.filter(o=>!orderIds.includes(o.id));}
+  spLast=null;
+  saveDB();refreshAll();toast(`취소됨: ${entry}${orderIds.length?' (발주는 휴지통으로)':''}`);
+}
+function spRegisterOrder(name,n,dept,isDae,etaOv,note){
   const base=name.replace(/\((백|지대|재생|유니드글로벌|벌크|드럼)\)/g,'').trim();
   const m=matchItem(base);
   const loc=m?m.loc.replace('(경질창고)',''):'';
   const ropKey=SP_ROPKEY[name]||base;
   let rp=M.rop.find(x=>norm(x.item)===norm(ropKey))||M.rop.find(x=>norm(x.item).includes(norm(ropKey))||norm(ropKey).includes(norm(x.item)));
   if(/유니드/.test(name)){const alt=M.rop.find(x=>norm(x.item).includes(norm('125EB'))&&/유니드/.test(x.vendor||''));if(alt)rp=alt;}
+  const noteTxt=note?`특이사항 자동 등록 · ${note}`:'특이사항 자동 등록';
   if(isDae){
     const key=norm(base);
     const p2=M.presetSelf.find(x=>x.label.split('|')[0].trim()===name)
           ||M.presetSelf.find(x=>typeof x.item==='string'&&(norm(x.item)===key||norm(x.item).includes(key)||key.includes(norm(x.item))))
           ||M.presetSelf.find(x=>norm(x.label).startsWith(norm(base)));
     const eta=etaOv||addDays(cur,leadOf(base));
-    if(!p2){S.orders.push({id:S.seq++,type:'self',ordDate:cur,vendor:(rp?rp.vendor:'')||(m?m.vendor:''),item:name,dest:'자가(세종·부강)',qty:n,unit:'대',eta,inDate:'',loc,dept,note:'특이사항 자동 등록'});return;}
+    if(!p2){S.orders.push({id:S.seq++,type:'self',ordDate:cur,vendor:(rp?rp.vendor:'')||(m?m.vendor:''),item:name,dest:'자가(세종·부강)',qty:n,unit:'대',eta,inDate:'',loc,dept,note:noteTxt});return;}
     const isD=p2.unit==='대';
-    S.orders.push({id:S.seq++,type:'self',ordDate:cur,vendor:p2.vendor||'',item:typeof p2.item==='string'?p2.item:name,dest:'자가(세종·부강)',qty:isD?n:(+p2.qty||0)*n,unit:isD?'대':p2.unit,eta,inDate:'',loc,dept,note:'특이사항 자동 등록'});
+    S.orders.push({id:S.seq++,type:'self',ordDate:cur,vendor:p2.vendor||'',item:typeof p2.item==='string'?p2.item:name,dest:'자가(세종·부강)',qty:isD?n:(+p2.qty||0)*n,unit:isD?'대':p2.unit,eta,inDate:'',loc,dept,note:noteTxt});
     return;
   }
   const lt=rp?Math.ceil(rp.lt):leadOf(base);
-  S.orders.push({id:S.seq++,type:'self',ordDate:cur,vendor:(rp?rp.vendor:'')||(m&&!/확인/.test(m.vendor||'')?m.vendor:''),item:name,dest:'자가(세종·부강)',qty:n,unit:'kg',eta:etaOv||addDays(cur,lt),inDate:'',loc,dept,note:'특이사항 자동 등록'});
+  S.orders.push({id:S.seq++,type:'self',ordDate:cur,vendor:(rp?rp.vendor:'')||(m&&!/확인/.test(m.vendor||'')?m.vendor:''),item:name,dest:'자가(세종·부강)',qty:n,unit:'kg',eta:etaOv||addDays(cur,lt),inDate:'',loc,dept,note:noteTxt});
 }
 
 /* ═════════ 전화 모드 (창고이동 원터치) ═════════ */
 const QM_ITEMS={
- '경질':['SP-390','MB-875','PMS-180','PMS-1808','PMS-1803','PMS-500','필라 95T','IM-812','K-2450(백)','K-2450(지대)','TIONA-696(백)','TIONA-696(지대)','O-130P','MB-838A','P-560J','SL-64','DL-201','DL-101','DL-250','ES-95','UV-P','SH-60'],
+ '경질':['SP-390','MB-875','PMS-180','PMS-1808','PMS-1803','PMS-500','필라 95T','IM-812','K-2450(백)','K-2450(지대)','TIONA-696(백)','TIONA-696(지대)','O-130P','MB-838A','P-560J','SL-64','DL-201','DL-101','DL-250','ES-95','UV-P','SH-60','GHP BLUE 3931P'],
  '창호':['필라 95T','CPE H-135','NR-950','DWC4Z','DWC6Z','ASA GR','ASA DG','ASA BK','SJ-01'],
  '타일':['DS-356','DS-356T','GPPS(재생)','GPPS(유니드글로벌)','DHA-100','ROSIN C-9','ACR-401','WAX(폴리-210)'],
  'DBP':['DS356S1','HCZ-995_B']};
@@ -1441,7 +1597,7 @@ function convInfo(item,qty,unit){
   }
   return'';
 }
-let qmDept='경질',qmItem='';
+let qmDept='경질',qmItem='',qmUnitSel='kg';
 /* 같은 매입처(업체) 품목끼리 옆에 붙어 보이도록 그룹핑 — 매입처가 안 잡히는 품목은 원래 순서 유지 */
 function qmGrouped(dept){
   const items=QM_ITEMS[dept]||[];
@@ -1462,7 +1618,9 @@ function renderQm(){
     document.getElementById('qmSelName').textContent=qmItem;
     const ov=QM_OVR[qmItem]||{};
     const m=matchItem(qmBase(qmItem));const pack=ov.pack||(m?m.pack:'');
-    document.getElementById('qmUnit').value='kg';   // 전화 기본 kg — "백으로 몇 개" 콜이면 통화 중 단위만 바꿔서 등록
+    // 전화 기본 kg — "백으로 몇 개" 콜이면 통화 중 단위만 바꿔서 등록. 사용자가 고른 단위(qmUnitSel)는
+    // 연속 등록·20초 동기화 리렌더에도 유지(예전엔 매번 kg으로 되돌아가 2건째부터 잘못 기록됨)
+    document.getElementById('qmUnit').value=qmUnitSel;
     const pn=packNote(qmItem);
     document.getElementById('qmLoc').textContent=(ov.loc||(m?m.loc:'창고 확인'))+(pack?' · '+pack:'')+(pn?'  ⚠ '+pn:'');
     document.getElementById('qmQty').innerHTML=[1,2,3,4,5,6,8,10,12,16,20].map(n2=>`<button onclick="qmAdd(${n2})">${n2}</button>`).join('');
@@ -1505,7 +1663,10 @@ function whoNow(){
 }
 const isThird=n=>!!n&&!/자재과|김성진/.test(n);
 function byBadge(n,label){if(!n)return'';return isThird(n)?` <span class="chip c-wait" title="제3자 처리">✋ ${esc(n)} ${label||'완료'}</span>`:'';}
-function toggleMove(id){const m=S.moves.find(x=>x.id===id);
+/* id로 찾은 건이 이미 없으면(다른 기기에서 삭제) 조용히 실패하지 않고 안내 후 화면 갱신 */
+function notifyGone(){toast('이미 삭제된 건입니다 (다른 기기에서 변경됨)');refreshAll();}
+function findLive(list,id){const x=list.find(o=>o.id===id);if(!x)notifyGone();return x;}
+function toggleMove(id){const m=findLive(S.moves,id);if(!m)return;
   if(!m.done&&needName(()=>toggleMove(id)))return;
   if(!m.done&&isR696(m.item)&&!m.r696){openR696(m);return;}
   m.done=!m.done;
@@ -1609,7 +1770,17 @@ function bulkErpMv(){
   selMv.clear();saveDB();refreshAll();
   toast(`${done}건 전산이동완료 처리됨`);
 }
+/* 기준일이 지났는데 전산이동완료(erp) 처리가 안 된 건 — 날짜별 요청 목록(date===cur)만
+   보면 다음날부터 화면에서 사라져 버려서 깜빡 잊기 쉬우므로, 지난 건이 있으면 따로 보여줌. */
+function overdueErpMoves(){return S.moves.filter(m=>m.date<cur&&!m.erp);}
 function renderMoves(){
+  const overdue=overdueErpMoves();
+  const alertCard=document.getElementById('mvErpAlertCard');
+  if(alertCard){
+    alertCard.style.display=overdue.length?'':'none';
+    document.getElementById('cntMvErpAlert').textContent=overdue.length?`${overdue.length}건`:'';
+    document.getElementById('mvErpAlertBody').innerHTML=overdue.map(m=>`<tr><td>${fmtK(m.date)}</td><td>${deptChip(m.dept)}</td><td><b>${esc(m.item)}</b></td><td class="num">${fmtN(m.qty)} ${esc(m.unit)}</td><td><span class="loc">${esc(m.loc||'?')}</span></td><td><button class="btn sm pri" onclick="toggleErp(${m.id})">전산완료</button> <button class="btn sm" onclick="editMove(${m.id})">수정</button> <button class="btn sm" style="color:var(--red)" onclick="delMove(${m.id})">${armLbl('mv'+m.id)}</button></td></tr>`).join('');
+  }
   const mv=S.moves.filter(m=>m.date===cur);
   const order={'경질':0,'창호':1,'타일':2,'DBP':3};
   mv.sort((a,b)=>(order[a.dept]??9)-(order[b.dept]??9)||a.id-b.id);
@@ -1630,16 +1801,25 @@ function applyPreset(){
   odType.value=v[0]==='s'?'self':'consign';
   odVendor.value=p.vendor||(m?m.vendor:'');odItem.value=p.item;odDest.value=v[0]==='s'?'자가(세종·부강)':p.consignee;
   odQty.value=p.qty;odUnit.value=p.unit;odLoc.value=m?m.loc.replace('(경질창고)',''):(v[0]==='c'?'직납':'');
-  odDept.value=v[0]==='c'?'사급':(deptOf(m)||'전사');odEta.value=addDays(odDate.value||cur,leadOf(p.item));
+  odDept.value=v[0]==='c'?'사급':(deptOf(m)||'전사');odEtaTouched=false;odEtaAuto();
+}
+/* 품목·발주일을 고르면 착일을 발주일+리드타임으로 자동 채움(기준표 없으면 2일). 사용자가 착일을 직접 고친 뒤에는 건드리지 않음 */
+let odEtaTouched=false;
+function odEtaAuto(){
+  const it=odItem.value.trim();if(!it||odEtaTouched)return;
+  odEta.value=addDays(odDate.value||cur,leadOf(it));
 }
 function addOrder(){
   const item=odItem.value.trim();if(!item){toast('품목을 입력하세요');return;}
+  // 수량 0·착일 공백으로 등록되면 입고예정·D-day·캘린더 어디에도 안 떠서 "등록했는데 안 보인다"가 됨
+  if(!(+odQty.value>0)){toast('수량을 입력하세요');odQty.focus();return;}
+  if(!odEta.value){toast('착일(입고 예정일)을 입력하세요');odEta.focus();return;}
   const isNew=ensureMaterial(item,{vendor:odVendor.value.trim(),loc:odLoc.value.trim()});
   S.orders.push({id:S.seq++,type:odType.value,ordDate:odDate.value||cur,vendor:odVendor.value.trim(),item,dest:odDest.value.trim(),qty:+odQty.value||0,unit:odUnit.value,eta:odEta.value,inDate:'',loc:odLoc.value.trim(),dept:odDept.value,note:odNote.value.trim()});
-  odPreset.value='';odItem.value='';odQty.value='';odNote.value='';odLoc.value='';saveDB();refreshAll();
+  odPreset.value='';odItem.value='';odQty.value='';odNote.value='';odLoc.value='';odEta.value='';odEtaTouched=false;saveDB();refreshAll();
   toast(isNew?`발주 등록됨 · 신규 품목 '${item}' 기준정보에 추가됨${sbOK?'':' (이 기기에만 — 공유 연결 시 전체 반영)'}`:'발주 등록됨');
 }
-function markIn(id){const o=S.orders.find(x=>x.id===id);o.inDate=cur;o.inBy=whoNow();saveDB();refreshAll();toast('입고 처리됨 (오늘 날짜) — 날짜 변경은 [수정]에서');}
+function markIn(id){const o=findLive(S.orders,id);if(!o)return;o.inDate=cur;o.inBy=whoNow();saveDB();refreshAll();toast(`입고 처리됨 (${fmtK(cur)}) — 날짜 변경은 [수정]에서`);}
 function cancelIn(id){const o=S.orders.find(x=>x.id===id);if(!o)return;delete o.inDate;delete o.inBy;saveDB();refreshAll();toast('입고 취소됨 — 발주완료 상태로 되돌아감');}
 function cancelOrder(id){const o=S.orders.find(x=>x.id===id);if(!o)return;o.skip=true;saveDB();refreshAll();toast('발주 취소됨 — 상태필터 [취소]에서 다시 볼 수 있음');}
 function restoreOrder(id){const o=S.orders.find(x=>x.id===id);if(!o)return;delete o.skip;saveDB();refreshAll();toast('발주 취소가 복구됨');}
@@ -1683,7 +1863,7 @@ function renderOrders(){
   const selAllEl=document.getElementById('odSelAll');if(selAllEl)selAllEl.checked=allSel;
   document.getElementById('odBody').innerHTML=rows.length?rows.map(o=>{const st=orderStatus(o),d=o.eta&&!o.inDate?diffDays(o.eta,cur):null;const cls={'발주완료':'c-ord','입고지연':'c-late','입고완료':'c-done','취소':'c-mut'}[st];
     const actBtns=o.skip?`<button class="btn sm pri" onclick="restoreOrder(${o.id})">복구</button> `:(!o.inDate?`<button class="btn sm" onclick="markIn(${o.id})">입고</button> <button class="btn sm ghost" onclick="cancelOrder(${o.id})">발주취소</button> `:`<button class="btn sm ghost" onclick="cancelIn(${o.id})" title="입고 취소">↩ 입고취소</button> `);
-    return `<tr class="${o.inDate||o.skip?'done':''}"><td><input type="checkbox" ${selOd.has(o.id)?'checked':''} onchange="toggleSelOd(${o.id},this.checked)" title="선택"></td><td class="due-hl"><b>${o.eta||''}</b></td><td>${o.type==='self'?'자가':'사급'}</td><td><b>${esc(o.vendor)}</b></td><td><b>${esc(o.item)}</b>${o.note?`<div class="tag">${esc(o.note)}</div>`:''}</td><td>${esc(o.dest)}</td><td class="num">${fmtN(o.qty)} ${esc(o.unit)}</td><td>${o.ordDate}</td><td class="dday ${d!=null&&d<0?'late':(d===0?'soon':'')}">${d==null?(o.inDate?'입고 '+o.inDate:''):(d<0?`D+${-d}`:`D-${d}`)}</td><td>${o.loc?`<span class="loc">${esc(o.loc)}</span>`:''}</td><td><span class="chip ${cls}">${st}</span></td><td>${actBtns}<button class="btn sm" onclick="editOrder(${o.id})">수정</button> <button class="btn sm" style="color:var(--red)" onclick="delOrder(${o.id})">${armLbl('od'+o.id)}</button></td></tr>`;}).join(''):'<tr><td colspan="12" class="empty">발주 건 없음</td></tr>';
+    return `<tr class="${o.inDate||o.skip?'done':''}"><td><input type="checkbox" ${selOd.has(o.id)?'checked':''} onchange="toggleSelOd(${o.id},this.checked)" title="선택"></td><td class="due-hl"><b>${o.eta||''}</b></td><td>${o.type==='self'?'자가':'사급'}</td><td><b>${esc(o.vendor)}</b></td><td><b>${esc(o.item)}</b>${o.note?`<div class="tag">${esc(o.note)}</div>`:''}</td><td>${esc(o.dest)}</td><td class="num">${fmtN(o.qty)} ${esc(o.unit)}</td><td>${o.ordDate||''}</td><td class="dday ${d!=null&&d<0?'late':(d===0?'soon':'')}">${d==null?(o.inDate?'입고 '+o.inDate:''):(d<0?`D+${-d}`:`D-${d}`)}</td><td>${o.loc?`<span class="loc">${esc(o.loc)}</span>`:''}</td><td><span class="chip ${cls}">${st}</span></td><td>${actBtns}<button class="btn sm" onclick="editOrder(${o.id})">수정</button> <button class="btn sm" style="color:var(--red)" onclick="delOrder(${o.id})">${armLbl('od'+o.id)}</button></td></tr>`;}).join(''):'<tr><td colspan="12" class="empty">발주 건 없음</td></tr>';
   document.getElementById('cntOd').textContent=`${rows.length}건`;
   const th=document.getElementById('odEtaTh');if(th)th.textContent='착일'+(odSort==='asc'?' ▲':odSort==='desc'?' ▼':'');
   updateOdSelCnt();
@@ -1692,6 +1872,12 @@ function editOrder(id){const o=S.orders.find(x=>x.id===id);openDlg('발주 건 �
 
 /* ═════════ 사급 발주서 ═════════ */
 let draft=[];
+/* 처리 방식 — 등록 시 자동/수동 판정, 필터·수정 화면·표시에서 모두 공통으로 사용 */
+const CS_ACTIONS=['발주','직접출고','확인','제외'];
+const CS_ACTION_CLASS={'발주':'order','직접출고':'direct','확인':'check','제외':'none'};
+/* 사급 요청 추적 표 — 직접출고(14동 출고)와 발주(공급사 대리발주)를 한눈에 구분해 보이도록
+   섞어서 정렬하지 않고 처리 방식별로 묶어서 보여줌(그룹 순서). */
+const CS_ACTION_GROUPS=['직접출고','발주','확인','제외'];
 /* 발주 대응 품목 — 우리 공장(14동) 창고에서 출고되지 않고, 요청이 오면 공급사에 발주 → 사급처 직납.
    사급 발주서 자동 판정에서 절대 '직접출고'가 되지 않고 항상 '발주'로 처리됨. */
 const ORDER_RESP=['GM-00','LOX-600H','P-1000','P-3000','SB-102','L102','LOX-6005H','DWF-00','GO-00','MC-2575','PR701','RICHVIN329','GHD3923','PEH-7000L','BGY-01','BWH','HAC-01','HAC-05','KGY-01','X100G','Q100','NGY-00','J-293F-S','SP-390','COD01','COD01Z','AG-06','BK-001','DO73','DOTP-05','GN-002','HAC-05-05','LOX-05','AB00','AG04','AG09','AG32','BB00','BK03','BLACK-02','BLUE3240','BP-276S','BY002','CB-01','CH00','CR00','CW00','DB02','DO00','DOR00','DOZ00','DW-00','GO00','KA-100','LO00','LS00','MB838','MB839','MG00','NEO-P','NO00','RED114','ROZ00','SO00','SW00','TM00','WT00'].map(norm);
@@ -1701,6 +1887,9 @@ function orderResp(item){
   return ORDER_RESP.some(cn=>cn===nn||(an&&cn===an)||(cn.length>=5&&nn.length>=5&&(nn.includes(cn)||cn.includes(nn))));
 }
 const KEYS=['발신','발 신','수신','수 신','입고처','의뢰일','합계','합 계','당부사항','전달사항','발주내역','용도','접수담당','발주담당','NO','DESCRIPTION','포장단위','요청납기','생산제품','생산예정','거래일자','발주번호','공급받는자','공급자','등록번호','상호','주소','담당자','전화','팩스','코드','품목명','규격','단가','공급가','납기일','부가세','특기','원부원료','품목'];
+/* "구분"(재질 종류) 열에 들어가는 값들 — 발주서 표에 이 열이 품목 열 앞에 있으면
+   품목으로 잘못 걸리기 쉬워, 인식 시 절대 품목으로 채택하지 않음(parseCs 참고). */
+const CAT_WORDS=new Set(['점착제','경화제','희석제','충전제','촉매제','안정제','가소제','접착제','첨가제','용제','희석용제','경화촉진제','촉진제','소포제','습윤제','분산제','안료','개시제','바인더'].map(norm));
 function findDate(t,y){let m=t.match(/(20\d{2})[.\-\/년\s]+(\d{1,2})[.\-\/월\s]+(\d{1,2})/);if(m)return`${m[1]}-${String(m[2]).padStart(2,'0')}-${String(m[3]).padStart(2,'0')}`;
   m=t.match(/(\d{1,2})\s*월\s*(\d{1,2})\s*일/);if(m)return`${y||new Date().getFullYear()}-${String(m[1]).padStart(2,'0')}-${String(m[2]).padStart(2,'0')}`;return'';}
 function readXls(f){
@@ -1737,15 +1926,32 @@ function parseCs(){
      "수량"이 적힌 열이 있는 행만 대상으로 함(포장단위·생산예정수량 등 다른 숫자 열과 안 섞이게).
      탭이 없는 줄(엑셀 밖에서 그냥 복사한 자유 텍스트)은 열 위치를 신뢰할 수 없어 기존 방식으로. */
   let headerCols=null;
-  for(const hl of rawLines){
+  for(let hi=0;hi<rawLines.length;hi++){
+    const hl=rawLines[hi];
     if(!hl.includes('\t'))continue;
     const hc=hl.split('\t').map(c=>c.replace(/\s+/g,''));
-    const itemIdx=hc.findIndex(c=>c==='품목'||c==='품목명');
+    const itemIdx=hc.findIndex(c=>/품목/.test(c));
     if(itemIdx<0)continue;
-    const qtyIdx=hc.findIndex(c=>/수량/.test(c)&&!/생산예정수량/.test(c));
+    // 2행짜리 병합 헤더 대응 — "발주 수량(kg)" 등이 "품목"과 같은 줄이 아니라
+    // 병합으로 바로 위/아래 줄에 있을 수 있음(엑셀은 병합 셀의 값을 맨 위 칸에만 채움).
+    // 같은 열 위치를 위·아래 줄에서도 찾아 빈 칸을 보완함.
+    const above=hi>0&&rawLines[hi-1].includes('\t')?rawLines[hi-1].split('\t').map(c=>c.replace(/\s+/g,'')):[];
+    const below=hi<rawLines.length-1&&rawLines[hi+1].includes('\t')?rawLines[hi+1].split('\t').map(c=>c.replace(/\s+/g,'')):[];
+    const findCol=(re,exclude)=>{
+      for(const row of [hc,above,below]){
+        const idx=row.findIndex(c=>re.test(c)&&!(exclude&&exclude.test(c)));
+        if(idx>=0)return idx;
+      }
+      return -1;
+    };
+    // "발주 수량"이 우선 — "포장수량"·"생산예정수량"처럼 "수량"이 들어간 다른 열과
+    // 혼동하면 포장단위 숫자가 발주수량 자리에 잘못 뜨므로, "발주"가 붙은 수량 열을 먼저 찾고
+    // 없을 때만 "포장"·"생산예정"이 아닌 수량 열로 대신함.
+    const qtyIdx0=findCol(/발주.*수량|수량.*발주/);
+    const qtyIdx=qtyIdx0>=0?qtyIdx0:findCol(/수량/,/포장|생산예정수량/);
     if(qtyIdx<0)continue;   // 수량 열을 못 찾으면 "수량 적힌 것만" 판단 불가 — 기존 방식으로
-    const dueIdx=hc.findIndex(c=>/납기/.test(c));
-    const packIdx=hc.findIndex(c=>/포장/.test(c));
+    const dueIdx=findCol(/납기/);
+    const packIdx=findCol(/포장/);
     headerCols={itemIdx,qtyIdx,dueIdx:dueIdx<0?null:dueIdx,packIdx:packIdx<0?null:packIdx,headerLine:hl};
     break;
   }
@@ -1757,6 +1963,7 @@ function parseCs(){
       const cells=hl.split('\t').map(c=>c.trim());
       const item=(cells[headerCols.itemIdx]||'').trim();
       if(!item||/^(합\s*계|계)$/.test(item))continue;
+      if(CAT_WORDS.has(norm(item)))continue;   // 열 위치가 어긋나 "구분" 값이 잡힌 경우 안전장치
       const qtyRaw=(cells[headerCols.qtyIdx]||'').trim().replace(/,/g,'');
       if(!qtyRaw||!/^\d+(\.\d+)?$/.test(qtyRaw))continue;   // 그 행의 수량 칸이 비어 있으면 대상 아님
       const qty=+qtyRaw;if(!qty||qty<=0)continue;
@@ -1776,7 +1983,11 @@ function parseCs(){
       const nums=cells.map(c=>c.replace(/,/g,'')).filter(c=>/^\d+(\.\d+)?$/.test(c)).map(Number);
       const texts=cells.filter(c=>!/^[\d,.]+$/.test(c)&&c.length>=2&&!/^20\d\d-/.test(c)&&!/^"$/.test(c));
       if(!texts.length||!nums.length)continue;
-      const item=texts[0];
+      // "첫 텍스트 열 = 품목"이 기본 규칙이지만, 그 앞에 "구분"(재질 종류) 열이 있는 표에서는
+      // 점착제·경화제 같은 재질 구분값이 잘못 걸림 — 위 헤더 인식(탭 기반)이 안 통하는
+      // 입력(탭 없이 붙여넣은 경우 등)에 대비한 안전장치로, 알려진 구분값은 건너뛰고
+      // 그다음 텍스트 열을 품목으로 씀.
+      const item=texts.find(t=>!CAT_WORDS.has(norm(t)))||texts[0];
       // 수량: 포장단위(15/20/25/200/500 등) 다음의 큰 값 우선
       const packCand=nums.find(n=>[15,20,25,200,500,600,1000,1005].includes(n));
       let qty=null;const rest=nums.filter(n=>n!==packCand&&n>0&&n<1000000);
@@ -1812,7 +2023,7 @@ function judge(consignee,item){
 function judgeAll(){const v=csVendor.value.trim();draft.forEach(d=>{const j=judge(v,d.item);if(!d._manual){d.action=j.action;d.supplier=j.supplier;}d.loc=j.loc;});renderDraft();}
 function renderDraft(){
   const tb=document.getElementById('csDraft');
-  tb.innerHTML=draft.length?draft.map((d,i)=>`<tr><td><input value="${esc(d.item)}" list="itemList" oninput="draft[${i}].item=this.value" style="width:150px"><div class="tag">${esc(d.pack)}${d.loc?' · '+esc(d.loc):''}</div></td><td class="num"><input type="number" step="any" value="${d.qty??''}" oninput="draft[${i}].qty=+this.value" style="width:90px;text-align:right"></td><td><input type="date" value="${d.due||''}" oninput="draft[${i}].due=this.value"></td><td><select onchange="draft[${i}].action=this.value;draft[${i}]._manual=true" class="act-${{'발주':'order','직접출고':'direct','확인':'check','제외':'none'}[d.action]}"><option ${d.action==='발주'?'selected':''}>발주</option><option ${d.action==='직접출고'?'selected':''}>직접출고</option><option ${d.action==='확인'?'selected':''}>확인</option><option ${d.action==='제외'?'selected':''}>제외</option></select></td><td><input value="${esc(d.supplier)}" list="vendorList" oninput="draft[${i}].supplier=this.value;draft[${i}]._manual=true" style="width:110px"></td><td><button class="btn sm" onclick="draft.splice(${i},1);renderDraft()">삭제</button></td></tr>`).join(''):'<tr><td colspan="6" class="empty">인식된 품목 없음</td></tr>';
+  tb.innerHTML=draft.length?draft.map((d,i)=>`<tr><td><input value="${esc(d.item)}" list="itemList" oninput="draft[${i}].item=this.value" style="width:150px"><div class="tag">${esc(d.pack)}${d.loc?' · '+esc(d.loc):''}</div></td><td class="num"><input type="number" step="any" value="${d.qty??''}" oninput="draft[${i}].qty=+this.value" style="width:90px;text-align:right"></td><td><input type="date" value="${d.due||''}" oninput="draft[${i}].due=this.value"></td><td><select onchange="draft[${i}].action=this.value;draft[${i}]._manual=true" class="act-${CS_ACTION_CLASS[d.action]}">${CS_ACTIONS.map(a=>`<option ${d.action===a?'selected':''}>${a}</option>`).join('')}</select></td><td><input value="${esc(d.supplier)}" list="vendorList" oninput="draft[${i}].supplier=this.value;draft[${i}]._manual=true" style="width:110px"></td><td><button class="btn sm" onclick="draft.splice(${i},1);renderDraft()">삭제</button></td></tr>`).join(''):'<tr><td colspan="6" class="empty">인식된 품목 없음</td></tr>';
 }
 function addCsLine(){draft.push({item:'',pack:'',qty:null,due:document.getElementById('csDue').value||'',action:'확인',supplier:''});renderDraft();}
 /* 공통 요청납기를 바꾸면 인식된 행들의 요청납기도 한꺼번에 맞춰줌 */
@@ -1829,10 +2040,31 @@ function commitCs(){
   if(!valid.length){
     if(excl.length){draft=[];renderDraft();csPaste.value='';csMsg.textContent='';toast(`${excl.length}건 전부 제외 — 우리 공장 출고·발주 대상 아님`);return;}
     toast('품목·수량이 있는 행이 없습니다');return;}
-  const recv=csDate.value||cur,cd=csDue.value||'';const ids=[];
-  valid.forEach(d=>{const id=S.seq++;ids.push(id);S.cons.push({id,recvDate:recv,consignee:v,item:d.item,pack:d.pack,qty:d.qty,due:d.due||cd,action:d.action,supplier:d.supplier,loc:d.loc||'',ordDate:'',outDate:'',done:false,note:isM210(d.item)?`⚠ 월1회 입항분 여부 확인 — 입항분이면 ${SENSITIVE.m210Contact||'담당자'} 행선지 확인 전 배차·출고 금지`:''});});
+  const recv=csDate.value||cur,cd=csDue.value||'';const ids=[];const vn=norm(v);let newItemCount=0,mergedCount=0;
+  valid.forEach(d=>{
+    if(addMaterial(d.item,{vendor:d.supplier,loc:d.loc}))newItemCount++;
+    const due=d.due||cd;
+    // 같은 사급처·품목의 "직접출고"(14동 창고 재고) 건이 아직 안 나갔으면(추가 발주) 새 행을 만들지 않고
+    // 기존 건에 수량을 합쳐 비고란에 자동으로 내역을 남김. "발주"(공급사 대리발주)는 이미 메일이
+    // 나갔을 수 있어 합산하지 않고 — 기존처럼 매번 별도 건으로 등록해 발주 이력을 그대로 보존함.
+    const dup=d.action==='직접출고'?S.cons.find(c=>!c.done&&c.action==='직접출고'&&norm(c.consignee)===vn&&norm(c.item)===norm(d.item)):null;
+    if(dup){
+      const before=dup.qty;
+      dup.qty=before+d.qty;
+      dup.note=(dup.note?dup.note+' · ':'')+`기존 ${fmtN(before)}kg + 추가 ${fmtN(d.qty)}kg = ${fmtN(dup.qty)}kg (${fmtK(recv)} 추가발주)`;
+      if(due&&(!dup.due||due<dup.due))dup.due=due;
+      if(!dup.loc&&d.loc)dup.loc=d.loc;
+      if(isM210(dup.item))delete dup.m210by;   // 수량이 바뀌었으니 M-210 행선지 확인을 다시 받게 함
+      ids.push(dup.id);mergedCount++;
+    }else{
+      const id=S.seq++;ids.push(id);S.cons.push({id,recvDate:recv,consignee:v,item:d.item,pack:d.pack,qty:d.qty,due,action:d.action,supplier:d.supplier,loc:d.loc||'',ordDate:'',outDate:'',done:false,note:isM210(d.item)?`⚠ 월1회 입항분 여부 확인 — 입항분이면 ${SENSITIVE.m210Contact||'담당자'} 행선지 확인 전 배차·출고 금지`:''});
+    }
+  });
+  if(newItemCount){fillLists();if(sb&&sbOK)sbSaveMasterMaterials();}
   draft=[];renderDraft();csPaste.value='';csMsg.textContent='';
-  saveDB();refreshAll();buildMails(ids);toast(`${valid.length}건 등록${excl.length?` · ${excl.length}건 제외(우리 출고 아님)`:''}`);
+  saveDB();refreshAll();buildMails(ids);
+  const newCount=valid.length-mergedCount;
+  toast(`${newCount?`${newCount}건 등록`:''}${mergedCount?`${newCount?' · ':''}${mergedCount}건은 기존 미처리 건에 합산됨`:''}${excl.length?` · ${excl.length}건 제외(우리 출고 아님)`:''}${newItemCount?` · 신규 품목 ${newItemCount}건 기준정보에 추가됨`:''}`);
 }
 function contactOf(name){const cn=norm(name);return M.contacts.find(c=>norm(c.name).includes(cn.slice(0,2))||cn.includes(norm(c.name)))||null;}
 /* 사급 출고 지시서 — 텍스트 생성. 자재과가 [수정]→[저장 및 전송]으로 확정하면
@@ -1918,11 +2150,11 @@ function csBulkMark(){
 }
 function csStatus(c){if(c.action==='제외')return'제외';if(c.done)return'완료';if(c.action==='발주')return c.ordDate?(c.due&&cur>c.due?'입고지연':'입고대기'):'발주대기';if(c.action==='직접출고')return c.outDate?'출고완료':'출고대기';return'확인필요';}
 function csRow(c,board){const st=csStatus(c);const cls={'발주대기':'c-wait','출고대기':'c-wait','확인필요':'c-late','입고지연':'c-late','입고대기':'c-ord','출고완료':'c-done','완료':'c-done','제외':'c-mut'}[st];
-  const act=`<span class="act-${{'발주':'order','직접출고':'direct','확인':'check','제외':'none'}[c.action]}">${c.action}</span>`;
+  const act=`<span class="act-${CS_ACTION_CLASS[c.action]}">${c.action}</span>`;
   const btn=c.action==='발주'&&!c.ordDate?`<button class="btn sm warn" onclick="csMark(${c.id},'ordDate')">발주 체크</button>`:(c.action==='직접출고'&&!c.outDate?`<button class="btn sm warn" onclick="csMark(${c.id},'outDate')">출고 체크</button>`:(c.action==='직접출고'&&c.outDate?`<button class="btn sm ghost" onclick="csUndoOut(${c.id})" title="출고 처리를 취소하고 출고 대기로 되돌림">↩ 출고 취소</button>`:(!c.done?`<button class="btn sm" onclick="csMark(${c.id},'done')">${c.action==='발주'?'입고 완료':'완료'}</button>`:'')));
   if(board)return`<tr class="${c.done?'done':''}"><td><b>${esc(c.consignee)}</b></td><td><b>${esc(c.item)}</b></td><td class="num">${fmtN(c.qty)}</td><td>${act}</td><td>${c.due?fmtK(c.due):''}</td><td><span class="chip ${cls}">${st}</span></td><td>${btn}</td></tr>`;
-  return`<tr class="${c.done?'done':''}"><td><input type="checkbox" class="csSel" value="${c.id}" ${selCs.has(c.id)?'checked':''} onchange="toggleSelCs(${c.id},this.checked)"></td><td class="due-hl"><b>${c.due||''}</b></td><td><b>${esc(c.consignee)}</b></td><td><b>${esc(c.item)}</b>${c.loc?` <span class="loc">${esc(c.loc)}</span>`:''}</td><td class="num">${fmtN(c.qty)}</td><td>${act}</td><td><b>${esc(c.supplier)}</b></td><td>${c.recvDate}</td><td>${c.ordDate||''}</td><td>${c.outDate||(c.done?'✓':'')}${isThird(c.outBy)?` <span class="chip c-wait">✋ ${esc(c.outBy)}</span>`:''}</td><td><span class="chip ${cls}">${st}</span></td><td>${btn} <button class="btn sm" onclick="editCs(${c.id})">수정</button> <button class="btn sm" style="color:var(--red)" onclick="delCs(${c.id})">${armLbl('cs'+c.id)}</button></td></tr>`;}
-function csMark(id,f){const c=S.cons.find(x=>x.id===id);
+  return`<tr class="${c.done?'done':''}"><td><input type="checkbox" class="csSel" value="${c.id}" ${selCs.has(c.id)?'checked':''} onchange="toggleSelCs(${c.id},this.checked)"></td><td class="due-hl"><b>${c.due||''}</b></td><td><b>${esc(c.consignee)}</b></td><td><b>${esc(c.item)}</b>${c.loc?` <span class="loc">${esc(c.loc)}</span>`:''}</td><td class="num">${fmtN(c.qty)}</td><td>${act}</td><td><b>${esc(c.supplier)}</b></td><td>${c.recvDate||''}</td><td>${c.ordDate||''}</td><td>${c.outDate||(c.done?'✓':'')}${isThird(c.outBy)?` <span class="chip c-wait">✋ ${esc(c.outBy)}</span>`:''}</td><td><span class="chip ${cls}">${st}</span></td><td>${btn} <button class="btn sm" onclick="editCs(${c.id})">수정</button> <button class="btn sm" style="color:var(--red)" onclick="delCs(${c.id})">${armLbl('cs'+c.id)}</button></td></tr>`;}
+function csMark(id,f){const c=findLive(S.cons,id);if(!c)return;
   if((f==='outDate'||f==='done')&&needName(()=>csMark(id,f)))return;
   // M-210: 월1회 입항분은 행선지 건별 확인 전 배차·출고·완료 금지
   if(isM210(c.item)&&(f==='outDate'||f==='done')&&!c.m210by){
@@ -1935,36 +2167,68 @@ function csMark(id,f){const c=S.cons.find(x=>x.id===id);
     return;
   }
   csMarkCore(c,f);}
-function csMarkCore(c,f){
+function csApplyMark(c,f){
   if(f==='done'){c.done=true;if(c.action==='발주'&&!c.inDate)c.inDate=cur;}else{c[f]=cur;if(f==='outDate')c.done=true;}
   if(f==='outDate'||f==='done')c.outBy=whoNow();
-  saveDB();refreshAll();}
+}
+function csMarkCore(c,f){csApplyMark(c,f);saveDB();refreshAll();}
+/* 지게차 화면에서 동일 품목으로 합쳐 보여준 행 — 체크 한 번으로 묶인 건 전부 완료 처리.
+   단, M-210(월1회 입항분) 건이 섞여 있으면 그 건은 csMark로 넘겨 행선지 확인 다이얼로그를
+   그대로 거치게 하고, 나머지 건은 이번 체크에서 함께 처리(다음에 다시 누르면 마저 처리됨). */
+function csMarkGroup(ids,f){
+  if((f==='outDate'||f==='done')&&needName(()=>csMarkGroup(ids,f)))return;
+  const isPendingM210=id=>{const c=S.cons.find(x=>x.id===id);return c&&(f==='outDate'||f==='done')&&isM210(c.item)&&!c.m210by;};
+  const m210Ids=ids.filter(isPendingM210),rest=ids.filter(id=>!isPendingM210(id));
+  if(m210Ids.length)csMark(m210Ids[0],f);   // 행선지 확인 다이얼로그부터 — 나머지 M-210 건은 확인 후 다시 눌러 처리
+  if(rest.length){
+    rest.forEach(id=>{const c=S.cons.find(x=>x.id===id);if(c)csApplyMark(c,f);});
+    saveDB();refreshAll();
+    toast(`${rest.length}건 출고 처리됨${m210Ids.length?` · M-210 ${m210Ids.length}건은 행선지 확인 후 처리`:''}`);
+  }
+}
 /* 직접출고 건 — 출고 체크를 잘못 눌렀거나 실제로 안 나갔을 때 출고 대기로 되돌림 */
-function csUndoOut(id){
-  const c=S.cons.find(x=>x.id===id);if(!c)return;
-  delete c.outDate;c.done=false;delete c.outBy;
+function csUndoOut(id){csUndoOutGroup([id]);}
+/* 지게차 화면의 완료 체크 해제 — 합쳐 보여준 행에 묶인 건 전부 되돌림.
+   화면이 오래된 사이 자재과에서 발주 건으로 바꿔 입고 완료한 경우는 건드리지 않게 '완료된 직접출고'만 되돌림 */
+function csUndoOutGroup(ids){
+  const list=ids.map(id=>S.cons.find(x=>x.id===id)).filter(c=>c&&c.action==='직접출고'&&c.done);
+  if(!list.length){notifyGone();return;}
+  list.forEach(c=>{delete c.outDate;c.done=false;delete c.outBy;});
   saveDB();refreshAll();
-  toast(`${c.item} 출고 처리 취소 — 출고 대기로 되돌림`);
+  toast(list.length===1?`${list[0].item} 출고 처리 취소 — 출고 대기로 되돌림`:`${list.length}건 출고 체크 취소 — 출고 대기로 되돌림`);
 }
 let csSort=null;   // null(등록순) → 'asc'(요청납기 빠른순) → 'desc'(늦은순) → null
 function csSortByDue(){csSort=csSort==='asc'?'desc':(csSort==='desc'?null:'asc');renderCs();}
 function csFilteredRows(){
   const f=csFlt.value,q=csSearch.value.trim().toUpperCase();
+  const actionFlt=document.getElementById('csActionFlt')?.value||'';
   const dueDate=document.getElementById('csDueDateFlt')?.value||'';
   const dueMonth=document.getElementById('csDueMonthFlt')?.value||'';
-  let rows=S.cons.filter(c=>{const st=csStatus(c);if(f==='대기'&&!/대기$|확인/.test(st))return false;if(f==='대기'&&/입고대기/.test(st))return false;if(f==='진행'&&st!=='입고대기'&&st!=='입고지연')return false;if(f==='완료'&&!c.done)return false;if(q&&!(c.consignee+c.item+c.supplier).toUpperCase().includes(q))return false;if(dueDate&&c.due!==dueDate)return false;if(dueMonth&&(!c.due||!c.due.startsWith(dueMonth)))return false;return true;});
+  let rows=S.cons.filter(c=>{const st=csStatus(c);if(f==='대기'&&!/대기$|확인/.test(st))return false;if(f==='대기'&&/입고대기/.test(st))return false;if(f==='진행'&&st!=='입고대기'&&st!=='입고지연')return false;if(f==='완료'&&!c.done)return false;if(actionFlt&&c.action!==actionFlt)return false;if(q&&!(c.consignee+c.item+c.supplier).toUpperCase().includes(q))return false;if(dueDate&&c.due!==dueDate)return false;if(dueMonth&&(!c.due||!c.due.startsWith(dueMonth)))return false;return true;});
   if(csSort){
     const withDue=rows.filter(c=>c.due),noDue=rows.filter(c=>!c.due);
     withDue.sort((a,b)=>csSort==='asc'?a.due.localeCompare(b.due):b.due.localeCompare(a.due));
     rows=[...withDue,...noDue];
   }else rows.sort((a,b)=>b.id-a.id);
+  // 출고완료·입고완료(c.done) 건은 정렬 기준과 무관하게 항상 맨 아래로 — renderCs()가 이 순서를
+  // 유지한 채로 처리 방식별로 다시 묶어 보여주므로, 실제 화면에서는 "각 그룹 안에서 맨 아래"가 됨
+  rows=[...rows.filter(c=>!c.done),...rows.filter(c=>c.done)];
   return rows;
 }
 function renderCs(){
   const rows=csFilteredRows();
   const allSel=rows.length>0&&rows.every(c=>selCs.has(c.id));
   const selAllEl=document.getElementById('csSelAll');if(selAllEl)selAllEl.checked=allSel;
-  document.getElementById('csBody').innerHTML=rows.length?rows.map(c=>csRow(c,false)).join(''):'<tr><td colspan="12" class="empty">사급 요청 없음</td></tr>';
+  let body='';
+  const byAction={};
+  rows.forEach(c=>{(byAction[c.action]=byAction[c.action]||[]).push(c);});
+  const renderGroup=(label,grp)=>{
+    if(!grp||!grp.length)return;
+    body+=`<tr><td colspan="12" style="background:var(--head);text-align:left;font-weight:700;padding:6px 8px">${label} <span class="cnt" style="font-weight:400">${grp.length}건</span></td></tr>`+grp.map(c=>csRow(c,false)).join('');
+  };
+  CS_ACTION_GROUPS.forEach(a=>{renderGroup(a,byAction[a]);delete byAction[a];});
+  Object.keys(byAction).forEach(a=>renderGroup(a,byAction[a]));   // CS_ACTION_GROUPS에 없는 처리 값이 생겨도 누락되지 않게
+  document.getElementById('csBody').innerHTML=body||'<tr><td colspan="12" class="empty">사급 요청 없음</td></tr>';
   document.getElementById('cntCs2').textContent=`${rows.length}건`;
   const th=document.getElementById('csDueTh');if(th)th.textContent='요청납기'+(csSort==='asc'?' ▲':csSort==='desc'?' ▼':'');
   updateCsSelCnt();
@@ -1980,7 +2244,7 @@ function csEditActionSync(sel){
 function editCs(id){
   const c=S.cons.find(x=>x.id===id);
   dlgTitle.textContent='사급 요청 수정';
-  const actOpts=['발주','직접출고','확인','제외'].map(a=>`<option ${c.action===a?'selected':''}>${a}</option>`).join('');
+  const actOpts=CS_ACTIONS.map(a=>`<option ${c.action===a?'selected':''}>${a}</option>`).join('');
   dlgBody.innerHTML=`<div><label>접수일</label><input data-k="recvDate" type="date" value="${esc(c.recvDate??'')}"></div>
     <div><label>사급처</label><input data-k="consignee" value="${esc(c.consignee??'')}"></div>
     <div><label>품목</label><input data-k="item" value="${esc(c.item??'')}"></div>
@@ -2357,7 +2621,7 @@ function mergeRestore(ev){
    S.notes에 저장 — Supabase 동기화 화이트리스트(sbNormalize)에도 notes를 넣어야
    다른 사람 화면까지 전달됨. */
 function todayNotes(){return (S.notes||[]).filter(n=>n.date===cur);}
-function drvVisibleNotes(){return todayNotes().filter(n=>!isPvcText(n.text));}
+function drvVisibleNotes(){return todayNotes().filter(n=>!isPvcText(n.text)&&!isDriverHiddenText(n.text));}
 function addNote(){
   const el=document.getElementById('noteTxt');
   const text=(el.value||'').trim();
@@ -2404,8 +2668,8 @@ function renderCycMat(){
     const idx=M.presetSelf.indexOf(p);
     // BAG·LOX-203 등 하드 제외 품목은 체크박스를 켠 채 잠금 — 표시와 실제 동작을 일치시킴
     const hard=!p.excluded&&isCycleExcluded(p);
-    return `<tr><td><b>${esc(p.item)}</b>${p.label&&p.label!==p.item?`<div class="tag">${esc(p.label)}</div>`:''}</td><td><select onchange="cycField(${idx},'cycle',this.value)">${cycOptsFor(p.cycle)}</select></td><td class="num"><input type="number" value="${p.qty??''}" style="width:90px;text-align:right" onchange="cycField(${idx},'qty',this.value)"></td><td><input value="${esc(p.unit||'')}" style="width:60px" onchange="cycField(${idx},'unit',this.value)"></td><td style="text-align:center"><input type="checkbox" ${p.excluded||hard?'checked':''} ${hard?'disabled title="사급 품목이라 주기 기준에서 항상 제외됨"':''} onchange="cycField(${idx},'excluded',this.checked)">${hard?'<div class="tag">항상 제외</div>':''}</td></tr>`;
-  }).join(''):'<tr><td colspan="5" class="empty">등록된 자가 발주 품목 없음</td></tr>';
+    return `<tr><td><b>${esc(p.item)}</b>${p.label&&p.label!==p.item?`<div class="tag">${esc(p.label)}</div>`:''}</td><td><select onchange="cycField(${idx},'cycle',this.value)">${cycOptsFor(p.cycle)}</select></td><td class="num"><input type="number" value="${p.qty??''}" style="width:90px;text-align:right" onchange="cycField(${idx},'qty',this.value)"></td><td><input value="${esc(p.unit||'')}" style="width:60px" onchange="cycField(${idx},'unit',this.value)"></td><td style="text-align:center"><input type="checkbox" ${p.excluded||hard?'checked':''} ${hard?'disabled title="사급 품목이라 주기 기준에서 항상 제외됨"':''} onchange="cycField(${idx},'excluded',this.checked)">${hard?'<div class="tag">항상 제외</div>':''}</td><td><button class="btn sm" style="color:var(--red)" onclick="delCycRow(${idx})">${armLbl('cyc'+idx)}</button></td></tr>`;
+  }).join(''):'<tr><td colspan="6" class="empty">등록된 자가 발주 품목 없음</td></tr>';
   document.getElementById('cntCycMat').textContent=`${M.presetSelf.length}개`;
 }
 function cycField(idx,key,val){
@@ -2418,6 +2682,25 @@ function cycField(idx,key,val){
   renderCycMat();
   refreshAll();
   toast(`${p.item} 저장됨${sbOK?'':' (이 기기에만 — 공유 연결 시 전체 반영)'}`);
+}
+function addCycRow(){
+  const name=(prompt('추가할 품목명 — 발주 등록에서 쓰는 이름과 정확히 같아야 발주 이력이 제대로 매칭됩니다')||'').trim();
+  if(!name)return;
+  if(M.presetSelf.find(p=>norm(p.item)===norm(name))){toast('이미 등록된 품목입니다');return;}
+  M.presetSelf.push({item:name,label:name,cycle:'격주',qty:null,unit:'대'});
+  if(sb&&sbOK)sbSaveMasterPresetSelfAll();
+  renderCycMat();
+  refreshAll();
+  toast(`${name} 추가됨 — 주기·1회 발주량 등을 입력하세요`);
+}
+function delCycRow(idx){
+  if(!armDel('cyc'+idx))return;
+  const p=M.presetSelf[idx];
+  M.presetSelf.splice(idx,1);
+  if(sb&&sbOK)sbSaveMasterPresetSelfAll();
+  renderCycMat();
+  refreshAll();
+  toast(`${p?.item||''} 삭제됨`);
 }
 async function sbSaveMasterPresetSelfAll(){
   if(!sb||!sbOK)return;
@@ -2438,24 +2721,39 @@ async function sbSaveMasterPresetSelfAll(){
       matchItem()으로 발주 품목명과 마스터 품목을 매칭(오탈자·괄호 표기 차이 허용).
    2) 특이사항·전달사항: 내용 중 "PVC"라는 글자가 들어 있으면 대상. */
 function isPvcItem(itemName){
+  if(isPvcText(itemName))return true;   // 품목명 자체에 PVC가 들어간 경우(마스터 매칭 실패해도 잡히게)
   const m=matchItem(itemName);
   return !!(m&&norm(m.kind)==='PVC');
 }
 function isPvcText(s){return /PVC/i.test(String(s||''));}
+/* 벌크·탱크로 자가 입고되는 P-1000·P-1000F·P-800·P-700은 지게차가 다루는 건이 아니라
+   주기 기준(자재과 발주 알림) 용도로만 관리 — PVC와 같은 규칙으로 지게차 화면
+   전체(오늘 들어오는 것·특이사항·전달사항)에서 안 보이게 함. 자재과 현황 화면·
+   기준정보 탭에서는 그대로 보임. */
+const DRIVER_HIDE_NAMES=['P-1000F','P-1000','P-800','P-700'];
+const DRIVER_HIDE_ITEMS=new Set(DRIVER_HIDE_NAMES.map(norm));
+function isDriverHiddenItem(itemName){return DRIVER_HIDE_ITEMS.has(norm(itemName));}
+function isDriverHiddenText(s){const t=String(s||'').toUpperCase();return DRIVER_HIDE_NAMES.some(n=>t.includes(n.toUpperCase()));}
 /* ═════════ 지게차 기사 화면 ═════════ */
 function renderDriver(){
   const el=document.getElementById('tab-driver');
-  const ins=S.orders.filter(o=>!o.skip&&o.type==='self'&&o.eta&&o.eta<=cur&&(!o.inDate||o.inDate===cur)&&!isPvcItem(o.item)).sort((a,b)=>(a.loc||'').localeCompare(b.loc||''));
+  const ins=S.orders.filter(o=>!o.skip&&o.type==='self'&&o.eta&&o.eta<=cur&&(!o.inDate||o.inDate===cur)&&!isPvcItem(o.item)&&!isDriverHiddenItem(o.item)).sort((a,b)=>(a.loc||'').localeCompare(b.loc||''));
   const mv=S.moves.filter(m=>m.date===cur);const order={'경질':0,'창호':1,'타일':2,'DBP':3};mv.sort((a,b)=>(order[a.dept]??9)-(order[b.dept]??9));
-  const outs=S.cons.filter(c=>c.action==='직접출고'&&!c.done&&(!c.due||c.due<=addDays(cur,1)));
-  const sp=S.specials[cur]||{};const spTxt=Object.entries(sp).filter(([k,v])=>v&&!isPvcText(v)).map(([k,v])=>`${k}: ${v}`).join(' · ');
-  const ro=readOnly||!cap;
-  const cb=(fn,done)=>`<label><input type="checkbox" ${done?'checked':''} ${ro&&!cap?'':''} onchange="${fn}">완료</label>`;
+  // 오늘 완료 체크한 건(outDate===cur)은 목록에서 바로 사라지지 않고 완료 표시로 남겨둠 — 기사가 잘못 눌렀을 때 되돌리고,
+  // "오늘 뭐 나갔지"를 화면에서 바로 볼 수 있게(입고·창고이동과 같은 방식)
+  const outs=S.cons.filter(c=>c.action==='직접출고'&&(c.done?c.outDate===cur:(!c.due||c.due<=addDays(cur,1))));
+  const outsLeft=outs.filter(c=>!c.done).length;
+  const sp=S.specials[cur]||{};const spTxt=Object.entries(sp).filter(([k,v])=>v&&!isPvcText(v)&&!isDriverHiddenText(v)).map(([k,v])=>`${k}: ${v}`).join(' · ');
+  // 읽기 전용은 아티팩트 권한(readOnly)만 기준 — cap이 없는 일반 배포(Supabase 공유)에서도 체크는 정상 저장됨.
+  // 진짜 읽기 전용이면 체크박스를 실제로 막아 "체크했는데 자재과에 안 보인다"가 안 생기게 함.
+  const ro=readOnly;
+  const cb=(fn,done)=>`<label><input type="checkbox" ${done?'checked':''} ${ro?'disabled':''} onchange="${fn}">완료</label>`;
   const meName=localStorage.getItem('jjUser')||'';
   const insLeft=ins.filter(o=>!o.inDate).length;
-  let h=`<div class="banner"><div><b>${fmtK(cur)}</b> 지게차 작업 <span style="opacity:.7;font-size:13px">(${cur})</span><input type="date" class="drv-date" value="${cur}" onchange="setDate(this.value)"></div><div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">입고 ${insLeft} · 창고이동 ${mv.filter(m=>!m.done).length} · 사급출고 ${outs.length}${drvVisibleNotes().filter(n=>!n.done).length?' · 전달사항 '+drvVisibleNotes().filter(n=>!n.done).length:''}${notifSupported()&&Notification.permission!=='granted'?`<button class="btn sm warn" onclick="askNotifPerm()" title="폰 알림 받기">🔔 알림 켜기</button>`:(notifSupported()?`<span class="chip c-done" title="새 작업이 등록되면 폰 알림이 옵니다">🔔 알림 켜짐</span>`:'')}<button class="btn sm" style="background:transparent;color:var(--navy-ink);border-color:#4a5b6c" onclick="askName()">👤 ${esc(meName)||'이름 입력'}</button><button class="btn sm" style="background:transparent;color:var(--navy-ink);border-color:#4a5b6c" onclick="location.reload()">새로고침</button></div></div>`;
+  let h=`<div class="banner"><div><b>${fmtK(cur)}</b> 지게차 작업 <span style="opacity:.7;font-size:13px">(${cur})</span><input type="date" class="drv-date" value="${cur}" onchange="setDate(this.value)"></div><div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">입고 ${insLeft} · 창고이동 ${mv.filter(m=>!m.done).length} · 사급출고 ${outsLeft}${drvVisibleNotes().filter(n=>!n.done).length?' · 전달사항 '+drvVisibleNotes().filter(n=>!n.done).length:''}${notifSupported()&&Notification.permission!=='granted'?`<button class="btn sm warn" onclick="askNotifPerm()" title="폰 알림 받기">🔔 알림 켜기</button>`:(notifSupported()?`<span class="chip c-done" title="새 작업이 등록되면 폰 알림이 옵니다">🔔 알림 켜짐</span>`:'')}<button class="btn sm" style="background:transparent;color:var(--navy-ink);border-color:#4a5b6c" onclick="askName()">👤 ${esc(meName)||'이름 입력'}</button><button class="btn sm" style="background:transparent;color:var(--navy-ink);border-color:#4a5b6c" onclick="location.reload()">새로고침</button></div></div>`;
   if(cur!==localISO(new Date()))h+=`<div class="card" style="margin-top:10px;font-size:13px;color:var(--amber)">⚠ 오늘(${fmtK(localISO(new Date()))}) 날짜가 아닙니다 · <b onclick="setDate('${localISO(new Date())}')" style="cursor:pointer;text-decoration:underline">오늘로 돌아가기</b></div>`;
   if(spTxt)h+=`<div class="card" style="margin-top:10px;font-size:15px"><b>특이사항</b> ${esc(spTxt)}</div>`;
+  h+=drvCalendarHTML();
   // 자유 메모 — 부서칸으로 안 잡히는 전달사항. 기사가 바로 읽고 완료 체크할 수 있게 크게 표시.
   // PVC 언급된 메모는 여기서 뺌(자재과 현황 화면의 전달사항 목록에는 그대로 남음).
   const notes=drvVisibleNotes();
@@ -2476,7 +2774,7 @@ function renderDriver(){
   // 기사 직접 등록 (ASA 등 1,000kg 단위)
   h+=`<h2>➕ 이동 요청 직접 등록 <span class="cnt">품목 탭 → 톤수 탭 = 등록</span></h2>`;
   h+=`<div class="card" style="font-size:15px">
-    <div class="quick">${DRV_ADD.map((it,i)=>`<button style="font-size:15px;padding:10px 14px;${drvSel===it?'background:var(--acc);color:#fff;border-color:var(--acc)':''}" onclick="drvPick(${i})">${it}</button>`).join('')}</div>
+    <div class="quick">${DRV_ADD.map((d,i)=>`<button style="font-size:15px;padding:10px 14px;${drvSel===d.item?'background:var(--acc);color:#fff;border-color:var(--acc)':''}" onclick="drvPick(${i})">${d.item}</button>`).join('')}</div>
     <div class="quick" style="margin-top:8px">${[1,2,3,4,5].map(n2=>`<button style="font-size:16px;font-weight:700;min-width:60px;padding:10px 0" onclick="drvAdd(${n2*1000})">${n2}t</button>`).join('')}</div>
     <form class="row" style="margin-top:8px" onsubmit="event.preventDefault();drvAddCustom()">
       <select id="drvDept" style="font-size:15px"><option>창호</option><option>경질</option><option>타일</option><option>DBP</option><option>기타</option></select>
@@ -2486,16 +2784,23 @@ function renderDriver(){
     </form>
     <div class="tag" style="margin-top:6px">등록하면 자재과 화면에 ✋ 이름과 함께 표시됩니다.</div>
   </div>`;
-  h+=`<h2>③ 사급 출고 (오늘·내일 나갈 것) <span class="cnt">${outs.length}건</span></h2>`;
+  h+=`<h2>③ 사급 출고 (오늘·내일 나갈 것) <span class="cnt">${outsLeft}건 남음</span></h2>`;
   h+=`<div class="tag" style="margin:-4px 0 8px">⚠ 찢어진 지대는 사급 출고 금지 — 자재과 협의 후 자사 생산 투입 · 전산 재고 차감은 배차완료(실물 출고) 시점</div>`;
   const outsGroup=list=>{
     const byC={};list.forEach(c=>(byC[c.consignee]=byC[c.consignee]||[]).push(c));
     return list.length?Object.entries(byC).map(([k,l])=>{const kj=esc(k).replace(/'/g,"\\'");
-      return `<div class="grp" style="cursor:pointer" onclick="showCsInstr('${kj}')">${esc(k)} 행 ${l[0].due?' · 납기 '+fmtK(l.map(c=>c.due).filter(Boolean).sort()[0]):''} · 약 ${Math.max(1,Math.ceil(l.reduce((a,c)=>a+c.qty,0)/1000))} PLT · 📦 지시서 보기</div>`+l.map(c=>`<div class="item"><div><div class="name" style="cursor:pointer" onclick="showCsInstr('${kj}')">${esc(c.item)} <span class="loc">${esc(c.loc||'14동')}</span></div><div class="meta">${esc(c.consignee)}${c.pack?' · '+esc(c.pack):''}</div></div><div><div class="qty">${fmtN(c.qty)} kg</div>${cb(`csMark(${c.id},'outDate')`,false)}</div></div>`).join('');}).join(''):'<div class="empty">없음</div>';
+      // 같은 사급처 안에서 동일 품목이면 한 행으로 합쳐 수량을 더하고, 완료 체크도 묶어서 한 번에 처리
+      // 품목명이 같아도 출고창고(loc)·포장(pack)이 다르면 실물 위치가 달라 헷갈릴 수 있어 별도 행 유지
+      // 완료된 건은 미완료 건과 한 행으로 섞지 않음(체크 해제가 어느 건을 되돌리는지 분명하게)
+      const byItem={};l.forEach(c=>{const key=norm(c.item)+'|'+norm(c.loc)+'|'+norm(c.pack)+'|'+(c.done?1:0);const g=byItem[key]=byItem[key]||{item:c.item,loc:c.loc,pack:c.pack,done:!!c.done,outBy:[],qty:0,ids:[]};g.qty+=c.qty;g.ids.push(c.id);if(c.outBy&&!g.outBy.includes(c.outBy))g.outBy.push(c.outBy);});
+      // 납기·PLT는 남은 건 기준(전부 끝났으면 전체 기준으로 표시)
+      const pend=l.filter(c=>!c.done),base=pend.length?pend:l,plt=Math.max(1,Math.ceil(base.reduce((a,c)=>a+c.qty,0)/1000));
+      return `<div class="grp" style="cursor:pointer" onclick="showCsInstr('${kj}')">${esc(k)} 행 ${pend.some(c=>c.due)?' · 납기 '+fmtK(pend.map(c=>c.due).filter(Boolean).sort()[0]):''} · 약 ${plt} PLT${pend.length?'':' · ✓ 출고 완료'} · 📦 지시서 보기</div>`+Object.values(byItem).map(g=>`<div class="item ${g.done?'done':''}"><div><div class="name" style="cursor:pointer" onclick="showCsInstr('${kj}')">${esc(g.item)} <span class="loc">${esc(g.loc||'14동')}</span></div><div class="meta">${esc(k)}${g.pack?' · '+esc(g.pack):''}${g.done&&g.outBy.length?' · 완료: '+esc(g.outBy.join(', ')):''}</div></div><div><div class="qty">${fmtN(g.qty)} kg</div>${g.done?cb(`csUndoOutGroup(${JSON.stringify(g.ids)})`,true):cb(`csMarkGroup(${JSON.stringify(g.ids)},'outDate')`,false)}</div></div>`).join('');}).join(''):'<div class="empty">없음</div>';
   };
-  const outsToday=outs.filter(c=>!c.due||c.due<=cur);
-  const outsTomorrow=outs.filter(c=>c.due===addDays(cur,1));
-  h+=`<div class="grp-lbl">오늘 나갈 것 <span class="cnt">${outsToday.length}건</span></div>`+outsGroup(outsToday);
+  const outsToday=outs.filter(c=>c.done||!c.due||c.due<=cur);   // 오늘 완료한 건은 납기와 상관없이 오늘 칸에
+  const outsTomorrow=outs.filter(c=>!c.done&&c.due===addDays(cur,1));
+  const todayDone=outsToday.filter(c=>c.done).length,todayLeft=outsToday.length-todayDone;
+  h+=`<div class="grp-lbl">오늘 나갈 것 <span class="cnt">${todayLeft}건 남음${todayDone?' · 완료 '+todayDone+'건':''}</span></div>`+outsGroup(outsToday);
   h+=`<div class="grp-lbl" style="margin-top:12px">내일 나갈 것 <span class="cnt">${outsTomorrow.length}건</span></div>`+outsGroup(outsTomorrow);
   h+=`<div class="tag" style="margin-top:20px">${ro?'보기 전용 — 체크는 자재과 화면에서 저장됩니다.':'체크하면 자재과 화면에도 반영됩니다.'} · 문의: 자재과 김성진 010-5730-6623</div>`;
   el.innerHTML=h;
@@ -2519,15 +2824,24 @@ function editActKg(id){
   saveDB();refreshAll();
   toast('실출고 보정 저장됨');
 }
-/* 기사 직접 등록 — ASA 등 1,000kg 단위 (창호 M201P2) */
-const DRV_ADD=['ASA GR(네츄럴그레이)','ASA DB(브라운)','ASA BZ(브론즈)','ASA DG(다크그레이)','ASA BK(블랙)'];
+/* 기사 직접 등록 — 품목별 부서·창고 위치를 함께 지정, 1,000kg 단위로 탭 등록 */
+const DRV_ADD=[
+  {item:'ASA GR(네츄럴그레이)',dept:'창호',loc:'M201P2'},
+  {item:'ASA DB(브라운)',dept:'창호',loc:'M201P2'},
+  {item:'ASA BZ(브론즈)',dept:'창호',loc:'M201P2'},
+  {item:'ASA DG(다크그레이)',dept:'창호',loc:'M201P2'},
+  {item:'ASA BK(블랙)',dept:'창호',loc:'M201P2'},
+  {item:'DHA-100',dept:'타일'},
+];
 let drvSel='';
-function drvPick(i){drvSel=DRV_ADD[i]===drvSel?'':DRV_ADD[i];renderDriver();}
+function drvPick(i){drvSel=DRV_ADD[i].item===drvSel?'':DRV_ADD[i].item;renderDriver();}
 function drvAdd(kg){
   if(!drvSel){toast('품목을 먼저 탭하세요');return;}
   if(needName(()=>drvAdd(kg)))return;
   const who=whoNow();
-  S.moves.push({id:S.seq++,date:cur,dept:'창호',item:drvSel,qty:kg,unit:'kg',loc:'M201P2',note:'기사 등록',addedBy:who,done:false});
+  const preset=DRV_ADD.find(d=>d.item===drvSel);
+  const loc=preset.loc||locOf(drvSel);
+  S.moves.push({id:S.seq++,date:cur,dept:preset.dept,item:drvSel,qty:kg,unit:'kg',loc,note:'기사 등록',addedBy:who,done:false});
   saveDB();refreshAll();toast(`${drvSel} ${fmtN(kg)}kg 등록됨 (${who})`);
 }
 function drvAddCustom(){
@@ -2551,8 +2865,36 @@ function openDlg(title,fields,obj,onSave,onDel){
   const db2=document.getElementById('dlgDelBtn');db2.style.display='';db2.dataset.arm='';db2.textContent='삭제';
   dlgCtx={obj,onSave,onDel,fields};dlg.showModal();
 }
-function dlgSave(){dlgBody.querySelectorAll('input,select').forEach(i=>{const k=i.dataset.k;if(!k)return;dlgCtx.obj[k]=i.type==='number'?(i.value===''?null:+i.value):i.value.trim();});if(dlgCtx.onSave(dlgCtx.obj)===false)return;dlg.close();}
-dlg.addEventListener('keydown',e=>{if(e.key==='Enter'&&e.target.tagName==='INPUT'){e.preventDefault();dlgSave();}});
+const dlgVal=i=>i.type==='number'?(i.value===''?null:+i.value):i.value.trim();
+function dlgSave(){dlgBody.querySelectorAll('input,select').forEach(i=>{const k=i.dataset.k;if(!k)return;dlgCtx.obj[k]=dlgVal(i);});if(dlgCtx.onSave(dlgCtx.obj)===false)return;dlg.close();}
+/* 수정 창에서 Enter = 저장. 입력칸에 있을 때와, 아무 칸에도 포커스가 없어 창 자체에 있을 때 저장.
+   셀렉트(Enter는 목록 열기/선택)·textarea(줄바꿈)·버튼(취소/삭제 등 원래 동작)은 건드리지 않음.
+   한글 입력 중 조합을 끝내는 Enter도 그대로 저장으로 이어지게 둠(예전과 동일 — 한 번만 누르면 됨). */
+const DLG_DISCARD_MSG='수정한 내용이 저장되지 않았습니다. 저장하지 않고 닫을까요?';
+dlg.addEventListener('keydown',e=>{
+  if(e.key==='Escape'){
+    /* 브라우저 기본 닫기(cancel)는 사용자 조작 이력이 없으면 preventDefault가 무시되므로 Esc는 직접 처리 */
+    e.preventDefault();
+    if(!dlgDirty()||confirm(DLG_DISCARD_MSG))dlg.close();
+    return;
+  }
+  if(e.key!=='Enter')return;
+  const t=e.target.tagName;
+  if(t!=='INPUT'&&t!=='DIALOG')return;
+  e.preventDefault();dlgSave();
+});
+/* Esc로 닫을 때 수정 중이던 값이 있으면 확인 — 칸이 많은 사급 수정 창에서 말없이 날아가는 사고 방지 */
+function dlgDirty(){
+  if(!dlgCtx||!dlgCtx.obj)return false;
+  return Array.from(dlgBody.querySelectorAll('input,select')).some(i=>{
+    const k=i.dataset.k;if(!k)return false;
+    return String(dlgVal(i)??'')!==String(dlgCtx.obj[k]??'');
+  });
+}
+/* 키보드 외 닫기 요청(안드로이드 뒤로가기 등)도 같은 확인 — 브라우저가 허용하는 범위에서 */
+dlg.addEventListener('cancel',e=>{
+  if(dlgDirty()&&!confirm(DLG_DISCARD_MSG))e.preventDefault();
+});
 function dlgDelete(){const b=document.getElementById('dlgDelBtn');
   if(b.dataset.arm!=='1'){b.dataset.arm='1';b.textContent='정말 삭제?';setTimeout(()=>{if(dlg.open){b.dataset.arm='';b.textContent='삭제';}},3000);return;}
   b.dataset.arm='';b.textContent='삭제';dlg.close();dlgCtx.onDel();}
@@ -2568,6 +2910,149 @@ async function exportJSON(){
 }
 function importJSON(ev){const f=ev.target.files[0];if(!f)return;
   const r=new FileReader();r.onload=()=>{try{const d=JSON.parse(r.result);if(d.moves){S=d;saveDB();refreshAll();toast('복원 완료');}else toast('올바른 백업 파일이 아닙니다');}catch(e){toast('파일을 읽을 수 없습니다');}};r.readAsText(f);ev.target.value='';}
+
+/* ═════════ 캘린더 탭 — 입고·창고이동·출고를 월/주 단위로 한눈에 ═════════
+   입고 = S.orders(자가만, eta 기준) · 창고이동 = S.moves(date 기준) ·
+   출고 = S.cons(직접출고만, 요청납기 또는 실제 출고일 기준) — 사급 발주(대리발주)
+   건은 우리 창고를 거치지 않으므로 대상에서 뺌(기존 대시보드 규칙과 동일). */
+let calView='month',calDate=cur,calSelDay=null;
+function calDayData(d){
+  return{
+    ins:S.orders.filter(o=>!o.skip&&o.type==='self'&&o.eta===d),
+    mvs:S.moves.filter(m=>m.date===d),
+    outs:S.cons.filter(c=>c.action==='직접출고'&&(c.due||c.outDate)===d),
+  };
+}
+function calMonthDays(ym){
+  const[y,m]=ym.split('-').map(Number);
+  const startOffset=new Date(y,m-1,1).getDay();
+  const daysInMonth=new Date(y,m,0).getDate();
+  const cells=[];
+  for(let i=startOffset;i>0;i--)cells.push({date:localISO(new Date(y,m-1,1-i)),inMonth:false});
+  for(let i=1;i<=daysInMonth;i++)cells.push({date:localISO(new Date(y,m-1,i)),inMonth:true});
+  while(cells.length<42)cells.push({date:addDays(cells[cells.length-1].date,1),inMonth:false});
+  return cells;
+}
+function calWeekDays(d){
+  const sunday=addDays(d,-new Date(d+'T00:00:00').getDay());
+  return Array.from({length:7},(_,i)=>addDays(sunday,i));
+}
+function calShift(n){
+  if(calView==='month'){const d=new Date(calDate+'T00:00:00');d.setMonth(d.getMonth()+n,1);calDate=localISO(d);}
+  else calDate=addDays(calDate,7*n);
+  renderCalendar();
+}
+function calToday(){calDate=realToday();calSelDay=null;renderCalendar();}   // 기준일이 밀려 있어도 [오늘]은 진짜 오늘
+function calSetView(v){calView=v;calSelDay=null;renderCalendar();}
+function calPickDay(d){calSelDay=calSelDay===d?null:d;renderCalendar();}
+/* 지게차 화면용 캘린더 — 자재과 캘린더 탭과 같은 데이터(calDayData/calMonthDays)를
+   재사용하되, 날짜를 탭하면 상세 카드 대신 그 날짜로 화면 자체를 바로 이동시킴
+   (지게차 화면은 원래 "기준일" 하나를 골라 그날 할 일만 보여주는 구조라서). */
+let drvCalDate=null;
+function drvCalShift(n){
+  const base=drvCalDate||cur;
+  const d=new Date(base+'T00:00:00');d.setMonth(d.getMonth()+n,1);drvCalDate=localISO(d);
+  renderDriver();
+}
+function drvCalPick(d){drvCalDate=d;setDate(d);}
+function drvCalCellHTML(cell){
+  const{ins,mvs,outs}=calDayData(cell.date);
+  const chips=[];
+  if(ins.length)chips.push(`<span class="chip c-ord">입고${ins.length}</span>`);
+  if(mvs.length)chips.push(`<span class="chip c-mut">이동${mvs.length}</span>`);
+  if(outs.length)chips.push(`<span class="chip c-wait">출고${outs.length}</span>`);
+  return`<div class="calCell${cell.inMonth?'':' out'}${cell.date===realToday()?' today':''}${cell.date===cur?' sel':''}" onclick="drvCalPick('${cell.date}')">
+    <div class="calDayNum">${+cell.date.slice(8,10)}</div>
+    <div class="calChips">${chips.join('')}</div>
+  </div>`;
+}
+let drvCalOpen=true;
+function drvCalendarHTML(){
+  const ym=(drvCalDate||cur).slice(0,7);
+  return`<details class="card drvCal" ${drvCalOpen?'open':''} ontoggle="drvCalOpen=this.open">
+    <summary>📅 캘린더 <span class="cnt">날짜를 탭하면 그 날로 이동</span></summary>
+    <div class="row" style="align-items:center;margin:10px 0 8px">
+      <button class="btn ghost" onclick="drvCalShift(-1)">◀</button>
+      <b style="min-width:100px;text-align:center;font-size:15px">${ym.slice(0,4)}년 ${+ym.slice(5,7)}월</b>
+      <button class="btn ghost" onclick="drvCalShift(1)">▶</button>
+      <button class="btn" onclick="drvCalDate=null;setDate(realToday())">오늘</button>
+    </div>
+    <div class="hint" style="margin-bottom:6px"><span class="chip c-ord">■</span> 입고 &nbsp;<span class="chip c-mut">■</span> 창고이동 &nbsp;<span class="chip c-wait">■</span> 출고</div>
+    <div class="calWeekHead">${KDAY.map(w=>`<div>${w}</div>`).join('')}</div>
+    <div class="calRows">${calMonthDays(ym).map(drvCalCellHTML).join('')}</div>
+  </details>`;
+}
+function calGroupTable(icon,cls,label,items,cols){
+  if(!items.length)return'';
+  const head=cols.map(c=>`<th${c.num?' class="num"':''}>${c.h}</th>`).join('');
+  const rows=items.map(it=>`<tr>${cols.map(c=>`<td${c.num?' class="num"':''}>${c.v(it)}</td>`).join('')}</tr>`).join('');
+  return`<div class="calGrpLbl ${cls}">${icon} ${label} ${items.length}</div><div class="tbl"><table class="calTbl"><thead><tr>${head}</tr></thead><tbody>${rows}</tbody></table></div>`;
+}
+function calDayDetailHTML(d){
+  const{ins,mvs,outs}=calDayData(d);
+  if(!ins.length&&!mvs.length&&!outs.length)return'<div class="calEmpty">이 날짜엔 입고·창고이동·출고 없음</div>';
+  return calGroupTable('📥','c-ord','입고',ins,[
+      {h:'품목',v:o=>esc(o.item)},
+      {h:'수량',num:true,v:o=>fmtN(o.qty)+esc(o.unit)},
+      {h:'업체',v:o=>esc(o.vendor)},
+      {h:'상태',v:o=>o.inDate?'<span class="chip c-done">입고완료</span>':'<span class="chip c-wait">대기</span>'},
+    ])
+    +calGroupTable('🚚','c-mut','창고이동',mvs,[
+      {h:'부서',v:m=>esc(m.dept)},
+      {h:'품목',v:m=>esc(m.item)},
+      {h:'수량',num:true,v:m=>fmtN(m.qty)+esc(m.unit)},
+      {h:'상태',v:m=>m.done?'<span class="chip c-done">완료</span>':'<span class="chip c-wait">대기</span>'},
+    ])
+    +calGroupTable('📤','c-wait','출고',outs,[
+      {h:'사급처',v:c=>esc(c.consignee)},
+      {h:'품목',v:c=>esc(c.item)},
+      {h:'수량',num:true,v:c=>fmtN(c.qty)+'kg'},
+      {h:'상태',v:c=>c.outDate?'<span class="chip c-done">출고완료</span>':'<span class="chip c-wait">대기</span>'},
+    ]);
+}
+function calCellHTML(cell){
+  const{ins,mvs,outs}=calDayData(cell.date);
+  const totalN=ins.length+mvs.length+outs.length;
+  const chips=[];
+  if(ins.length)chips.push(`<span class="chip c-ord">입고${ins.length}</span>`);
+  if(mvs.length)chips.push(`<span class="chip c-mut">이동${mvs.length}</span>`);
+  if(outs.length)chips.push(`<span class="chip c-wait">출고${outs.length}</span>`);
+  const names=[...ins.map(o=>o.item),...mvs.map(m=>m.item),...outs.map(c=>c.item)];
+  const preview=names.slice(0,2).map(esc).join(', ');
+  return`<div class="calCell${cell.inMonth?'':' out'}${cell.date===realToday()?' today':''}${calSelDay===cell.date?' sel':''}" onclick="calPickDay('${cell.date}')">
+    <div class="calDayNum">${+cell.date.slice(8,10)}</div>
+    <div class="calChips">${chips.join('')}</div>
+    ${preview?`<div class="calPreview">${preview}${totalN>2?' 외 '+(totalN-2):''}</div>`:''}
+  </div>`;
+}
+function calWeekCellHTML(d){
+  const{ins,mvs,outs}=calDayData(d);
+  return`<div class="calWeekCell${d===realToday()?' today':''}">
+    <div class="calDayNum">${+d.slice(8,10)}(${KDAY[new Date(d+'T00:00:00').getDay()]})</div>
+    ${calDayDetailHTML(d)}
+  </div>`;
+}
+function renderCalendar(){
+  const grid=document.getElementById('calGrid');if(!grid)return;
+  const tg=document.getElementById('calViewToggle');
+  tg.innerHTML=`<button class="btn sm ${calView==='month'?'pri':'ghost'}" onclick="calSetView('month')">월</button><button class="btn sm ${calView==='week'?'pri':'ghost'}" onclick="calSetView('week')">주</button>`;
+  const dayCard=document.getElementById('calDayCard');
+  if(calView==='month'){
+    const ym=calDate.slice(0,7);
+    document.getElementById('calLabel').textContent=`${ym.slice(0,4)}년 ${+ym.slice(5,7)}월`;
+    grid.innerHTML=`<div class="calWeekHead">${KDAY.map(w=>`<div>${w}</div>`).join('')}</div><div class="calRows">${calMonthDays(ym).map(calCellHTML).join('')}</div>`;
+    if(calSelDay){
+      dayCard.style.display='';
+      document.getElementById('calDayLabel').textContent=fmtK(calSelDay);
+      document.getElementById('calDayDetail').innerHTML=calDayDetailHTML(calSelDay);
+    }else dayCard.style.display='none';
+  }else{
+    const days=calWeekDays(calDate);
+    document.getElementById('calLabel').textContent=`${fmtK(days[0])}~${fmtK(days[6])}`;
+    grid.innerHTML=`<div class="calGridWeek">${days.map(calWeekCellHTML).join('')}</div>`;
+    dayCard.style.display='none';
+  }
+}
 
 /* ═════════ 통계 탭 ═════════ */
 let stMonth='',stItem='';

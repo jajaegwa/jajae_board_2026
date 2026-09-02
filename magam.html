@@ -940,6 +940,33 @@ document.getElementById('monPick').value=mon;
 document.getElementById('monPick').onchange=e=>{if(e.target.value){mon=e.target.value;refreshAll();}};
 document.getElementById('saveBox').style.cursor='pointer';
 document.getElementById('saveBox').onclick=()=>{if(!sbOK)askConnect();};
+/* 체크박스 사이 방향키 이동 — 스페이스바 체크/해제는 브라우저 기본 동작이라 손댈 필요 없음.
+   위/아래는 같은 열(같은 칸 위치)의 다른 행으로, 좌/우는 같은 행의 다른 체크박스로 이동.
+   표가 통째로 다시 그려져도 document에 한 번만 걸어두면 계속 동작함. */
+document.addEventListener('keydown',e=>{
+  const t=e.target;
+  if(!(t instanceof HTMLInputElement)||t.type!=='checkbox')return;
+  const vert=e.key==='ArrowUp'?-1:e.key==='ArrowDown'?1:0;
+  const horiz=e.key==='ArrowLeft'?-1:e.key==='ArrowRight'?1:0;
+  if(!vert&&!horiz)return;
+  const tr=t.closest('tr'),table=tr&&tr.closest('table');
+  if(!table)return;
+  if(vert){
+    const td=t.closest('td')||t.closest('th');if(!td)return;
+    const ci=td.cellIndex;
+    const rows=[...table.rows];
+    const ri=rows.indexOf(tr);
+    for(let r=ri+vert;r>=0&&r<rows.length;r+=vert){
+      const cell=rows[r].cells[ci];
+      const cb=cell&&cell.querySelector('input[type=checkbox]');
+      if(cb){e.preventDefault();cb.focus();return;}
+    }
+  }else{
+    const cbs=[...tr.querySelectorAll('input[type=checkbox]')];
+    const next=cbs[cbs.indexOf(t)+horiz];
+    if(next){e.preventDefault();next.focus();}
+  }
+});
 refreshAll();
 sbInit();
 </script>

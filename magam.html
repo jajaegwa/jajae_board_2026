@@ -188,9 +188,16 @@ function normalize(d){
       clean[sd]={};
       if(isObj(mm[sd]))Object.keys(mm[sd]).forEach(vid=>{
         const e=mm[sd][vid];if(!isObj(e))return;
+        /* 체크는 순번이 아니라 항목 이름으로 저장 — 항목을 추가·삭제·순서변경해도
+           기존에 체크해둔 다른 항목들이 밀리지 않게 하기 위함.
+           예전 버전(배열)에서 넘어온 데이터는 그 당시 순서를 알 수 없어 지금의
+           STEPS 순서로 최선 매핑(완벽히 복원되지 않을 수 있음) */
+        const st={};
+        if(isObj(e.st))STEPS[sd].forEach(name=>{st[name]=e.st[name]===true;});
+        else if(Array.isArray(e.st))STEPS[sd].forEach((name,i)=>{st[name]=e.st[i]===true;});
+        else STEPS[sd].forEach(name=>{st[name]=false;});
         clean[sd][vid]={sent:typeof e.sent==='string'?e.sent:'',via:typeof e.via==='string'?e.via:'',
-          st:Array.isArray(e.st)?STEPS.sales.map((_,i)=>e.st[i]===true):STEPS.sales.map(()=>false),
-          note:typeof e.note==='string'?e.note:'',toBuyer:e.toBuyer===true};
+          st,note:typeof e.note==='string'?e.note:'',toBuyer:e.toBuyer===true};
       });
     });
     /* 이번달만 제외한 업체 — 완전 삭제가 아니라 이번달 목록에서만 숨김(다음달엔 다시 보임) */
@@ -226,12 +233,12 @@ function ensureMonth(m){
   if(!mm.targetsMeta)mm.targetsMeta={sales:null,purchase:null};
   return mm;
 }
-function entry(side,vid,m){const mm=ensureMonth(m||mon);if(!mm[side][vid])mm[side][vid]={sent:'',via:'',st:STEPS.sales.map(()=>false),note:'',toBuyer:false};return mm[side][vid];}
-function entryRO(side,vid,m){const mm=S.months[m||mon];return mm&&mm[side]&&mm[side][vid]?mm[side][vid]:{sent:'',via:'',st:STEPS.sales.map(()=>false),note:'',toBuyer:false};}
+function entry(side,vid,m){const mm=ensureMonth(m||mon);if(!mm[side][vid])mm[side][vid]={sent:'',via:'',st:{},note:'',toBuyer:false};return mm[side][vid];}
+function entryRO(side,vid,m){const mm=S.months[m||mon];return mm&&mm[side]&&mm[side][vid]?mm[side][vid]:{sent:'',via:'',st:{},note:'',toBuyer:false};}
 /* 매입 금액이 안 맞으면 자재과가 아니라 구매팀이 월말에 마감 처리함 — toBuyer로 표시해두면
    그 업체는 자재과 미완료 집계에서 빠지고(완료로 취급) "구매팀 처리 예정"으로 따로 표시됨 */
-function pct(side,e){if(side==='purchase'&&e.toBuyer)return 1;const n=STEPS[side].length;return e.st.slice(0,n).filter(Boolean).length/n;}
-function delayStep(side,e){if(e.toBuyer)return'';const n=STEPS[side].length;const i=e.st.slice(0,n).findIndex(x=>!x);return i<0?'':STEPS[side][i]+' 지연';}
+function pct(side,e){if(side==='purchase'&&e.toBuyer)return 1;const steps=STEPS[side];return steps.filter(name=>e.st&&e.st[name]===true).length/steps.length;}
+function delayStep(side,e){if(e.toBuyer)return'';const steps=STEPS[side];const i=steps.findIndex(name=>!(e.st&&e.st[name]===true));return i<0?'':steps[i]+' 지연';}
 
 /* ===== 저장 + Supabase 동기화 ===== */
 const sbClientId=Math.random().toString(36).slice(2);
@@ -670,7 +677,7 @@ function listHTML(side){
     <button class="btn sm ghost" onclick="showExcludedDlg('${side}')">이번달 제외 목록${excluded.length?` (${excluded.length})`:''}</button>
   </div>
   <div class="tbl scroll"><table>
-    <tr><th><input type="checkbox" class="ck" id="vSelAll_${side}" onchange="toggleAllVendorFromDom(this)"></th><th>업체명</th><th>유형·품목</th><th>${side==='sales'?'처리자':'처리자·구매팀'}</th><th>발주↔입고</th><th>보낸날짜</th><th>방식</th>${short.map((s,i)=>{const bulk=STEPS[side][i]==='매출승인';return`<th style="text-align:center;border-top:2.5px solid var(--ink);${stepBorder(side,i)}${bulk?'cursor:pointer':''}"${bulk?` onclick="bulkCheckStep('${side}',${i})" title="클릭하면 지금 보이는 업체 전체를 한 번에 체크합니다"`:''}>${s}${bulk?' ⚡':''}</th>`;}).join('')}<th>비고</th>${side==='purchase'?'<th title="금액 불일치 — 구매팀이 월말에 직접 마감 처리">구매팀행</th>':''}<th>진행률</th><th>상태</th><th></th></tr>
+    <tr><th><input type="checkbox" class="ck" id="vSelAll_${side}" onchange="toggleAllVendorFromDom(this)"></th><th>업체명</th><th>유형·품목</th><th>${side==='sales'?'처리자':'처리자·구매팀'}</th><th>발주↔입고</th><th>보낸날짜</th><th>방식</th>${short.map((s,i)=>{const bulk=STEPS[side][i]==='매출승인';return`<th style="text-align:center;border-top:2.5px solid var(--ink);${stepBorder(side,i)}${bulk?'cursor:pointer':''}"${bulk?` onclick="bulkCheckStep('${side}','${STEPS[side][i]}')" title="클릭하면 지금 보이는 업체 전체를 한 번에 체크합니다"`:''}>${s}${bulk?' ⚡':''}</th>`;}).join('')}<th>비고</th>${side==='purchase'?'<th title="금액 불일치 — 구매팀이 월말에 직접 마감 처리">구매팀행</th>':''}<th>진행률</th><th>상태</th><th></th></tr>
     ${rows.length?rows.map((v,idx)=>rowHTML(side,v,idx===rows.length-1)).join('')
       :`<tr><td colspan="23" style="padding:14px;text-align:left;white-space:normal"><div class="mut" style="font-size:13px">
         표시할 업체가 없습니다 — 저장이 안 된 게 아니라 <b>필터 때문에 안 보이는</b> 경우가 대부분입니다.
@@ -692,7 +699,7 @@ function rowHTML(side,v,isLast){
     <td>${linkBadge(side,v)}</td>
     <td><input type="date" value="${esc(e.sent)}" onchange="setSent('${side}','${v.id}','sent',this.value)"></td>
     <td><select onchange="setSent('${side}','${v.id}','via',this.value)">${VIAS.map(x=>`<option${e.via===x?' selected':''}>${x}</option>`).join('')}</select></td>
-    ${e.st.slice(0,STEPS[side].length).map((c,i)=>`<td style="text-align:center;${stepBorder(side,i,isLast)}"><input type="checkbox" class="ck" data-fk="${side}|${esc(v.id)}|${i}"${c?' checked':''} onchange="setStep('${side}','${v.id}',${i},this.checked)"></td>`).join('')}
+    ${STEPS[side].map((name,i)=>{const c=e.st&&e.st[name]===true;return`<td style="text-align:center;${stepBorder(side,i,isLast)}"><input type="checkbox" class="ck" data-fk="${side}|${esc(v.id)}|${esc(name)}"${c?' checked':''} onchange="setStep('${side}','${v.id}','${name}',this.checked)"></td>`;}).join('')}
     <td><input type="text" value="${esc(e.note)}" placeholder="비고" style="width:130px" onchange="setSent('${side}','${v.id}','note',this.value)"></td>
     ${side==='purchase'?`<td style="text-align:center" title="금액 불일치 — 구매팀이 월말에 직접 마감 처리(자재과 미완료 집계에서 제외)"><input type="checkbox" class="ck" data-fk="${side}|${esc(v.id)}|buyer"${e.toBuyer?' checked':''} onchange="setToBuyer('${side}','${v.id}',this.checked)"></td>`:''}
     <td><span class="prog${p===1?' done':''}"><i style="width:${p*100}%"></i></span><span class="pct num">${Math.round(p*100)}%</span></td>
@@ -715,19 +722,18 @@ function toggleDetail(side,vid,el){
     </div>${L&&L.open.length?`<div class="dbox" style="margin-top:4px"><span><b>미입고</b>${L.open.map(o=>`${esc(o.item)} ${o.qty||''}${esc(o.unit||'')} <span class="mut">(발주 ${esc((o.ordDate||'').slice(5))}${o.eta?` · 착 ${esc(o.eta.slice(5))}`:''})</span>`).join(' · ')}</span></div>`:''}</td>`;
   tr.after(d);
 }
-function setStep(side,vid,i,val){entry(side,vid).st[i]=!!val;saveDB();renderNav();renderView();}
+function setStep(side,vid,name,val){entry(side,vid).st[name]=!!val;saveDB();renderNav();renderView();}
 function setSent(side,vid,k,val){entry(side,vid)[k]=val;saveDB();}
 function setToBuyer(side,vid,val){entry(side,vid).toBuyer=!!val;saveDB();renderNav();renderView();}
 /* 매출승인처럼 결재를 한 번에 몰아서 하는 단계는 업체마다 하나씩 체크하는 게 번거로움 —
    헤더를 클릭하면 지금 화면에 보이는(필터링된) 업체 전체를 한 번에 체크 */
-function bulkCheckStep(side,i){
-  const label=STEPS[side][i];
+function bulkCheckStep(side,name){
   const ids=[...document.querySelectorAll('.tbl.scroll input.vsel')].map(el=>el.dataset.id);
   if(!ids.length){toast('체크할 업체가 없습니다');return;}
-  if(!confirm(`지금 보이는 업체 ${ids.length}곳의 "${label}"을(를) 한 번에 체크할까요?`))return;
-  ids.forEach(id=>{entry(side,id).st[i]=true;});
+  if(!confirm(`지금 보이는 업체 ${ids.length}곳의 "${name}"을(를) 한 번에 체크할까요?`))return;
+  ids.forEach(id=>{entry(side,id).st[name]=true;});
   saveDB();renderNav();renderView();
-  toast(`${ids.length}곳 "${label}" 일괄 체크 완료`);
+  toast(`${ids.length}곳 "${name}" 일괄 체크 완료`);
 }
 
 /* --- 업체 편집 --- */
@@ -918,7 +924,7 @@ function exportCSV(side){
     const e=entryRO(side,v.id);
     const cell=s=>'"'+(s||'').toString().replace(/"/g,'""')+'"';
     const status=side==='purchase'&&e.toBuyer?'구매팀 처리':pct(side,e)===1?'완료':'미완';
-    lines.push([v.name,v.mgr,v.type,v.handler,v.buyer,v.items,e.sent,e.via,...e.st.slice(0,STEPS[side].length).map(x=>x?'O':''),e.note,...(side==='purchase'?[e.toBuyer?'O':'']:[]),Math.round(pct(side,e)*100)+'%',status,delayStep(side,e)].map(cell).join(','));
+    lines.push([v.name,v.mgr,v.type,v.handler,v.buyer,v.items,e.sent,e.via,...STEPS[side].map(name=>(e.st&&e.st[name]===true)?'O':''),e.note,...(side==='purchase'?[e.toBuyer?'O':'']:[]),Math.round(pct(side,e)*100)+'%',status,delayStep(side,e)].map(cell).join(','));
   });
   dl(`${side==='sales'?'사급매출마감':'매입마감'}-${mon}.csv`,'﻿'+lines.join('\r\n'),'text/csv');
 }

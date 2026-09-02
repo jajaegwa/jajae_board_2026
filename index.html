@@ -136,7 +136,7 @@ textarea.mail:not(:read-only){background:var(--card);border-color:var(--acc)}
 body.driver main{max-width:900px}
 body.driver header .date{display:none}
 body.driver header button:not(#btnDrv):not(#sbGateBtn){display:none}
-body.driver #drvNotif{display:none!important}
+body.driver #drvNotif,body.driver #curWarn{display:none!important}
 .drv h2{font-size:19px;font-weight:700;margin:22px 0 10px;display:flex;align-items:center;gap:10px}
 .drv h2 .cnt{font-size:13.5px;color:var(--mut)}
 .drv .item{display:grid;grid-template-columns:1fr auto;gap:8px 14px;align-items:center;background:var(--card);border:1px solid var(--line);border-radius:4px;padding:14px 16px;margin-bottom:8px;font-size:17px}
@@ -209,9 +209,10 @@ details.card summary .cnt{font-size:11.5px;color:var(--mut);font-weight:500}
   <span class="sub">입고 · 창고이동 · 발주 · 사급 한 화면</span>
   <!-- 화면이 최신 버전인지 바로 확인할 수 있게 표시 — 이 값이 다르면 브라우저가
        예전 파일을 캐시해 둔 것이므로 강력 새로고침(Ctrl+F5 / 아이폰은 Safari 재실행) 필요 -->
-  <span class="sub" id="buildStamp" title="화면 버전 — 최신이 아니면 Ctrl+F5로 강력 새로고침">v2026-09-02a</span>
+  <span class="sub" id="buildStamp" title="화면 버전 — 최신이 아니면 Ctrl+F5로 강력 새로고침">v2026-09-02b</span>
   <span class="sp"></span>
   <span class="date">기준일 <input type="date" id="curDate" onchange="setDate(this.value)"></span>
+  <span id="curWarn" class="tag" style="display:none;background:var(--amber-soft);color:var(--amber);border:1px solid var(--amber);padding:3px 8px;border-radius:2px;font-weight:700;cursor:pointer" title="기준일이 오늘이 아니면 등록·체크가 이 날짜로 기록됩니다" onclick="setDate(realToday())">⚠ 기준일이 오늘이 아님 — 오늘로</span>
   <span class="savebox" id="saveBox"><i></i><span id="saveTxt">불러오는 중</span></span>
   <span class="chip c-wait" id="drvNotif" style="display:none;cursor:pointer" onclick="clearDrvNotif()" title="눌러서 확인"></span>
   <span class="chip c-late" id="delAlert" style="display:none;cursor:pointer" onclick="ackDeletes()" title="눌러서 삭제 기록 보기"></span>
@@ -305,6 +306,7 @@ details.card summary .cnt{font-size:11.5px;color:var(--mut);font-weight:500}
         <div class="quick qm-qty" id="sp2Qty" style="margin:0 0 10px"></div>
         <input id="sp2Note" placeholder="비고 (선택)" style="width:100%;margin-bottom:8px">
         <label style="display:flex;align-items:center;gap:5px;font-size:12.5px;color:var(--ink)"><input type="checkbox" id="sp2Ord" checked>발주도 같이 등록</label>
+        <div id="sp2Undo" class="row" style="align-items:center;margin-top:6px"></div>
       </div>
     </div>
     <div class="qm-group" style="margin-top:16px">
@@ -313,7 +315,7 @@ details.card summary .cnt{font-size:11.5px;color:var(--mut);font-weight:500}
       <div id="qmQtyBox" style="display:none">
         <div class="row" style="align-items:center;margin-top:6px">
           <b id="qmSelName" style="font-size:16px"></b>
-          <select id="qmUnit"><option>kg</option><option>Bag</option><option>PLT</option><option>드럼</option><option>Box</option><option>대</option></select>
+          <select id="qmUnit" onchange="qmUnitSel=this.value"><option>kg</option><option>Bag</option><option>PLT</option><option>드럼</option><option>Box</option><option>대</option></select>
           <span class="tag" id="qmLoc"></span>
         </div>
         <div class="quick qm-qty" id="qmQty" style="margin:8px 0 4px"></div>
@@ -875,10 +877,15 @@ function sbNormalize(d){
     fcPlan:arrOfObj(d.fcPlan),invHist:arrOfObj(d.invHist),
     inv:isObj(d.inv)?d.inv:undefined};
 }
+/* 20초 폴링/브로드캐스트로 받은 서버 데이터가 지금 화면과 같으면 다시 그리지 않음 —
+   매번 innerHTML을 갈아엎으면 보고 있던 스크롤·입력 중 포커스가 날아가기 때문 */
+let sbLastJson='';
 function sbApply(raw){
   const n=sbNormalize(raw);if(!n)return false;
+  const j=JSON.stringify(n);
+  if(j===sbLastJson)return true;
   sbApplying=true;
-  try{S=n;refreshAll();}finally{sbApplying=false;}
+  try{S=n;sbLastJson=j;refreshAll();}finally{sbApplying=false;}
   return true;
 }
 function sbInit(){
@@ -947,6 +954,7 @@ async function sbConnect(pass){
   clearInterval(sbPollT);
   sbPollT=setInterval(async()=>{
     if(sbApplying||sbPendingSave)return;
+    if(sbSaveFailed){sbQueueSave();return;}   // 못 보낸 편집이 있으면 받기 전에 먼저 재전송
     try{const{data:nd}=await sb.rpc('get_board',{p_id:SB_BOARD,p_passcode:sbPass});if(nd)sbApply(nd);}catch(e){}
   },20000);
 }
@@ -954,22 +962,26 @@ function sbSubscribe(){
   if(!sb||sbCh)return;
   sbCh=sb.channel('board-'+SB_BOARD).on('broadcast',{event:'update'},async({payload})=>{
     if(payload&&payload.by===sbClientId)return;
-    if(sbApplying||sbPendingSave)return;
+    if(sbApplying||sbPendingSave||sbSaveFailed)return;
     try{const{data}=await sb.rpc('get_board',{p_id:SB_BOARD,p_passcode:sbPass});if(data)sbApply(data);}catch(e){}
   }).subscribe();
 }
 /* 이 기기가 아직 서버로 못 보낸 로컬 수정이 있는 동안은(디바운스 대기·전송 중)
    다른 기기에서 온 데이터로 로컬을 덮어쓰지 않음 — 안 그러면 "수정하고 저장했는데
    반영이 안 됨"처럼 방금 한 편집이 원격 데이터에 덮여 사라지는 경합이 생김. */
-let sbPendingSave=false;
+let sbPendingSave=false,sbSaveFailed=false,sbSaveFails=0;
+const SB_SAVE_MAX_RETRY=5;   // 이만큼 연달아 실패하면 재시도를 멈추고 수신 동기화를 다시 연다(무한 루프 방지)
+function sbSaveErr(msg){sbSaveFails++;if(sbSaveFails>=SB_SAVE_MAX_RETRY){sbSaveFailed=false;sbSaveFails=0;setSave('ro',msg+' — 새로고침 후 다시 입력하세요');toast('저장이 계속 실패해 자동 재시도를 멈췄습니다 — 새로고침 후 확인');return;}sbSaveFailed=true;setSave('ro',msg+' (자동 재시도 중)');}
 function sbQueueSave(){
   if(!sb||!sbOK)return;
   sbPendingSave=true;
   clearTimeout(sbSaveT);
   sbSaveT=setTimeout(async()=>{
     try{
-      let res;try{res=await sb.rpc('set_board',{p_id:SB_BOARD,p_passcode:sbPass,p_data:S});}catch(e){setSave('ro','저장 실패 — 네트워크 확인');return;}
-      if(res&&res.error){setSave('ro','저장 실패: '+res.error.message);return;}
+      // 실패하면 sbSaveFailed를 켜서, 다음 폴링이 서버 데이터로 방금 한 편집을 덮어쓰지 않고 재전송하게 함
+      let res;try{res=await sb.rpc('set_board',{p_id:SB_BOARD,p_passcode:sbPass,p_data:S});}catch(e){sbSaveErr('저장 실패 — 네트워크 확인');return;}
+      if(res&&res.error){sbSaveErr('저장 실패: '+res.error.message);return;}
+      sbSaveFailed=false;sbSaveFails=0;sbLastJson=JSON.stringify(S);
       setSave('ok','실시간 저장됨 '+new Date().toTimeString().slice(0,5));
       try{sbCh?.send({type:'broadcast',event:'update',payload:{by:sbClientId,ts:Date.now()}});}catch(e){}
       sendServerPush();   // 앱을 꺼둔 기사에게도 알림
@@ -1039,7 +1051,8 @@ function showTab(t){
   if(t==='driver')renderDriver();
   if(t==='trash')markLogSeen();   // 열어본 시점에만 경고 해제
 }
-function setDate(d){cur=d;refreshAll();}
+/* 기준일을 바꾸면 이전 날짜에서 체크해 둔 선택(일괄 처리용)은 비움 — 안 보이는 행이 일괄 완료되는 사고 방지 */
+function setDate(d){cur=d;selMv.clear();selOd.clear();selCs.clear();refreshAll();}
 /* 기사 모드 잠금 — #driver 링크로 연 기기는 기사 모드 고정, 관리 화면 진입은 비밀번호 필요 */
 const ADMIN_PIN='6623';
 /* 삭제기록 탭 잠금 — 지운 이력과 되살리기는 자재과만 볼 수 있어야 함.
@@ -1081,13 +1094,17 @@ function toggleDriver(){
   document.body.classList.add('driver');
   document.getElementById('nav').style.display='none';
   document.getElementById('btnDrv').textContent='관리 화면';
-  location.hash='driver';
+  // 여기서 location.hash를 'driver'로 바꾸면 hashchange→applyHashMode가 이 기기를 기사 전용으로
+  // 고정(jjDrvDevice)해 버려서, PC에서 "어떻게 보이나" 눌러본 뒤 비밀번호 없이는 못 돌아왔음.
+  // 미리보기 토글은 화면만 바꾸고, 기기 고정은 #driver 링크로 열었을 때만.
   showTab('driver');
 }
 
 /* ═════════ 공통 렌더 ═════════ */
 function refreshAll(){
   document.getElementById('curDate').value=cur;
+  // 관리 화면에도 "기준일 ≠ 오늘" 경고(기사 화면엔 원래 있음) — 다른 날짜로 옮겨둔 채 등록·체크하는 사고 방지
+  const cw=document.getElementById('curWarn');if(cw)cw.style.display=cur!==realToday()?'':'none';
   renderBoard();renderMoves();renderOrders();renderCs();renderMaster();renderDriver();fillLists();renderSpQuick();renderQm();renderCalendar();renderStats();renderFc();
   const odN=S.orders.filter(o=>!o.skip&&!o.inDate).length, mvN=S.moves.filter(m=>m.date===cur&&!m.done).length, csN=S.cons.filter(c=>!c.done&&!c.ordDate&&!c.outDate).length;
   badge('bMove',mvN);badge('bOrder',odN);badge('bCons',csN);
@@ -1294,7 +1311,8 @@ function renderBoard(){
   document.getElementById('cntCs').textContent=cs.length?`${cs.length}건`:'';
   // 특이사항
   const sp=S.specials[cur]||{};
-  document.querySelectorAll('[data-sp]').forEach(i=>{i.value=sp[i.dataset.sp]||'';i.onchange=()=>{S.specials[cur]=S.specials[cur]||{};S.specials[cur][i.dataset.sp]=i.value;saveDB();renderDriver();};});
+  // 타이핑 중인 칸(포커스)은 20초 동기화 리렌더가 덮어쓰지 않게 건너뜀 — blur(onchange) 때 저장됨
+  document.querySelectorAll('[data-sp]').forEach(i=>{if(document.activeElement!==i)i.value=sp[i.dataset.sp]||'';i.onchange=()=>{S.specials[cur]=S.specials[cur]||{};S.specials[cur][i.dataset.sp]=i.value;saveDB();renderDriver();};});
   renderNotes();
   // 통계
   const lateN=S.orders.filter(o=>orderStatus(o)==='입고지연').length;
@@ -1428,6 +1446,8 @@ function renderSpQuick(){
     ?[1,2,3].map(n2=>`<button onclick="spAdd(${n2},true)"><b>${n2}대</b></button>`).join('')
     :[500,1000,2000,3000,4000,5000,8000,10000].map(n2=>`<button onclick="spAdd(${n2},false)">${n2>=1000?(n2/1000)+'t':n2+'kg'}</button>`).join('')
   ):'<span class="tag">품목을 먼저 탭</span>';
+  const ub=document.getElementById('sp2Undo');
+  if(ub)ub.innerHTML=spLast?`<span class="tag">방금 등록: <b>${esc(spLast.entry)}</b>${spLast.orderIds.length?' + 발주':''}</span> <button class="btn sm ghost" onclick="spUndo()">↩ 방금 등록 취소</button>`:'';
 }
 function spPick(i){spSel=(SP_ITEMS[qmDept]||[])[i];renderSpQuick();}
 function spWhenSet(i){spWhen=spWhen===i?-1:i;spCustomDate='';renderSpQuick();}
@@ -1454,10 +1474,29 @@ function spAdd(n,isDae){
   const doOrd=document.getElementById('sp2Ord').checked;
   // 날짜 버튼(오전/오후/+N일/달력)을 골랐으면 그 날짜가 곧 납품일 — 발주 착일(eta)도 그대로 맞춤.
   // (예전엔 오전/오후는 "오늘"이라 착일을 안 넘겨서 리드타임 기본값(+2일)으로 잡히는 문제가 있었음)
+  const seqBefore=S.seq;
   if(doOrd)spRegisterOrder(spSel,n,d,isDae,w?w.date:'',note);
+  // 방금 등록한 1건은 [취소]로 되돌릴 수 있게 기억 — 수량을 먼저 탭해 날짜 없이 잘못 등록된 경우 대비
+  spLast={sd,d,entry,orderIds:S.orders.filter(o=>o.id>=seqBefore&&o.id<S.seq).map(o=>o.id)};
   spWhen=-1;spCustomDate='';
   const noteEl=document.getElementById('sp2Note');if(noteEl)noteEl.value='';
   saveDB();refreshAll();toast(`${d}: ${entry}${doOrd?' + 발주 등록':''}`);
+}
+let spLast=null;
+function spUndo(){
+  if(!spLast)return;
+  const{sd,d,entry,orderIds}=spLast;
+  const cur2=(S.specials[sd]||{})[d]||'';
+  // 문구 안에 ', '가 들어갈 수 있으므로(비고) split 대신 원문에서 위치를 찾아 앞뒤 구분자까지 잘라냄
+  const i=cur2.lastIndexOf(entry);
+  if(i>=0){
+    let a=i,b=i+entry.length;
+    if(cur2.startsWith(', ',b))b+=2;else if(cur2.endsWith(', ',a))a-=2;
+    S.specials[sd][d]=cur2.slice(0,a)+cur2.slice(b);
+  }
+  if(orderIds.length){toTrash('order',S.orders.filter(o=>orderIds.includes(o.id)));S.orders=S.orders.filter(o=>!orderIds.includes(o.id));}
+  spLast=null;
+  saveDB();refreshAll();toast(`취소됨: ${entry}${orderIds.length?' (발주는 휴지통으로)':''}`);
 }
 function spRegisterOrder(name,n,dept,isDae,etaOv,note){
   const base=name.replace(/\((백|지대|재생|유니드글로벌|벌크|드럼)\)/g,'').trim();
@@ -1550,7 +1589,7 @@ function convInfo(item,qty,unit){
   }
   return'';
 }
-let qmDept='경질',qmItem='';
+let qmDept='경질',qmItem='',qmUnitSel='kg';
 /* 같은 매입처(업체) 품목끼리 옆에 붙어 보이도록 그룹핑 — 매입처가 안 잡히는 품목은 원래 순서 유지 */
 function qmGrouped(dept){
   const items=QM_ITEMS[dept]||[];
@@ -1571,7 +1610,9 @@ function renderQm(){
     document.getElementById('qmSelName').textContent=qmItem;
     const ov=QM_OVR[qmItem]||{};
     const m=matchItem(qmBase(qmItem));const pack=ov.pack||(m?m.pack:'');
-    document.getElementById('qmUnit').value='kg';   // 전화 기본 kg — "백으로 몇 개" 콜이면 통화 중 단위만 바꿔서 등록
+    // 전화 기본 kg — "백으로 몇 개" 콜이면 통화 중 단위만 바꿔서 등록. 사용자가 고른 단위(qmUnitSel)는
+    // 연속 등록·20초 동기화 리렌더에도 유지(예전엔 매번 kg으로 되돌아가 2건째부터 잘못 기록됨)
+    document.getElementById('qmUnit').value=qmUnitSel;
     const pn=packNote(qmItem);
     document.getElementById('qmLoc').textContent=(ov.loc||(m?m.loc:'창고 확인'))+(pack?' · '+pack:'')+(pn?'  ⚠ '+pn:'');
     document.getElementById('qmQty').innerHTML=[1,2,3,4,5,6,8,10,12,16,20].map(n2=>`<button onclick="qmAdd(${n2})">${n2}</button>`).join('');
@@ -1614,7 +1655,9 @@ function whoNow(){
 }
 const isThird=n=>!!n&&!/자재과|김성진/.test(n);
 function byBadge(n,label){if(!n)return'';return isThird(n)?` <span class="chip c-wait" title="제3자 처리">✋ ${esc(n)} ${label||'완료'}</span>`:'';}
-function toggleMove(id){const m=S.moves.find(x=>x.id===id);
+/* id로 찾은 건이 이미 없으면(다른 기기에서 삭제) 조용히 실패하지 않고 안내 후 화면 갱신 */
+function findLive(list,id){const x=list.find(o=>o.id===id);if(!x){toast('이미 삭제된 건입니다 (다른 기기에서 변경됨)');refreshAll();}return x;}
+function toggleMove(id){const m=findLive(S.moves,id);if(!m)return;
   if(!m.done&&needName(()=>toggleMove(id)))return;
   if(!m.done&&isR696(m.item)&&!m.r696){openR696(m);return;}
   m.done=!m.done;
@@ -1753,12 +1796,15 @@ function applyPreset(){
 }
 function addOrder(){
   const item=odItem.value.trim();if(!item){toast('품목을 입력하세요');return;}
+  // 수량 0·착일 공백으로 등록되면 입고예정·D-day·캘린더 어디에도 안 떠서 "등록했는데 안 보인다"가 됨
+  if(!(+odQty.value>0)){toast('수량을 입력하세요');odQty.focus();return;}
+  if(!odEta.value){toast('착일(입고 예정일)을 입력하세요');odEta.focus();return;}
   const isNew=ensureMaterial(item,{vendor:odVendor.value.trim(),loc:odLoc.value.trim()});
   S.orders.push({id:S.seq++,type:odType.value,ordDate:odDate.value||cur,vendor:odVendor.value.trim(),item,dest:odDest.value.trim(),qty:+odQty.value||0,unit:odUnit.value,eta:odEta.value,inDate:'',loc:odLoc.value.trim(),dept:odDept.value,note:odNote.value.trim()});
   odPreset.value='';odItem.value='';odQty.value='';odNote.value='';odLoc.value='';saveDB();refreshAll();
   toast(isNew?`발주 등록됨 · 신규 품목 '${item}' 기준정보에 추가됨${sbOK?'':' (이 기기에만 — 공유 연결 시 전체 반영)'}`:'발주 등록됨');
 }
-function markIn(id){const o=S.orders.find(x=>x.id===id);o.inDate=cur;o.inBy=whoNow();saveDB();refreshAll();toast('입고 처리됨 (오늘 날짜) — 날짜 변경은 [수정]에서');}
+function markIn(id){const o=findLive(S.orders,id);if(!o)return;o.inDate=cur;o.inBy=whoNow();saveDB();refreshAll();toast(`입고 처리됨 (${fmtK(cur)}) — 날짜 변경은 [수정]에서`);}
 function cancelIn(id){const o=S.orders.find(x=>x.id===id);if(!o)return;delete o.inDate;delete o.inBy;saveDB();refreshAll();toast('입고 취소됨 — 발주완료 상태로 되돌아감');}
 function cancelOrder(id){const o=S.orders.find(x=>x.id===id);if(!o)return;o.skip=true;saveDB();refreshAll();toast('발주 취소됨 — 상태필터 [취소]에서 다시 볼 수 있음');}
 function restoreOrder(id){const o=S.orders.find(x=>x.id===id);if(!o)return;delete o.skip;saveDB();refreshAll();toast('발주 취소가 복구됨');}
@@ -2093,7 +2139,7 @@ function csRow(c,board){const st=csStatus(c);const cls={'발주대기':'c-wait',
   const btn=c.action==='발주'&&!c.ordDate?`<button class="btn sm warn" onclick="csMark(${c.id},'ordDate')">발주 체크</button>`:(c.action==='직접출고'&&!c.outDate?`<button class="btn sm warn" onclick="csMark(${c.id},'outDate')">출고 체크</button>`:(c.action==='직접출고'&&c.outDate?`<button class="btn sm ghost" onclick="csUndoOut(${c.id})" title="출고 처리를 취소하고 출고 대기로 되돌림">↩ 출고 취소</button>`:(!c.done?`<button class="btn sm" onclick="csMark(${c.id},'done')">${c.action==='발주'?'입고 완료':'완료'}</button>`:'')));
   if(board)return`<tr class="${c.done?'done':''}"><td><b>${esc(c.consignee)}</b></td><td><b>${esc(c.item)}</b></td><td class="num">${fmtN(c.qty)}</td><td>${act}</td><td>${c.due?fmtK(c.due):''}</td><td><span class="chip ${cls}">${st}</span></td><td>${btn}</td></tr>`;
   return`<tr class="${c.done?'done':''}"><td><input type="checkbox" class="csSel" value="${c.id}" ${selCs.has(c.id)?'checked':''} onchange="toggleSelCs(${c.id},this.checked)"></td><td class="due-hl"><b>${c.due||''}</b></td><td><b>${esc(c.consignee)}</b></td><td><b>${esc(c.item)}</b>${c.loc?` <span class="loc">${esc(c.loc)}</span>`:''}</td><td class="num">${fmtN(c.qty)}</td><td>${act}</td><td><b>${esc(c.supplier)}</b></td><td>${c.recvDate}</td><td>${c.ordDate||''}</td><td>${c.outDate||(c.done?'✓':'')}${isThird(c.outBy)?` <span class="chip c-wait">✋ ${esc(c.outBy)}</span>`:''}</td><td><span class="chip ${cls}">${st}</span></td><td>${btn} <button class="btn sm" onclick="editCs(${c.id})">수정</button> <button class="btn sm" style="color:var(--red)" onclick="delCs(${c.id})">${armLbl('cs'+c.id)}</button></td></tr>`;}
-function csMark(id,f){const c=S.cons.find(x=>x.id===id);
+function csMark(id,f){const c=findLive(S.cons,id);if(!c)return;
   if((f==='outDate'||f==='done')&&needName(()=>csMark(id,f)))return;
   // M-210: 월1회 입항분은 행선지 건별 확인 전 배차·출고·완료 금지
   if(isM210(c.item)&&(f==='outDate'||f==='done')&&!c.m210by){
@@ -2122,6 +2168,7 @@ function csMarkGroup(ids,f){
   if(rest.length){
     rest.forEach(id=>{const c=S.cons.find(x=>x.id===id);if(c)csApplyMark(c,f);});
     saveDB();refreshAll();
+    toast(`${rest.length}건 출고 처리됨${m210Ids.length?` · M-210 ${m210Ids.length}건은 행선지 확인 후 처리`:''}`);
   }
 }
 /* 직접출고 건 — 출고 체크를 잘못 눌렀거나 실제로 안 나갔을 때 출고 대기로 되돌림 */
@@ -2675,8 +2722,10 @@ function renderDriver(){
   const mv=S.moves.filter(m=>m.date===cur);const order={'경질':0,'창호':1,'타일':2,'DBP':3};mv.sort((a,b)=>(order[a.dept]??9)-(order[b.dept]??9));
   const outs=S.cons.filter(c=>c.action==='직접출고'&&!c.done&&(!c.due||c.due<=addDays(cur,1)));
   const sp=S.specials[cur]||{};const spTxt=Object.entries(sp).filter(([k,v])=>v&&!isPvcText(v)&&!isDriverHiddenText(v)).map(([k,v])=>`${k}: ${v}`).join(' · ');
-  const ro=readOnly||!cap;
-  const cb=(fn,done)=>`<label><input type="checkbox" ${done?'checked':''} ${ro&&!cap?'':''} onchange="${fn}">완료</label>`;
+  // 읽기 전용은 아티팩트 권한(readOnly)만 기준 — cap이 없는 일반 배포(Supabase 공유)에서도 체크는 정상 저장됨.
+  // 진짜 읽기 전용이면 체크박스를 실제로 막아 "체크했는데 자재과에 안 보인다"가 안 생기게 함.
+  const ro=readOnly;
+  const cb=(fn,done)=>`<label><input type="checkbox" ${done?'checked':''} ${ro?'disabled':''} onchange="${fn}">완료</label>`;
   const meName=localStorage.getItem('jjUser')||'';
   const insLeft=ins.filter(o=>!o.inDate).length;
   let h=`<div class="banner"><div><b>${fmtK(cur)}</b> 지게차 작업 <span style="opacity:.7;font-size:13px">(${cur})</span><input type="date" class="drv-date" value="${cur}" onchange="setDate(this.value)"></div><div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">입고 ${insLeft} · 창고이동 ${mv.filter(m=>!m.done).length} · 사급출고 ${outs.length}${drvVisibleNotes().filter(n=>!n.done).length?' · 전달사항 '+drvVisibleNotes().filter(n=>!n.done).length:''}${notifSupported()&&Notification.permission!=='granted'?`<button class="btn sm warn" onclick="askNotifPerm()" title="폰 알림 받기">🔔 알림 켜기</button>`:(notifSupported()?`<span class="chip c-done" title="새 작업이 등록되면 폰 알림이 옵니다">🔔 알림 켜짐</span>`:'')}<button class="btn sm" style="background:transparent;color:var(--navy-ink);border-color:#4a5b6c" onclick="askName()">👤 ${esc(meName)||'이름 입력'}</button><button class="btn sm" style="background:transparent;color:var(--navy-ink);border-color:#4a5b6c" onclick="location.reload()">새로고침</button></div></div>`;
@@ -2790,15 +2839,35 @@ function openDlg(title,fields,obj,onSave,onDel){
   const db2=document.getElementById('dlgDelBtn');db2.style.display='';db2.dataset.arm='';db2.textContent='삭제';
   dlgCtx={obj,onSave,onDel,fields};dlg.showModal();
 }
-function dlgSave(){dlgBody.querySelectorAll('input,select').forEach(i=>{const k=i.dataset.k;if(!k)return;dlgCtx.obj[k]=i.type==='number'?(i.value===''?null:+i.value):i.value.trim();});if(dlgCtx.onSave(dlgCtx.obj)===false)return;dlg.close();}
+const dlgVal=i=>i.type==='number'?(i.value===''?null:+i.value):i.value.trim();
+function dlgSave(){dlgBody.querySelectorAll('input,select').forEach(i=>{const k=i.dataset.k;if(!k)return;dlgCtx.obj[k]=dlgVal(i);});if(dlgCtx.onSave(dlgCtx.obj)===false)return;dlg.close();}
 /* 수정 창에서 Enter = 저장. 입력칸에 있을 때와, 아무 칸에도 포커스가 없어 창 자체에 있을 때 저장.
    셀렉트(Enter는 목록 열기/선택)·textarea(줄바꿈)·버튼(취소/삭제 등 원래 동작)은 건드리지 않음.
    한글 입력 중 조합을 끝내는 Enter도 그대로 저장으로 이어지게 둠(예전과 동일 — 한 번만 누르면 됨). */
+const DLG_DISCARD_MSG='수정한 내용이 저장되지 않았습니다. 저장하지 않고 닫을까요?';
 dlg.addEventListener('keydown',e=>{
+  if(e.key==='Escape'){
+    /* 브라우저 기본 닫기(cancel)는 사용자 조작 이력이 없으면 preventDefault가 무시되므로 Esc는 직접 처리 */
+    e.preventDefault();
+    if(!dlgDirty()||confirm(DLG_DISCARD_MSG))dlg.close();
+    return;
+  }
   if(e.key!=='Enter')return;
   const t=e.target.tagName;
   if(t!=='INPUT'&&t!=='DIALOG')return;
   e.preventDefault();dlgSave();
+});
+/* Esc로 닫을 때 수정 중이던 값이 있으면 확인 — 칸이 많은 사급 수정 창에서 말없이 날아가는 사고 방지 */
+function dlgDirty(){
+  if(!dlgCtx||!dlgCtx.obj)return false;
+  return Array.from(dlgBody.querySelectorAll('input,select')).some(i=>{
+    const k=i.dataset.k;if(!k)return false;
+    return String(dlgVal(i)??'')!==String(dlgCtx.obj[k]??'');
+  });
+}
+/* 키보드 외 닫기 요청(안드로이드 뒤로가기 등)도 같은 확인 — 브라우저가 허용하는 범위에서 */
+dlg.addEventListener('cancel',e=>{
+  if(dlgDirty()&&!confirm(DLG_DISCARD_MSG))e.preventDefault();
 });
 function dlgDelete(){const b=document.getElementById('dlgDelBtn');
   if(b.dataset.arm!=='1'){b.dataset.arm='1';b.textContent='정말 삭제?';setTimeout(()=>{if(dlg.open){b.dataset.arm='';b.textContent='삭제';}},3000);return;}
@@ -2847,7 +2916,7 @@ function calShift(n){
   else calDate=addDays(calDate,7*n);
   renderCalendar();
 }
-function calToday(){calDate=cur;calSelDay=null;renderCalendar();}
+function calToday(){calDate=realToday();calSelDay=null;renderCalendar();}   // 기준일이 밀려 있어도 [오늘]은 진짜 오늘
 function calSetView(v){calView=v;calSelDay=null;renderCalendar();}
 function calPickDay(d){calSelDay=calSelDay===d?null:d;renderCalendar();}
 /* 지게차 화면용 캘린더 — 자재과 캘린더 탭과 같은 데이터(calDayData/calMonthDays)를

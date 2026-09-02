@@ -234,15 +234,16 @@ function delayStep(side,e){if(e.toBuyer)return'';const n=STEPS[side].length;cons
 
 /* ===== 저장 + Supabase 동기화 ===== */
 const sbClientId=Math.random().toString(36).slice(2);
-let sb=null,sbOK=false,sbApplying=false,sbSaveT=null,sbCh=null,sbChMain=null,sbPollT=null;
+let sb=null,sbOK=false,sbApplying=false,sbSaveT=null,sbPushing=0,sbCh=null,sbChMain=null,sbPollT=null;
 let sbPass=(()=>{try{return localStorage.getItem('jjPass')||'';}catch(e){return'';}})();
 let mainOK=false;   // jajae-main(발주 데이터) 연결 여부
 let orders=[];      // 작업판 발주 목록 (읽기 전용)
 
 function saveDB(){
   try{localStorage.setItem('magamDB',JSON.stringify(S));}catch(e){}
-  // sbSaveT를 실행 후 null로 되돌려야 45초 폴링(`!sbSaveT` 조건)이 첫 저장 뒤에도 계속 동작함
-  if(sbOK&&!sbApplying){clearTimeout(sbSaveT);sbSaveT=setTimeout(()=>{sbSaveT=null;sbPush();},700);}
+  // sbSaveT는 실행 시 null로 되돌려야 45초 폴링이 첫 저장 뒤에도 계속 동작함.
+  // 전송 중(sbPushing)에는 폴링이 서버의 옛 데이터로 방금 한 편집을 덮어쓰지 않게 막음
+  if(sbOK&&!sbApplying){clearTimeout(sbSaveT);sbSaveT=setTimeout(async()=>{sbSaveT=null;sbPushing++;try{await sbPush();}finally{sbPushing--;}},700);}
 }
 async function sbPush(){
   if(!sb||!sbOK)return;
@@ -275,7 +276,7 @@ async function sbConnect(pass){
   }catch(e){toast('연결 실패 — 네트워크 확인');return;}
   // undefined = RPC 오류(네트워크 등), null = 보드 없음/비밀번호 불일치 — 오류일 땐 비밀번호를 저장하지 않고
   // "마감 보드 미생성"으로 오해하게 만들지 않음
-  if(main===undefined&&magam===undefined){setSave('local','연결 실패 — 네트워크 확인 후 다시 [연결]');toast('연결 실패 — 네트워크 확인');return;}
+  if(magam===undefined){setSave('local','연결 실패 — 네트워크 확인 후 다시 [연결]');toast('연결 실패 — 네트워크 확인');return;}
   if(main===null&&magam===null){toast('비밀번호가 올바르지 않습니다');try{localStorage.removeItem('jjPass');}catch(e){}sbPass='';return;}
   try{localStorage.setItem('jjPass',pass);}catch(e){}
   if(main&&isObj(main)){mainOK=true;orders=arrOfObj(main.orders);}
@@ -297,7 +298,7 @@ async function sbConnect(pass){
   sbWatchMain();
   clearInterval(sbPollT);
   sbPollT=setInterval(async()=>{
-    try{const{data}=await sb.rpc('get_board',{p_id:B_MAGAM,p_passcode:sbPass});if(data&&sbOK&&!sbSaveT)sbApply(data);}catch(e){}
+    try{const{data}=await sb.rpc('get_board',{p_id:B_MAGAM,p_passcode:sbPass});if(data&&sbOK&&!sbSaveT&&!sbPushing)sbApply(data);}catch(e){}
     fetchOrders();
   },45000);
   refreshAll();
@@ -450,7 +451,7 @@ let dashWho='';
 const tgtOnly={sales:true,purchase:true};   // 이번달 마감대상 업로드 시 기본 ON (파일 없으면 무시하고 전체 표시)
 function esc(s){return (s||'').toString().replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
 
-function renderNav(){
+function renderNav(){tgtMemo={};
   const n=document.getElementById('nav');
   n.innerHTML=VIEWS.map(([k,lb])=>{
     let b='';
@@ -485,7 +486,7 @@ function scheduleSearch(side){
   },250);
 }
 
-function renderView(){
+function renderView(){tgtMemo={};
   /* 체크박스 하나 클릭할 때마다 표 전체를 다시 그리면서 스크롤이 맨 위로 튀는 문제 —
      표 안쪽 스크롤(.tbl.scroll)과 페이지 스크롤 위치를 저장했다가 다시 그린 뒤 복원 */
   const scrollBox=document.querySelector('.tbl.scroll');
@@ -588,11 +589,14 @@ function addVendorFromUnmatched(side,nm){
 /* 업로드 당시 저장해둔 업체 id는 다른 기기·시점의 업체 목록 변경으로 어긋날 수 있음 —
    그래서 id를 그대로 믿지 않고, 업로드 파일에서 뽑은 업체명 목록(targetsMeta.names)을
    지금 이 순간의 업체 목록(S.vendors)에 매번 새로 매칭해서 마감대상을 구한다. */
+let tgtMemo={};   // 한 번의 화면 갱신 안에서 배지·대시보드·표가 같은 매칭을 여러 번 되풀이하지 않도록
 function liveTgtIds(side,tm){
   if(!tm||!Array.isArray(tm.names)||!tm.names.length)return null;
+  const c=tgtMemo[side];if(c&&c.tm===tm)return c.ids;
   const ids=new Set();
   tm.names.forEach(nm=>{const m=matchFileName(nm,side);if(m.id)ids.add(m.id);});
-  return[...ids];
+  tgtMemo[side]={tm,ids:[...ids]};
+  return tgtMemo[side].ids;
 }
 /* 이번달 범위(제외 목록 + 마감대상 필터) — 체크리스트 표, 대시보드 집계, 탭 배지가 모두 같은
    기준을 써야 "표는 다 끝났는데 배지는 아직 남았다"는 불일치가 안 생김 */

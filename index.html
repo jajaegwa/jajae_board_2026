@@ -136,7 +136,7 @@ textarea.mail:not(:read-only){background:var(--card);border-color:var(--acc)}
 body.driver main{max-width:900px}
 body.driver header .date{display:none}
 body.driver header button:not(#btnDrv):not(#sbGateBtn){display:none}
-body.driver #drvNotif{display:none!important}
+body.driver #drvNotif,body.driver #curWarn{display:none!important}
 .drv h2{font-size:19px;font-weight:700;margin:22px 0 10px;display:flex;align-items:center;gap:10px}
 .drv h2 .cnt{font-size:13.5px;color:var(--mut)}
 .drv .item{display:grid;grid-template-columns:1fr auto;gap:8px 14px;align-items:center;background:var(--card);border:1px solid var(--line);border-radius:4px;padding:14px 16px;margin-bottom:8px;font-size:17px}
@@ -969,7 +969,9 @@ function sbSubscribe(){
 /* 이 기기가 아직 서버로 못 보낸 로컬 수정이 있는 동안은(디바운스 대기·전송 중)
    다른 기기에서 온 데이터로 로컬을 덮어쓰지 않음 — 안 그러면 "수정하고 저장했는데
    반영이 안 됨"처럼 방금 한 편집이 원격 데이터에 덮여 사라지는 경합이 생김. */
-let sbPendingSave=false,sbSaveFailed=false;
+let sbPendingSave=false,sbSaveFailed=false,sbSaveFails=0;
+const SB_SAVE_MAX_RETRY=5;   // 이만큼 연달아 실패하면 재시도를 멈추고 수신 동기화를 다시 연다(무한 루프 방지)
+function sbSaveErr(msg){sbSaveFails++;if(sbSaveFails>=SB_SAVE_MAX_RETRY){sbSaveFailed=false;sbSaveFails=0;setSave('ro',msg+' — 새로고침 후 다시 입력하세요');toast('저장이 계속 실패해 자동 재시도를 멈췄습니다 — 새로고침 후 확인');return;}sbSaveFailed=true;setSave('ro',msg+' (자동 재시도 중)');}
 function sbQueueSave(){
   if(!sb||!sbOK)return;
   sbPendingSave=true;
@@ -977,9 +979,9 @@ function sbQueueSave(){
   sbSaveT=setTimeout(async()=>{
     try{
       // 실패하면 sbSaveFailed를 켜서, 다음 폴링이 서버 데이터로 방금 한 편집을 덮어쓰지 않고 재전송하게 함
-      let res;try{res=await sb.rpc('set_board',{p_id:SB_BOARD,p_passcode:sbPass,p_data:S});}catch(e){sbSaveFailed=true;setSave('ro','저장 실패 — 네트워크 확인 (자동 재시도 중)');return;}
-      if(res&&res.error){sbSaveFailed=true;setSave('ro','저장 실패: '+res.error.message+' (자동 재시도 중)');return;}
-      sbSaveFailed=false;sbLastJson=JSON.stringify(S);
+      let res;try{res=await sb.rpc('set_board',{p_id:SB_BOARD,p_passcode:sbPass,p_data:S});}catch(e){sbSaveErr('저장 실패 — 네트워크 확인');return;}
+      if(res&&res.error){sbSaveErr('저장 실패: '+res.error.message);return;}
+      sbSaveFailed=false;sbSaveFails=0;sbLastJson=JSON.stringify(S);
       setSave('ok','실시간 저장됨 '+new Date().toTimeString().slice(0,5));
       try{sbCh?.send({type:'broadcast',event:'update',payload:{by:sbClientId,ts:Date.now()}});}catch(e){}
       sendServerPush();   // 앱을 꺼둔 기사에게도 알림
@@ -1102,7 +1104,7 @@ function toggleDriver(){
 function refreshAll(){
   document.getElementById('curDate').value=cur;
   // 관리 화면에도 "기준일 ≠ 오늘" 경고(기사 화면엔 원래 있음) — 다른 날짜로 옮겨둔 채 등록·체크하는 사고 방지
-  const cw=document.getElementById('curWarn');if(cw)cw.style.display=(cur!==realToday()&&!document.body.classList.contains('driver'))?'':'none';
+  const cw=document.getElementById('curWarn');if(cw)cw.style.display=cur!==realToday()?'':'none';
   renderBoard();renderMoves();renderOrders();renderCs();renderMaster();renderDriver();fillLists();renderSpQuick();renderQm();renderCalendar();renderStats();renderFc();
   const odN=S.orders.filter(o=>!o.skip&&!o.inDate).length, mvN=S.moves.filter(m=>m.date===cur&&!m.done).length, csN=S.cons.filter(c=>!c.done&&!c.ordDate&&!c.outDate).length;
   badge('bMove',mvN);badge('bOrder',odN);badge('bCons',csN);
@@ -1485,11 +1487,16 @@ function spUndo(){
   if(!spLast)return;
   const{sd,d,entry,orderIds}=spLast;
   const cur2=(S.specials[sd]||{})[d]||'';
-  const parts=cur2.split(', ');const i=parts.lastIndexOf(entry);
-  if(i>=0){parts.splice(i,1);S.specials[sd][d]=parts.join(', ');}
-  if(orderIds.length)S.orders=S.orders.filter(o=>!orderIds.includes(o.id));
+  // 문구 안에 ', '가 들어갈 수 있으므로(비고) split 대신 원문에서 위치를 찾아 앞뒤 구분자까지 잘라냄
+  const i=cur2.lastIndexOf(entry);
+  if(i>=0){
+    let a=i,b=i+entry.length;
+    if(cur2.startsWith(', ',b))b+=2;else if(cur2.endsWith(', ',a))a-=2;
+    S.specials[sd][d]=cur2.slice(0,a)+cur2.slice(b);
+  }
+  if(orderIds.length){toTrash('order',S.orders.filter(o=>orderIds.includes(o.id)));S.orders=S.orders.filter(o=>!orderIds.includes(o.id));}
   spLast=null;
-  saveDB();refreshAll();toast(`취소됨: ${entry}${orderIds.length?' (발주도 삭제)':''}`);
+  saveDB();refreshAll();toast(`취소됨: ${entry}${orderIds.length?' (발주는 휴지통으로)':''}`);
 }
 function spRegisterOrder(name,n,dept,isDae,etaOv,note){
   const base=name.replace(/\((백|지대|재생|유니드글로벌|벌크|드럼)\)/g,'').trim();
@@ -1648,8 +1655,9 @@ function whoNow(){
 }
 const isThird=n=>!!n&&!/자재과|김성진/.test(n);
 function byBadge(n,label){if(!n)return'';return isThird(n)?` <span class="chip c-wait" title="제3자 처리">✋ ${esc(n)} ${label||'완료'}</span>`:'';}
-function toggleMove(id){const m=S.moves.find(x=>x.id===id);
-  if(!m){toast('이미 삭제된 건입니다 (다른 기기에서 변경됨)');refreshAll();return;}
+/* id로 찾은 건이 이미 없으면(다른 기기에서 삭제) 조용히 실패하지 않고 안내 후 화면 갱신 */
+function findLive(list,id){const x=list.find(o=>o.id===id);if(!x){toast('이미 삭제된 건입니다 (다른 기기에서 변경됨)');refreshAll();}return x;}
+function toggleMove(id){const m=findLive(S.moves,id);if(!m)return;
   if(!m.done&&needName(()=>toggleMove(id)))return;
   if(!m.done&&isR696(m.item)&&!m.r696){openR696(m);return;}
   m.done=!m.done;
@@ -1796,7 +1804,7 @@ function addOrder(){
   odPreset.value='';odItem.value='';odQty.value='';odNote.value='';odLoc.value='';saveDB();refreshAll();
   toast(isNew?`발주 등록됨 · 신규 품목 '${item}' 기준정보에 추가됨${sbOK?'':' (이 기기에만 — 공유 연결 시 전체 반영)'}`:'발주 등록됨');
 }
-function markIn(id){const o=S.orders.find(x=>x.id===id);if(!o){toast('이미 삭제된 건입니다 (다른 기기에서 변경됨)');refreshAll();return;}o.inDate=cur;o.inBy=whoNow();saveDB();refreshAll();toast(`입고 처리됨 (${fmtK(cur)}) — 날짜 변경은 [수정]에서`);}
+function markIn(id){const o=findLive(S.orders,id);if(!o)return;o.inDate=cur;o.inBy=whoNow();saveDB();refreshAll();toast(`입고 처리됨 (${fmtK(cur)}) — 날짜 변경은 [수정]에서`);}
 function cancelIn(id){const o=S.orders.find(x=>x.id===id);if(!o)return;delete o.inDate;delete o.inBy;saveDB();refreshAll();toast('입고 취소됨 — 발주완료 상태로 되돌아감');}
 function cancelOrder(id){const o=S.orders.find(x=>x.id===id);if(!o)return;o.skip=true;saveDB();refreshAll();toast('발주 취소됨 — 상태필터 [취소]에서 다시 볼 수 있음');}
 function restoreOrder(id){const o=S.orders.find(x=>x.id===id);if(!o)return;delete o.skip;saveDB();refreshAll();toast('발주 취소가 복구됨');}
@@ -2131,8 +2139,7 @@ function csRow(c,board){const st=csStatus(c);const cls={'발주대기':'c-wait',
   const btn=c.action==='발주'&&!c.ordDate?`<button class="btn sm warn" onclick="csMark(${c.id},'ordDate')">발주 체크</button>`:(c.action==='직접출고'&&!c.outDate?`<button class="btn sm warn" onclick="csMark(${c.id},'outDate')">출고 체크</button>`:(c.action==='직접출고'&&c.outDate?`<button class="btn sm ghost" onclick="csUndoOut(${c.id})" title="출고 처리를 취소하고 출고 대기로 되돌림">↩ 출고 취소</button>`:(!c.done?`<button class="btn sm" onclick="csMark(${c.id},'done')">${c.action==='발주'?'입고 완료':'완료'}</button>`:'')));
   if(board)return`<tr class="${c.done?'done':''}"><td><b>${esc(c.consignee)}</b></td><td><b>${esc(c.item)}</b></td><td class="num">${fmtN(c.qty)}</td><td>${act}</td><td>${c.due?fmtK(c.due):''}</td><td><span class="chip ${cls}">${st}</span></td><td>${btn}</td></tr>`;
   return`<tr class="${c.done?'done':''}"><td><input type="checkbox" class="csSel" value="${c.id}" ${selCs.has(c.id)?'checked':''} onchange="toggleSelCs(${c.id},this.checked)"></td><td class="due-hl"><b>${c.due||''}</b></td><td><b>${esc(c.consignee)}</b></td><td><b>${esc(c.item)}</b>${c.loc?` <span class="loc">${esc(c.loc)}</span>`:''}</td><td class="num">${fmtN(c.qty)}</td><td>${act}</td><td><b>${esc(c.supplier)}</b></td><td>${c.recvDate}</td><td>${c.ordDate||''}</td><td>${c.outDate||(c.done?'✓':'')}${isThird(c.outBy)?` <span class="chip c-wait">✋ ${esc(c.outBy)}</span>`:''}</td><td><span class="chip ${cls}">${st}</span></td><td>${btn} <button class="btn sm" onclick="editCs(${c.id})">수정</button> <button class="btn sm" style="color:var(--red)" onclick="delCs(${c.id})">${armLbl('cs'+c.id)}</button></td></tr>`;}
-function csMark(id,f){const c=S.cons.find(x=>x.id===id);
-  if(!c){toast('이미 삭제된 건입니다 (다른 기기에서 변경됨)');refreshAll();return;}
+function csMark(id,f){const c=findLive(S.cons,id);if(!c)return;
   if((f==='outDate'||f==='done')&&needName(()=>csMark(id,f)))return;
   // M-210: 월1회 입항분은 행선지 건별 확인 전 배차·출고·완료 금지
   if(isM210(c.item)&&(f==='outDate'||f==='done')&&!c.m210by){
@@ -2832,7 +2839,8 @@ function openDlg(title,fields,obj,onSave,onDel){
   const db2=document.getElementById('dlgDelBtn');db2.style.display='';db2.dataset.arm='';db2.textContent='삭제';
   dlgCtx={obj,onSave,onDel,fields};dlg.showModal();
 }
-function dlgSave(){dlgBody.querySelectorAll('input,select').forEach(i=>{const k=i.dataset.k;if(!k)return;dlgCtx.obj[k]=i.type==='number'?(i.value===''?null:+i.value):i.value.trim();});if(dlgCtx.onSave(dlgCtx.obj)===false)return;dlg.close();}
+const dlgVal=i=>i.type==='number'?(i.value===''?null:+i.value):i.value.trim();
+function dlgSave(){dlgBody.querySelectorAll('input,select').forEach(i=>{const k=i.dataset.k;if(!k)return;dlgCtx.obj[k]=dlgVal(i);});if(dlgCtx.onSave(dlgCtx.obj)===false)return;dlg.close();}
 /* 수정 창에서 Enter = 저장. 입력칸에 있을 때와, 아무 칸에도 포커스가 없어 창 자체에 있을 때 저장.
    셀렉트(Enter는 목록 열기/선택)·textarea(줄바꿈)·버튼(취소/삭제 등 원래 동작)은 건드리지 않음.
    한글 입력 중 조합을 끝내는 Enter도 그대로 저장으로 이어지게 둠(예전과 동일 — 한 번만 누르면 됨). */
@@ -2854,9 +2862,7 @@ function dlgDirty(){
   if(!dlgCtx||!dlgCtx.obj)return false;
   return Array.from(dlgBody.querySelectorAll('input,select')).some(i=>{
     const k=i.dataset.k;if(!k)return false;
-    const cur2=i.type==='number'?(i.value===''?null:+i.value):i.value.trim();
-    const orig=dlgCtx.obj[k];
-    return String(cur2??'')!==String(orig??'');
+    return String(dlgVal(i)??'')!==String(dlgCtx.obj[k]??'');
   });
 }
 /* 키보드 외 닫기 요청(안드로이드 뒤로가기 등)도 같은 확인 — 브라우저가 허용하는 범위에서 */

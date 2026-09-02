@@ -697,6 +697,16 @@ function vendorDlg(title,v,onSave,onDel){
     {onDel();dlg.close();saveDB();refreshAll();}};
   dlg.showModal();
 }
+/* 업체 추가/수정 창에서 Enter = 저장. 입력칸에 있을 때(또는 창 자체에 포커스가 있을 때)만이고,
+   버튼에 포커스가 있을 땐 그 버튼의 원래 동작. 저장 버튼(#vSave)이 없는 창(제외 목록 등)에선 아무 일도 안 함. */
+document.getElementById('dlg').addEventListener('keydown',e=>{
+  if(e.key!=='Enter')return;
+  const t=e.target.tagName;
+  if(t!=='INPUT'&&t!=='DIALOG')return;
+  const save=e.currentTarget.querySelector('#vSave');
+  if(!save)return;
+  e.preventDefault();save.click();
+});
 function addVendor(side){
   const v={id:side[0]+Date.now().toString(36)};
   vendorDlg('업체 추가 — '+SIDE_LB[side],v,()=>{

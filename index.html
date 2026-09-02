@@ -47,7 +47,7 @@ header h1{font-size:15px;font-weight:700;letter-spacing:-.1px}
 header .sub{font-size:11.5px;color:var(--mut);font-weight:300}
 header .sp{flex:1}
 header .date{font-size:12.5px;display:flex;align-items:center;gap:4px}
-header .date .btn{padding:3px 7px;line-height:1.2}
+header .date .btn{line-height:1.2}
 header input[type=date]{background:var(--card);color:var(--ink);border:1px solid var(--line);border-radius:2px;padding:3px 6px;font-family:inherit;color-scheme:light}
 .savebox{font-size:11.5px;padding:3px 9px;border-radius:2px;border:1px solid var(--line);background:var(--head);display:flex;gap:6px;align-items:center}
 .savebox i{width:7px;height:7px;border-radius:50%;background:#98a6b3;display:inline-block}
@@ -178,7 +178,7 @@ details.card summary .cnt{font-size:11.5px;color:var(--mut);font-weight:500}
 @media(max-width:640px){.dlg .grid2{grid-template-columns:1fr}.drv .item{grid-template-columns:1fr}.drv .item .qty{text-align:left}
   /* 폰에서는 표가 카드 안에서 가로 스크롤 — 카드가 화면 밖으로 밀려나거나 셀이 글자 단위로 쪼개지지 않게 */
   .card{overflow-x:auto;min-width:0}.grid>*{min-width:0}
-  td{white-space:nowrap}td .tag,td.wrap{white-space:normal}}
+  td{white-space:nowrap}td .tag,td.empty{white-space:normal}}
 @media (prefers-reduced-motion: reduce){.toast{transition:none}}
 /* ── 캘린더 탭 ── */
 .calWeekHead{display:grid;grid-template-columns:repeat(7,1fr);gap:1px;background:var(--line2);border:1px solid var(--line2);border-bottom:none;font-size:11.5px;font-weight:700;color:var(--mut);text-align:center}
@@ -1060,7 +1060,7 @@ function showTab(t){
   if(t==='trash')markLogSeen();   // 열어본 시점에만 경고 해제
 }
 /* 기준일을 바꾸면 이전 날짜에서 체크해 둔 선택(일괄 처리용)은 비움 — 안 보이는 행이 일괄 완료되는 사고 방지 */
-function setDate(d){cur=d;selMv.clear();selOd.clear();selCs.clear();refreshAll();}
+function setDate(d){cur=/^\d{4}-\d{2}-\d{2}$/.test(d||'')?d:realToday();selMv.clear();selOd.clear();selCs.clear();refreshAll();}   // 날짜칸을 비우거나 잘못된 값이면 오늘로
 /* 기사 모드 잠금 — #driver 링크로 연 기기는 기사 모드 고정, 관리 화면 진입은 비밀번호 필요 */
 const ADMIN_PIN='6623';
 /* 삭제기록 탭 잠금 — 지운 이력과 되살리기는 자재과만 볼 수 있어야 함.
@@ -1196,7 +1196,7 @@ function fillLists(){
   if(!document.getElementById('odDate').value)document.getElementById('odDate').value=cur;
 }
 function autoLoc(p){const v=document.getElementById(p+'Item').value;const m=matchItem(v);document.getElementById(p+'Loc').value=m?m.loc.replace('(경질창고)',''):'';
-  if(p==='od'&&m){document.getElementById('odVendor').value=document.getElementById('odVendor').value||m.vendor;const d=deptOf(m);if(d)document.getElementById('odDept').value=d;document.getElementById('odEta').value=addDays(document.getElementById('odDate').value||cur,leadOf(v));}}
+  if(p==='od'&&m){document.getElementById('odVendor').value=document.getElementById('odVendor').value||m.vendor;const d=deptOf(m);if(d)document.getElementById('odDept').value=d;odEtaAuto();}}
 function deptChip(d){return `<span class="dept d-${['경질','창호','타일','DBP'].includes(d)?d:'기타'}">${esc(d)}</span>`;}
 
 /* ═════════ 오늘 작업판 ═════════ */
@@ -1801,7 +1801,7 @@ function applyPreset(){
   odType.value=v[0]==='s'?'self':'consign';
   odVendor.value=p.vendor||(m?m.vendor:'');odItem.value=p.item;odDest.value=v[0]==='s'?'자가(세종·부강)':p.consignee;
   odQty.value=p.qty;odUnit.value=p.unit;odLoc.value=m?m.loc.replace('(경질창고)',''):(v[0]==='c'?'직납':'');
-  odDept.value=v[0]==='c'?'사급':(deptOf(m)||'전사');odEta.value=addDays(odDate.value||cur,leadOf(p.item));
+  odDept.value=v[0]==='c'?'사급':(deptOf(m)||'전사');odEtaTouched=false;odEtaAuto();
 }
 /* 품목·발주일을 고르면 착일을 발주일+리드타임으로 자동 채움(기준표 없으면 2일). 사용자가 착일을 직접 고친 뒤에는 건드리지 않음 */
 let odEtaTouched=false;

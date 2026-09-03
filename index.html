@@ -605,7 +605,8 @@ details.card summary .cnt{font-size:11.5px;color:var(--mut);font-weight:500}
   </div>
   <div class="card">
     <h2>백업 파일에서 되살리기</h2>
-    <div class="hint">브라우저에 남아 있던 백업(<b>recover.html</b>에서 내려받은 파일)에서 <b>지금 없어진 항목만</b> 찾아 되살립니다.<br>
+    <div class="hint">브라우저에 남아 있던 백업(<b>recover.html</b>에서 내려받은 파일) 또는 아래 "서버 자동 백업"에서
+      받은 파일에서 <b>지금 없어진 항목만</b> 찾아 되살립니다.<br>
       기존 내용을 덮어쓰지 않으므로 이후에 입력한 것이 사라지지 않습니다.</div>
     <div class="row">
       <button class="btn sm pri" onclick="mergeFile.click()">백업 파일 고르기</button>
@@ -613,6 +614,19 @@ details.card summary .cnt{font-size:11.5px;color:var(--mut);font-weight:500}
       <a class="btn sm" href="recover.html" target="_blank" style="text-decoration:none;display:inline-block">복구 도구 열기</a>
     </div>
     <div id="mergeResult" class="hint" style="margin-top:8px"></div>
+  </div>
+  <div class="card">
+    <h2>서버 자동 백업</h2>
+    <div class="hint">관리 화면을 열 때마다 하루 한 번 조용히 이 기기에 백업 파일을 내려받고, Supabase에도
+      그날 날짜(1~31일 돌림칸 — 한 달 지나면 같은 칸에 다시 저장)로 스냅샷을 남깁니다.<br>
+      서버 자체에 문제가 생기거나 실수로 값을 지워도, 아래에서 날짜(1~31)를 골라 그 칸에 마지막으로
+      저장된 스냅샷을 파일로 받은 뒤 위 [백업 파일 고르기]로 되살릴 수 있습니다(그 칸이 이번 달에
+      한 번도 안 갱신됐다면 지난달 것일 수 있음 — 안내에 저장 날짜가 함께 표시됩니다).</div>
+    <div class="row">
+      <label>며칠(1~31일)</label><input type="number" id="snapDay" min="1" max="31" placeholder="예: 3" style="width:70px">
+      <button class="btn sm pri" onclick="downloadSnapshot()">그 날짜 서버 스냅샷 받기</button>
+    </div>
+    <div id="snapResult" class="hint" style="margin-top:8px"></div>
   </div>
 </section>
 
@@ -957,6 +971,7 @@ async function loadDB(){
     setSave('local','샘플 데이터 — 실시간 공유 연결 필요');
   }
   refreshAll();
+  if(!S._sample)autoBackupLocal();   // Supabase 연결 여부와 무관하게 실데이터면 하루 한 번 파일로도 자동 백업
   sbInit();
 }
 let saveT=null;
@@ -1082,6 +1097,7 @@ async function sbConnect(pass){
   try{localStorage.setItem('jjPass',sbPass);}catch(e){}
   setSave('ok','실시간 공유 연결됨');
   toast('실시간 공유 연결됨 — 다른 사람 변경이 자동 반영됩니다');
+  autoBackupLocal();sbAutoSnapshot();   // 관리 화면 접속 시 하루 한 번 자동 백업(기기 파일 + 서버 스냅샷)
   sbSubscribe();
   clearInterval(sbPollT);
   sbPollT=setInterval(async()=>{
@@ -2769,6 +2785,7 @@ function renderTrashTab(){
   renderTrash();
   const bt=document.getElementById('bTrash');
   if(bt){const n=unseenDeletes().reduce((a,l)=>a+(l.n||0),0);bt.hidden=!n;bt.textContent=n;}
+  const sd=document.getElementById('snapDay');if(sd&&!sd.value)sd.value=new Date().getDate();
 }
 function renderTrash(){
   const box=document.getElementById('trashBody');if(!box)return;
@@ -3104,10 +3121,25 @@ function dlgDelete(){const b=document.getElementById('dlgDelBtn');
   if(b.dataset.arm!=='1'){b.dataset.arm='1';b.textContent='정말 삭제?';setTimeout(()=>{if(dlg.open){b.dataset.arm='';b.textContent='삭제';}},3000);return;}
   b.dataset.arm='';b.textContent='삭제';dlg.close();dlgCtx.onDel();}
 
-/* ═════════ 백업 ═════════ */
+/* ═════════ 백업 ═════════
+   서버(Supabase)나 이 기기가 통째로 사라져도 최근 내용을 되찾을 수 있게 세 겹으로 대비함:
+   ① [백업] 버튼 — 클립보드 복사 + 파일 다운로드(수동, 언제든)
+   ② 관리 화면을 열 때마다 하루 한 번 조용히 파일 자동 다운로드(이 기기가 서버 대신 사본을 들고 있음)
+   ③ 관리 화면을 열 때마다 하루 한 번 조용히 Supabase에도 날짜 돌림칸(1~31일)으로 스냅샷 저장
+     (실수로 값을 지우거나 덮어썼을 때, 이 기기에 파일이 없어도 최대 한 달 전까지 되돌릴 수 있음)
+   ①·②로 받은 파일, ③에서 받은 스냅샷 파일 모두 위 "백업 파일 고르기"(mergeRestore)에 그대로 씀. */
+function dl(name,txt,type){
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(new Blob([txt],{type}));a.download=name;a.click();
+  setTimeout(()=>URL.revokeObjectURL(a.href),5000);
+}
 async function exportJSON(){
   const data=JSON.stringify(S,null,1);
-  try{await navigator.clipboard.writeText(data);toast('백업이 클립보드에 복사됨 — 메모장·카톡(나에게 보내기) 등에 붙여넣어 보관');return;}catch(e){}
+  let downloaded=false,copied=false;
+  try{dl(`자재과작업판백업-${realToday()}.json`,data,'application/json');downloaded=true;}catch(e){}
+  try{await navigator.clipboard.writeText(data);copied=true;}catch(e){}
+  if(downloaded||copied){toast('백업'+(downloaded?' 파일이 다운로드됨':'')+(downloaded&&copied?' · ':' ')+(copied?'클립보드에 복사됨':''));return;}
+  // 다운로드·클립보드 둘 다 막힌 환경(구형 브라우저·권한 차단 등) — 예전처럼 복사 가능한 텍스트칸을 보여줌
   dlgTitle.textContent='백업 — 아래 내용을 전체 복사해 보관하세요';
   dlgBody.innerHTML=`<div style="grid-column:1/-1"><textarea style="min-height:320px" onclick="this.select()">${esc(data)}</textarea></div>`;
   document.getElementById('dlgDelBtn').style.display='none';
@@ -3115,6 +3147,51 @@ async function exportJSON(){
 }
 function importJSON(ev){const f=ev.target.files[0];if(!f)return;
   const r=new FileReader();r.onload=()=>{try{const d=JSON.parse(r.result);if(d.moves){S=d;saveDB();refreshAll();toast('복원 완료');}else toast('올바른 백업 파일이 아닙니다');}catch(e){toast('파일을 읽을 수 없습니다');}};r.readAsText(f);ev.target.value='';}
+/* 기사 폰이 아닌 관리 화면에서, 하루 한 번만 조용히 파일로 내려받음(수동으로 안 눌러도 쌓임) */
+function autoBackupLocal(){
+  if(document.body.classList.contains('driver'))return;
+  try{
+    const t=realToday();
+    if(localStorage.getItem('jjAutoBackupLocal')===t)return;
+    // 사용자 동작(클릭·탭) 없이 트리거된 다운로드는 일부 브라우저(특히 iOS Safari)가 조용히 막음 —
+    // 화면을 처음 조작하는 순간(다음 클릭·탭)에 맞춰 실행해 어느 브라우저에서도 확실히 받아지게 함.
+    // 그 전에는 "완료"로 표시하지 않음(끝내 아무 조작이 없으면 그날은 건너뜀 — 다음날 다시 시도).
+    document.addEventListener('pointerdown',function once(){
+      document.removeEventListener('pointerdown',once);
+      try{dl(`자재과작업판백업-${t}.json`,JSON.stringify(S,null,1),'application/json');localStorage.setItem('jjAutoBackupLocal',t);}catch(e){}
+    },{once:true});
+  }catch(e){}
+}
+/* Supabase에도 날짜 돌림칸(이달의 일자 1~31)으로 스냅샷을 하루 한 번 저장 — 한 달 지나면 같은 칸에
+   덮어써서 용량이 계속 늘지 않음. 실시간 공유 연결(sbOK)이 안 돼 있으면 건드리지 않음. */
+async function sbAutoSnapshot(){
+  if(document.body.classList.contains('driver')||!sb||!sbOK)return;
+  try{
+    const t=realToday();
+    if(localStorage.getItem('jjAutoBackupSnap')===t)return;
+    const slot=String(new Date().getDate()).padStart(2,'0');
+    await sb.rpc('set_board',{p_id:SB_BOARD+'-backup-'+slot,p_passcode:sbPass,p_data:{...S,_snapAt:t}});
+    try{await sb.rpc('set_board',{p_id:'jajae-master-backup-'+slot,p_passcode:sbPass,p_data:{...M,_snapAt:t}});}catch(e){}
+    localStorage.setItem('jjAutoBackupSnap',t);
+  }catch(e){}
+}
+/* 삭제기록 탭 — 서버에 쌓인 날짜 돌림칸 스냅샷을 골라 파일로 내려받음(파일을 받으면 위
+   "백업 파일 고르기"로 그대로 복원 가능). 1~31 중 아무 날짜나 조회 가능 — 언제 뭐가 있었는지
+   미리 목록을 만들지 않고, 누르는 순간 그 칸을 직접 조회함(간단하고 서버 호출도 최소). */
+async function downloadSnapshot(){
+  const d=+document.getElementById('snapDay').value;
+  const res=document.getElementById('snapResult');
+  if(!d||d<1||d>31){toast('1~31 사이 날짜를 입력하세요');return;}
+  if(!sb||!sbOK){res.textContent='실시간 공유 연결이 안 돼 있어 서버 스냅샷을 불러올 수 없습니다.';return;}
+  const slot=String(d).padStart(2,'0');
+  res.textContent='조회 중…';
+  try{
+    const{data}=await sb.rpc('get_board',{p_id:SB_BOARD+'-backup-'+slot,p_passcode:sbPass});
+    if(!data||!Array.isArray(data.moves)){res.textContent=`${slot}일 칸에는 저장된 스냅샷이 없습니다(그 날짜에 관리 화면을 아무도 안 열었을 수 있음).`;return;}
+    dl(`자재과작업판_서버백업_${slot}일치.json`,JSON.stringify(data,null,1),'application/json');
+    res.textContent=`${data._snapAt||''}에 저장된 스냅샷을 파일로 받았습니다 — 위 [백업 파일 고르기]로 불러와 되살릴 수 있습니다.`;
+  }catch(e){res.textContent='조회 실패 — 네트워크 확인';}
+}
 
 /* ═════════ 캘린더 탭 — 입고·창고이동·출고를 월/주 단위로 한눈에 ═════════
    입고 = S.orders(자가만, eta 기준) · 창고이동 = S.moves(date 기준) ·

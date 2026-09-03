@@ -178,6 +178,7 @@ const VIAS=['','이메일','카카오톡','팩스','전화','기타'];
 const today=new Date(),pad=n=>String(n).padStart(2,'0');
 const curDate=`${today.getFullYear()}-${pad(today.getMonth()+1)}-${pad(today.getDate())}`;
 let mon=curDate.slice(0,7);
+let snapDayInput='';   // 설정 탭이 폴링·다른 사람 편집으로 다시 그려져도 입력값이 안 사라지게 따로 기억
 
 /* ===== 상태 ===== */
 function emptyState(){return{ver:1,vendors:{sales:[],purchase:[]},months:{}};}
@@ -306,6 +307,7 @@ async function sbConnect(pass){
   if(remoteHas)sbApply(magam);
   else if(localHas){await sbPush();}   // 최초 1회: 로컬(시드) 업로드
   setSave('ok','실시간 공유 중');
+  autoBackupLocal();sbAutoSnapshot();   // 실시간 공유 연결 시 하루 한 번 자동 백업(기기 파일 + 서버 스냅샷)
   sbCh=sb.channel('board-'+B_MAGAM).on('broadcast',{event:'update'},async({payload})=>{
     if(payload&&payload.by===sbClientId)return;
     try{const{data}=await sb.rpc('get_board',{p_id:B_MAGAM,p_passcode:sbPass});if(data)sbApply(data);}catch(e){}
@@ -891,6 +893,19 @@ on conflict (id) do nothing;`;
     </div>
     <div class="hint" style="margin-top:10px">업체 ${S.vendors.sales.length+S.vendors.purchase.length}곳 · 저장된 월: ${Object.keys(S.months).sort().join(', ')||'없음'}</div>
   </div>
+  <div class="card"><h2>서버 자동 백업</h2>
+    <div class="hint">실시간 공유 연결 시 하루 한 번 조용히 이 기기에 백업 파일을 내려받고, Supabase에도
+      그날 날짜(1~31일 돌림칸 — 한 달 지나면 같은 칸에 다시 저장)로 스냅샷을 남깁니다.<br>
+      서버 자체에 문제가 생기거나 실수로 값을 지워도, 아래에서 날짜(1~31)를 골라 그 칸에 마지막으로
+      저장된 스냅샷을 파일로 받은 뒤 위 [JSON 가져오기]로 되살릴 수 있습니다(그 칸이 이번 달에 한 번도
+      안 갱신됐다면 지난달 것일 수 있음 — 안내에 저장 날짜가 함께 표시됩니다. 가져오기는 현재 데이터를
+      통째로 바꿉니다).</div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+      <label>며칠(1~31일)</label><input type="number" id="snapDay" min="1" max="31" value="${esc(snapDayInput||String(new Date().getDate()))}" oninput="snapDayInput=this.value" style="width:70px">
+      <button class="btn pri" onclick="downloadSnapshot()">그 날짜 서버 스냅샷 받기</button>
+    </div>
+    <div id="snapResult" class="hint" style="margin-top:8px"></div>
+  </div>
   <div class="card"><h2>처리자 일괄 변경</h2>
     <div class="hint">업체별 "처리자" 항목에 남아있는 이름을 한 번에 바꿉니다. (담당자 인계 등으로 이름이 바뀌었을 때 사용 — 업체마다 일일이 수정할 필요 없음)</div>
     <div style="display:flex;gap:8px;flex-wrap:wrap">
@@ -924,6 +939,44 @@ function dl(name,txt,type){
   setTimeout(()=>URL.revokeObjectURL(a.href),5000);
 }
 function exportJSON(){dl(`마감백업-${curDate}.json`,JSON.stringify(S,null,1),'application/json')}
+/* ═════════ 자동 백업 — 서버(Supabase)가 통째로 사라지거나 실수로 값을 지워도 최근 내용을
+   되찾을 수 있게, 실시간 공유 연결 시 하루 한 번 조용히 ① 이 기기에 파일로 내려받고
+   ② Supabase에도 날짜 돌림칸(1~31일, 한 달 지나면 같은 칸에 덮어써 용량이 안 늘어남)으로
+   스냅샷을 남김. 둘 다 위 [JSON 가져오기]로 그대로 불러올 수 있는 같은 형식. */
+function autoBackupLocal(){
+  try{
+    if(localStorage.getItem('jjAutoBackupLocalMg')===curDate)return;
+    // 사용자 동작 없이 트리거된 다운로드는 일부 브라우저(특히 iOS Safari)가 막음 — 화면을 처음
+    // 조작하는 순간(다음 클릭·탭)에 맞춰 실행. 그 전에는 "완료"로 표시하지 않음(다음날 다시 시도).
+    document.addEventListener('pointerdown',function once(){
+      document.removeEventListener('pointerdown',once);
+      try{dl(`마감백업-${curDate}.json`,JSON.stringify(S,null,1),'application/json');localStorage.setItem('jjAutoBackupLocalMg',curDate);}catch(e){}
+    },{once:true});
+  }catch(e){}
+}
+async function sbAutoSnapshot(){
+  if(!sb||!sbOK)return;
+  try{
+    if(localStorage.getItem('jjAutoBackupSnapMg')===curDate)return;
+    const slot=String(new Date().getDate()).padStart(2,'0');
+    await sb.rpc('set_board',{p_id:B_MAGAM+'-backup-'+slot,p_passcode:sbPass,p_data:{...S,_snapAt:curDate}});
+    localStorage.setItem('jjAutoBackupSnapMg',curDate);
+  }catch(e){}
+}
+async function downloadSnapshot(){
+  const d=+document.getElementById('snapDay').value;
+  const res=document.getElementById('snapResult');
+  if(!d||d<1||d>31){toast('1~31 사이 날짜를 입력하세요');return;}
+  if(!sb||!sbOK){res.textContent='실시간 공유 연결이 안 돼 있어 서버 스냅샷을 불러올 수 없습니다.';return;}
+  const slot=String(d).padStart(2,'0');
+  res.textContent='조회 중…';
+  try{
+    const{data}=await sb.rpc('get_board',{p_id:B_MAGAM+'-backup-'+slot,p_passcode:sbPass});
+    if(!data||!isObj(data.vendors)){res.textContent=`${slot}일 칸에는 저장된 스냅샷이 없습니다(그 날짜에 마감관리를 아무도 안 열었을 수 있음).`;return;}
+    dl(`마감백업_서버백업_${slot}일치.json`,JSON.stringify(data,null,1),'application/json');
+    res.textContent=`${data._snapAt||''}에 저장된 스냅샷을 파일로 받았습니다 — 위 [JSON 가져오기]로 불러올 수 있습니다(기존 데이터를 통째로 바꿉니다).`;
+  }catch(e){res.textContent='조회 실패 — 네트워크 확인';}
+}
 function exportCSV(side){
   const hd=['업체명','담당자','유형','처리자','구매팀','구매품목','보낸날짜','보낸방식',...STEPS[side],'비고',...(side==='purchase'?['구매팀행']:[]),'진행률','상태','지연단계'];
   const lines=[hd.join(',')];
@@ -981,6 +1034,7 @@ document.addEventListener('keydown',e=>{
   }
 });
 refreshAll();
+if(S.vendors.sales.length||S.vendors.purchase.length)autoBackupLocal();   // 실시간 공유 연결 여부와 무관하게 실데이터면 하루 한 번 파일로도 자동 백업
 sbInit();
 </script>
 </body>

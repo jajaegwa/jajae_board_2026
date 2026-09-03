@@ -217,7 +217,7 @@ details.card summary .cnt{font-size:11.5px;color:var(--mut);font-weight:500}
   <span class="sub">입고 · 창고이동 · 발주 · 사급 한 화면</span>
   <!-- 화면이 최신 버전인지 바로 확인할 수 있게 표시 — 이 값이 다르면 브라우저가
        예전 파일을 캐시해 둔 것이므로 강력 새로고침(Ctrl+F5 / 아이폰은 Safari 재실행) 필요 -->
-  <span class="sub" id="buildStamp" title="화면 버전 — 최신이 아니면 Ctrl+F5로 강력 새로고침">v2026-09-03d</span>
+  <span class="sub" id="buildStamp" title="화면 버전 — 최신이 아니면 Ctrl+F5로 강력 새로고침">v2026-09-03e</span>
   <span class="sp"></span>
   <span class="date">기준일 <button class="btn sm" onclick="setDate(addDays(cur,-1))" title="하루 전 (기준일 −1)">◀</button><input type="date" id="curDate" onchange="setDate(this.value)"><button class="btn sm" onclick="setDate(addDays(cur,1))" title="하루 뒤 (기준일 +1)">▶</button></span>
   <span id="curWarn" class="tag" style="display:none;background:var(--amber-soft);color:var(--amber);border:1px solid var(--amber);padding:3px 8px;border-radius:2px;font-weight:700;cursor:pointer" title="기준일이 오늘이 아니면 등록·체크가 이 날짜로 기록됩니다" onclick="setDate(realToday())">⚠ 기준일이 오늘이 아님 — 오늘로</span>
@@ -466,8 +466,9 @@ details.card summary .cnt{font-size:11.5px;color:var(--mut);font-weight:500}
   <div class="card">
     <h2>발주 기준 (재고 임계치) <span class="cnt" id="cntRopMat"></span></h2>
     <div class="hint">현황 화면 "오늘 발주할 것 → 재고 기준" 표에서 이 목록의 품목만 발주점 계산 대상이 됩니다. 값을 바꾸면 바로 저장됩니다 — 품목명은 재고파일·발주 등록에서 쓰는 이름과 정확히 같아야 매칭됩니다.</div>
-    <div class="row" style="margin:10px 0"><input id="ropSearch" placeholder="품목·매입처·위치 검색" oninput="renderRopMat()" style="flex:1;min-width:160px"><button class="btn sm pri" onclick="addRopRow()">+ 품목 추가</button></div>
-    <div class="tbl scroll"><table><thead><tr><th>품목</th><th class="num">발주점(kg)</th><th class="num">1회 발주량</th><th class="num">리드타임(일)</th><th>매입처</th><th>위치</th><th></th></tr></thead><tbody id="ropMatBody"></tbody></table></div>
+    <div class="row" style="margin:10px 0"><input id="ropSearch" placeholder="품목·매입처·위치 검색" oninput="renderRopMat()" style="flex:1;min-width:160px"><button class="btn sm pri" onclick="addRopRow()">+ 품목 추가</button><button class="btn sm" onclick="exportRopXlsx()">엑셀로 내보내기</button></div>
+    <datalist id="ropCatList"><option value="가소제"><option value="안료"><option value="충격보강제"><option value="안정제"><option value="충전제"><option value="활제"><option value="기재수지"><option value="기타"></datalist>
+    <div class="tbl scroll"><table><thead><tr><th>품목</th><th>분류</th><th class="num">발주점(kg)</th><th class="num">1회 발주량</th><th class="num">리드타임(일)</th><th>매입처</th><th>위치</th><th></th></tr></thead><tbody id="ropMatBody"></tbody></table></div>
   </div>
   <div class="card">
     <h2>주기 기준 대상 (자가 발주) <span class="cnt" id="cntCycMat"></span></h2>
@@ -711,7 +712,7 @@ const short=s=>String(s||'').replace(/^.*?_(?=[^_]+$)/,'');  // 'TiO2_TIONA-696'
    이 함수를 다시 호출해야 패치가 사라지지 않음 — sb 연결 코드에서 재호출하는 부분 참고.
    M._patchVersion으로 딱 한 번만 실행되게 막아둠 — 기준정보 탭에서 사람이 직접 고친 값을
    다음 로그인 때 또 덮어쓰지 않기 위함. 새 패치를 추가할 땐 MASTER_PATCH_VERSION을 올릴 것. */
-const MASTER_PATCH_VERSION=9;
+const MASTER_PATCH_VERSION=10;
 function applyMasterPatches(){
   if((M._patchVersion||0)>=MASTER_PATCH_VERSION)return;
   const bag=M.rop.find(r=>r.item==='BAG'&&/단석/.test(r.vendor||''));if(bag)bag.item='DS356S1';
@@ -860,6 +861,25 @@ function applyMasterPatches(){
   // 표에서 관련 품목을 완전히 제거(최초 1회만 — 이후 사람이 다시 등록한 건 안 건드림 — 위와
   // 같은 이유로 전용 플래그 사용).
   if(!M._m301p2Removed){M.rop=M.rop.filter(r=>norm(r.loc)!=='M301P2');M._m301p2Removed=true;}
+  // v10: 발주 기준(M.rop)에 "분류"(가소제·안료·충격보강제 등) 칸을 새로 추가하면서, 코드로도
+  // 확인 가능한(브랜드명·매입처 등으로 판별 가능한) 일부 품목만 최초 1회 참고용으로 채워둠 —
+  // 나머지(회사 고유 코드라 이 파일만 보고는 정확히 알 수 없는 품목)는 기준정보 탭에서 담당자가
+  // 직접 채워야 함. 이미 값이 있으면(사람이 고쳤거나 이전에 채워졌으면) 절대 덮어쓰지 않음 —
+  // SP-390 사고와 같은 이유로 전용 플래그로 최초 1회만 실행.
+  if(!M._ropCatSeeded){
+    // 키는 norm() 결과(하이픈·공백·괄호 제거된 대문자)로 맞춰둠 — norm(r.item)과 직접 비교.
+    const ROP_CAT={
+      'TIONA696':'안료','TIONA666696':'안료','KRONOS2450':'안료',          // TiO2 안료 브랜드(Tronox Tiona·Kronos)
+      'MB875':'안료','MB838A':'안료','GHPBLUE3931P':'안료',                // MB(마스터배치)·안료 페이스트
+      'IM812':'충격보강제',                                                // "IM" = Impact Modifier 관행 표기
+      'HYDROCARB95T':'충전제',                                             // Omya Hydrocarb(탄산칼슘 필러) 제품군
+      'UVP':'안정제',                                                      // 자외선 안정제
+      'DS356S1':'가소제','DS356T':'가소제',                                // 매입처 "단석"(단석산업 — 가소제 전문 제조사)
+      'PSGNT1TPZ':'기재수지',                                              // GPPS(재생) — 기재수지(첨가제 아님)
+    };
+    M.rop.forEach(r=>{if(!r.cat){const cat=ROP_CAT[norm(r.item)];if(cat)r.cat=cat;}});
+    M._ropCatSeeded=true;
+  }
   M._patchVersion=MASTER_PATCH_VERSION;
   if(sb&&sbOK)sbSaveMasterAfterPatch();
 }
@@ -1035,7 +1055,7 @@ async function sbConnect(pass){
       // 위 세 플래그도 불리언이라 배열 전용 루프로 안 옮겨짐 — 이걸 안 옮기면 다음 버전 패치 때마다
       // applyMasterPatches()가 이미 끝난 v5/v6/v7 단계까지 처음부터 다시 돌아 그 사이 기준정보 탭에서
       // 사람이 고친 내용을 지워버림(각 단계 주석 참고). _patchVersion과 마찬가지로 서버 값을 그대로 반영.
-      ['_cycKeepApplied','_m301p2Removed','_tiona696SplitApplied','_r696AliasSplitApplied','_v6BaselineApplied','_tionaFuzzySplitApplied'].forEach(k=>{M[k]=md[k]===true;});
+      ['_cycKeepApplied','_m301p2Removed','_tiona696SplitApplied','_r696AliasSplitApplied','_v6BaselineApplied','_tionaFuzzySplitApplied','_ropCatSeeded'].forEach(k=>{M[k]=md[k]===true;});
       applyMasterPatches();   // 처음(버전 미달)이면 M.rop/M.presetSelf에 발주점 패치를 적용하고 서버에 저장
       // STAT_RULES(통계탭 계획표)는 M 소속이 아닌 별도 const 배열이라 같은 방식으로 취급 못 함 —
       // 참조를 그대로 유지해야 하는 코드가 있을 수 있어 재대입 대신 내용만 교체(splice).
@@ -2436,9 +2456,24 @@ function renderRopMat(){
   const rows=M.rop.filter(r=>!q||(r.item+(r.vendor||'')+(r.loc||'')).toUpperCase().includes(q));
   box.innerHTML=rows.length?rows.map(r=>{
     const idx=M.rop.indexOf(r);
-    return `<tr><td><input value="${esc(r.item)}" style="width:150px;font-weight:700" onchange="ropField(${idx},'item',this.value)"></td><td class="num"><input type="number" value="${r.rop??''}" style="width:90px;text-align:right" onchange="ropField(${idx},'rop',this.value,this)"></td><td class="num"><input type="number" value="${r.qty??''}" style="width:90px;text-align:right" onchange="ropField(${idx},'qty',this.value,this)"></td><td class="num"><input type="number" step="any" value="${r.lt??''}" style="width:70px;text-align:right" onchange="ropField(${idx},'lt',this.value,this)"></td><td><input value="${esc(r.vendor||'')}" list="vendorList" style="width:110px" onchange="ropField(${idx},'vendor',this.value)"></td><td><input value="${esc(r.loc||'')}" style="width:90px" onchange="ropField(${idx},'loc',this.value)"></td><td><button class="btn sm" style="color:var(--red)" onclick="delRopRow(${idx})">${armLbl('rop'+idx)}</button></td></tr>`;
-  }).join(''):'<tr><td colspan="7" class="empty">등록된 발주 기준 품목 없음</td></tr>';
+    return `<tr><td><input value="${esc(r.item)}" style="width:150px;font-weight:700" onchange="ropField(${idx},'item',this.value)"></td><td><input value="${esc(r.cat||'')}" list="ropCatList" placeholder="예: 가소제" style="width:100px" onchange="ropField(${idx},'cat',this.value)"></td><td class="num"><input type="number" value="${r.rop??''}" style="width:90px;text-align:right" onchange="ropField(${idx},'rop',this.value,this)"></td><td class="num"><input type="number" value="${r.qty??''}" style="width:90px;text-align:right" onchange="ropField(${idx},'qty',this.value,this)"></td><td class="num"><input type="number" step="any" value="${r.lt??''}" style="width:70px;text-align:right" onchange="ropField(${idx},'lt',this.value,this)"></td><td><input value="${esc(r.vendor||'')}" list="vendorList" style="width:110px" onchange="ropField(${idx},'vendor',this.value)"></td><td><input value="${esc(r.loc||'')}" style="width:90px" onchange="ropField(${idx},'loc',this.value)"></td><td><button class="btn sm" style="color:var(--red)" onclick="delRopRow(${idx})">${armLbl('rop'+idx)}</button></td></tr>`;
+  }).join(''):'<tr><td colspan="8" class="empty">등록된 발주 기준 품목 없음</td></tr>';
   document.getElementById('cntRopMat').textContent=`${M.rop.length}개`;
+}
+/* 발주 기준 표를 엑셀로 내보내기 — 분류(가소제·안료·충격보강제 등, 위 "분류" 칸에서 직접 입력)
+   기준으로 묶어서 정렬. 분류를 아직 안 채운 품목은 "미분류"로 표시돼 빠진 게 눈에 띄게 함. */
+function exportRopXlsx(){
+  if(!M.rop.length){toast('발주 기준에 등록된 품목이 없습니다');return;}
+  const CAT_ORDER=['가소제','안료','충격보강제','안정제','충전제','활제','기재수지','기타'];
+  const catRank=c=>{const i=CAT_ORDER.indexOf(c||'');return i<0?CAT_ORDER.length:i;};
+  const rows=[...M.rop].sort((a,b)=>catRank(a.cat)-catRank(b.cat)||String(a.item||'').localeCompare(String(b.item||'')));
+  const aoa=[['분류','품목','발주점(kg)','1회 발주량','리드타임(일)','매입처','위치']];
+  rows.forEach(r=>aoa.push([r.cat||'미분류',r.item||'',r.rop??'',r.qty??'',r.lt??'',r.vendor||'',r.loc||'']));
+  const ws=XLSX.utils.aoa_to_sheet(aoa);
+  ws['!cols']=[{wch:12},{wch:20},{wch:12},{wch:12},{wch:10},{wch:14},{wch:10}];
+  const wb=XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb,ws,'발주기준');
+  XLSX.writeFile(wb,`발주기준_${cur}.xlsx`);
 }
 function ropField(idx,key,val,el){
   const r=M.rop[idx];if(!r)return;
@@ -2458,7 +2493,7 @@ function ropField(idx,key,val,el){
 function addRopRow(){
   const name=(prompt('추가할 품목명 — 재고파일·발주 등록에서 쓰는 이름과 정확히 같아야 발주점이 제대로 매칭됩니다')||'').trim();
   if(!name)return;
-  M.rop.push({item:name,loc:'',vendor:'',dept:'',lt:2,qty:0,rop:0,flag:''});
+  M.rop.push({item:name,loc:'',vendor:'',dept:'',lt:2,qty:0,rop:0,flag:'',cat:''});
   if(sb&&sbOK)sbSaveMasterRop();
   renderRopMat();
   toast(`${name} 추가됨 — 발주점 등 값을 입력하세요`);
@@ -2488,7 +2523,7 @@ async function sbSaveMasterAfterPatch(){
   try{
     const{data:cur}=await sb.rpc('get_board',{p_id:'jajae-master',p_passcode:sbPass});
     const base=(cur&&typeof cur==='object'&&!Array.isArray(cur))?cur:{};
-    const payload={...base,rop:M.rop,presetSelf:M.presetSelf,_patchVersion:M._patchVersion,_cycKeepApplied:!!M._cycKeepApplied,_m301p2Removed:!!M._m301p2Removed,_tiona696SplitApplied:!!M._tiona696SplitApplied,_r696AliasSplitApplied:!!M._r696AliasSplitApplied,_v6BaselineApplied:!!M._v6BaselineApplied,_tionaFuzzySplitApplied:!!M._tionaFuzzySplitApplied};
+    const payload={...base,rop:M.rop,presetSelf:M.presetSelf,_patchVersion:M._patchVersion,_cycKeepApplied:!!M._cycKeepApplied,_m301p2Removed:!!M._m301p2Removed,_tiona696SplitApplied:!!M._tiona696SplitApplied,_r696AliasSplitApplied:!!M._r696AliasSplitApplied,_v6BaselineApplied:!!M._v6BaselineApplied,_tionaFuzzySplitApplied:!!M._tionaFuzzySplitApplied,_ropCatSeeded:!!M._ropCatSeeded};
     const res=await sb.rpc('set_board',{p_id:'jajae-master',p_passcode:sbPass,p_data:payload});
     if(res&&res.error)toast('발주 기준 자동 반영 저장 실패 — 네트워크 확인');
   }catch(e){toast('발주 기준 자동 반영 저장 실패 — 네트워크 확인');}

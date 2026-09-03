@@ -164,6 +164,9 @@ const STEPS={
    사급: [업체확인] [매출전표·증빙·매출승인] [수금전표·증빙] [입금표발행·수취] [회계보고]
    체크 구역 전체는 진한 테두리로 감싸고, 그 안의 소구역 경계는 더 연한 선으로 구분. */
 const STEP_GROUPS={sales:[1,4,6,8],purchase:[]};
+/* 결재·보고처럼 개별 업체 사정과 무관하게 한 번에 몰아서 처리하는 단계는
+   헤더를 클릭해 지금 보이는 업체 전체를 일괄 체크할 수 있게 함 */
+const BULK_STEPS=new Set(['매출승인','회계보고']);
 function stepBorder(side,i,isLastRow){
   const n=STEPS[side].length;
   let s='';
@@ -684,7 +687,7 @@ function listHTML(side){
     <button class="btn sm ghost" onclick="showExcludedDlg('${side}')">이번달 제외 목록${excluded.length?` (${excluded.length})`:''}</button>
   </div>
   <div class="tbl scroll frz"><table>
-    <tr><th><input type="checkbox" class="ck" id="vSelAll_${side}" onchange="toggleAllVendorFromDom(this)"></th><th>업체명</th><th>유형·품목</th><th>${side==='sales'?'처리자':'처리자·구매팀'}</th><th>발주↔입고</th><th>보낸날짜</th><th>방식</th>${short.map((s,i)=>{const bulk=STEPS[side][i]==='매출승인';return`<th style="text-align:center;border-top:2.5px solid var(--ink);${stepBorder(side,i)}${bulk?'cursor:pointer':''}"${bulk?` onclick="bulkCheckStep('${side}','${STEPS[side][i]}')" title="클릭하면 지금 보이는 업체 전체를 한 번에 체크합니다"`:''}>${s}${bulk?' ⚡':''}</th>`;}).join('')}<th>비고</th>${side==='purchase'?'<th title="금액 불일치 — 구매팀이 월말에 직접 마감 처리">구매팀행</th>':''}<th>진행률</th><th>상태</th><th></th></tr>
+    <tr><th><input type="checkbox" class="ck" id="vSelAll_${side}" onchange="toggleAllVendorFromDom(this)"></th><th>업체명</th><th>유형·품목</th><th>${side==='sales'?'처리자':'처리자·구매팀'}</th><th>발주↔입고</th><th>보낸날짜</th><th>방식</th>${short.map((s,i)=>{const bulk=BULK_STEPS.has(STEPS[side][i]);return`<th style="text-align:center;border-top:2.5px solid var(--ink);${stepBorder(side,i)}${bulk?'cursor:pointer':''}"${bulk?` onclick="bulkCheckStep('${side}','${STEPS[side][i]}')" title="클릭하면 지금 보이는 업체 전체를 한 번에 체크합니다"`:''}>${s}${bulk?' ⚡':''}</th>`;}).join('')}<th>비고</th>${side==='purchase'?'<th title="금액 불일치 — 구매팀이 월말에 직접 마감 처리">구매팀행</th>':''}<th>진행률</th><th>상태</th><th></th></tr>
     ${rows.length?rows.map((v,idx)=>rowHTML(side,v,idx===rows.length-1)).join('')
       :`<tr><td colspan="23" style="padding:14px;text-align:left;white-space:normal"><div class="mut" style="font-size:13px">
         표시할 업체가 없습니다 — 저장이 안 된 게 아니라 <b>필터 때문에 안 보이는</b> 경우가 대부분입니다.

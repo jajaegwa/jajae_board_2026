@@ -140,7 +140,7 @@ textarea.mail:not(:read-only){background:var(--card);border-color:var(--acc)}
 /* 기사 화면 */
 body.driver main{max-width:900px}
 body.driver header .date{display:none}
-body.driver header button:not(#btnDrv):not(#sbGateBtn){display:none}
+body.driver header button:not(#btnDrv):not(#sbGateBtn):not(#unsyncedKeepBtn):not(#unsyncedDiscardBtn){display:none}
 body.driver #drvNotif,body.driver #curWarn{display:none!important}
 .drv h2{font-size:19px;font-weight:700;margin:22px 0 10px;display:flex;align-items:center;gap:10px}
 .drv h2 .cnt{font-size:13.5px;color:var(--mut)}
@@ -222,6 +222,13 @@ details.card summary .cnt{font-size:11.5px;color:var(--mut);font-weight:500}
   <span class="date">기준일 <button class="btn sm" onclick="setDate(addDays(cur,-1))" title="하루 전 (기준일 −1)">◀</button><input type="date" id="curDate" onchange="setDate(this.value)"><button class="btn sm" onclick="setDate(addDays(cur,1))" title="하루 뒤 (기준일 +1)">▶</button></span>
   <span id="curWarn" class="tag" style="display:none;background:var(--amber-soft);color:var(--amber);border:1px solid var(--amber);padding:3px 8px;border-radius:2px;font-weight:700;cursor:pointer" title="기준일이 오늘이 아니면 등록·체크가 이 날짜로 기록됩니다" onclick="setDate(realToday())">⚠ 기준일이 오늘이 아님 — 오늘로</span>
   <span class="savebox" id="saveBox"><i></i><span id="saveTxt">불러오는 중</span></span>
+  <!-- 새로고침·탭종료 전에 서버로 못 보낸 편집이 남아 있으면(로컬 스냅샷 ≠ 마지막으로 확인된
+       저장 성공 시점 스냅샷) 서버 최신 데이터로 조용히 덮어쓰지 않고 사용자가 직접 고르게 함. -->
+  <span class="tag" id="unsyncedBanner" style="display:none;background:var(--amber-soft);color:var(--amber);border:1px solid var(--amber);padding:3px 8px;border-radius:2px;font-weight:700">
+    ⚠ 이전에 저장 못한 변경 있음
+    <button class="btn sm" id="unsyncedKeepBtn" style="margin-left:6px" onclick="resolveUnsynced('keep')">이 내용으로 다시 저장</button>
+    <button class="btn sm ghost" id="unsyncedDiscardBtn" onclick="resolveUnsynced('discard')">최신 서버 내용 사용</button>
+  </span>
   <span class="chip c-wait" id="drvNotif" style="display:none;cursor:pointer" onclick="clearDrvNotif()" title="눌러서 확인"></span>
   <span class="chip c-late" id="delAlert" style="display:none;cursor:pointer" onclick="ackDeletes()" title="눌러서 삭제 기록 보기"></span>
   <button class="btn sm" onclick="toggleDriver()" id="btnDrv">지게차 화면</button>
@@ -292,7 +299,7 @@ details.card summary .cnt{font-size:11.5px;color:var(--mut);font-weight:500}
     </div>
     <div class="grp-lbl" style="margin-top:12px">자유 메모 <span class="cnt" id="cntNote"></span></div>
     <div class="hint" style="margin-bottom:8px">부서와 상관없는 전달사항을 자유롭게 적으세요. 지게차 화면에 크게 표시되고, 기사가 [완료] 체크할 수 있습니다.<br>예) 31동 창고에 PMS-1803 800kg(배합실 사용분) 올려둠 — 가져다 주세요</div>
-    <form class="row" onsubmit="event.preventDefault();addNote()">
+    <form class="row" onsubmit="event.preventDefault();addNote()" onkeydown="imeSafeEnter(event)">
       <input id="noteTxt" placeholder="예) 31동 창고 PMS-1803 800kg 가져다 주세요" style="flex:1;min-width:220px" maxlength="300">
       <button class="btn sm pri" type="submit">메모 추가</button>
     </form>
@@ -306,7 +313,7 @@ details.card summary .cnt{font-size:11.5px;color:var(--mut);font-weight:500}
     <h2>📞 전화 모드 <span class="cnt">부서 먼저 탭 → 이동 요청 또는 벌크·라인 직납 발주 품목 탭</span></h2>
     <div class="qm-dept" id="qmDeptBox"></div>
     <div class="row" style="align-items:center;margin:8px 0 4px">
-      <input id="qmMemoTxt" placeholder="메모 (예: 신규 원료 OOO 추가 필요, 특이사항 등)" style="flex:1;min-width:220px" maxlength="200" onkeydown="if(event.key==='Enter'&&!event.isComposing&&event.keyCode!==229){event.preventDefault();qmAddMemo();}">
+      <input id="qmMemoTxt" placeholder="메모 (예: 신규 원료 OOO 추가 필요, 특이사항 등)" style="flex:1;min-width:220px" maxlength="200" onkeydown="if(event.key==='Enter'){imeSafeEnter(event);if(!event.defaultPrevented){event.preventDefault();qmAddMemo();}}">
       <button class="btn sm pri" onclick="qmAddMemo()">메모 추가</button>
     </div>
     <div class="tag" id="qmMemoCur" style="margin-bottom:8px"></div>
@@ -332,7 +339,7 @@ details.card summary .cnt{font-size:11.5px;color:var(--mut);font-weight:500}
           <span class="tag" id="qmLoc"></span>
         </div>
         <div class="quick qm-qty" id="qmQty" style="margin:8px 0 4px"></div>
-        <form class="row" onsubmit="event.preventDefault();qmAdd(+qmCustom.value)">
+        <form class="row" onsubmit="event.preventDefault();qmAdd(+qmCustom.value)" onkeydown="imeSafeEnter(event)">
           <input id="qmCustom" type="number" step="any" placeholder="직접 수량" style="width:110px;text-align:right">
           <button class="btn pri sm" type="submit">추가</button>
           <span class="tag">숫자를 탭하면 바로 등록됨 · 같은 품목 연속 등록 가능</span>
@@ -352,7 +359,7 @@ details.card summary .cnt{font-size:11.5px;color:var(--mut);font-weight:500}
   <details class="card">
     <summary>상세 등록 <span class="cnt">전 품목 자동완성 · 단위·창고·비고 직접 입력</span></summary>
     <div class="hint" style="margin-top:10px">전화 모드에 없는 품목이나 비고가 필요할 때 사용. 품목을 고르면 보관창고가 자동으로 붙음.</div>
-    <form class="row" onsubmit="event.preventDefault();addMove()">
+    <form class="row" onsubmit="event.preventDefault();addMove()" onkeydown="imeSafeEnter(event)">
       <div><label>부서</label><select id="mvDept"><option>경질</option><option>창호</option><option>타일</option><option>DBP</option><option>기타</option></select></div>
       <div style="flex:2;min-width:200px"><label>품목</label><input id="mvItem" list="itemList" placeholder="품목명 (자동완성)" oninput="autoLoc('mv')"></div>
       <div><label>수량</label><input id="mvQty" type="number" step="any" style="width:100px;text-align:right"></div>
@@ -370,7 +377,7 @@ details.card summary .cnt{font-size:11.5px;color:var(--mut);font-weight:500}
   <div class="card">
     <h2>발주 등록</h2>
     <div class="hint">빠른선택(프리셋)을 고르면 매입처·품목·수량·착일이 자동 입력됨.<br>프리셋 외 품목은 직접 입력.<br>착일 = 발주일 + 리드타임(기준표, 없으면 국산 2일).</div>
-    <form onsubmit="event.preventDefault();addOrder()">
+    <form onsubmit="event.preventDefault();addOrder()" onkeydown="imeSafeEnter(event)">
     <div class="row">
       <div style="flex:2;min-width:260px"><label>빠른선택</label><select id="odPreset" onchange="applyPreset()"><option value="">— 프리셋 선택 —</option></select><div id="presetGate" style="display:none;margin-top:4px"></div></div>
       <div><label>구분</label><select id="odType"><option value="self">자가(부강 입고)</option><option value="consign">사급(업체 직납)</option></select></div>
@@ -913,6 +920,10 @@ function deptOf(m){if(!m)return '';const u=m.use||'';if(/창호/.test(u))return'
 
 /* ═════════ 저장소 ═════════ */
 const KEY='jajae-board-v1';
+/* 마지막으로 "서버에 저장 성공했거나 서버 데이터를 그대로 받아들인" 시점의 스냅샷.
+   KEY(현재 작업 중 스냅샷)와 이 값이 다르면 = 서버로 못 보낸 편집이 남아 있다는 뜻 —
+   sbConnect()가 그 경우 서버 최신 데이터로 조용히 덮어쓰지 않고 사용자에게 선택지를 줌. */
+const KEY_SYNCED=KEY+'.synced';
 let S={moves:[],orders:[],cons:[],specials:{},notes:[],trash:[],log:[],seq:1,invHist:[],fcPlan:[]};
 const localISO=x=>`${x.getFullYear()}-${String(x.getMonth()+1).padStart(2,'0')}-${String(x.getDate()).padStart(2,'0')}`;
 let cap=null,readOnly=false,mode='local',cur=localISO(new Date());
@@ -921,6 +932,17 @@ const addDays=(d,n)=>{const x=new Date(d+'T00:00:00');x.setDate(x.getDate()+n);r
 const diffDays=(a,b)=>Math.round((new Date(a+'T00:00:00')-new Date(b+'T00:00:00'))/86400000);
 const fmtN=n=>(n==null||n==='')?'':Number(n).toLocaleString('ko-KR');
 const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+/* onclick="fn('...')"처럼 작은따옴표로 감싼 JS 문자열 인자에 품목명 등 사용자 입력을 꽂을 때
+   쓰는 이스케이프 — esc()는 HTML 엔티티(&<>")만 처리하고 백슬래시·작은따옴표는 그대로 두므로
+   따로 필요함. 백슬래시부터 먼저 이스케이프해야 함 — 순서를 바꾸면(따옴표 먼저) 원래 있던
+   따옴표를 이스케이프하려고 넣은 백슬래시가 뒤이어 또 이스케이프돼 깨지거나, 반대로 품목명이
+   백슬래시로 끝나는 경우 그 백슬래시가 바로 뒤에 삽입된 종료 따옴표를 무력화해 JS 문자열이
+   안 닫히는 문법 에러가 남(자체 검토에서 발견). */
+const escJs=s=>String(s??'').replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+/* 한글(등 조합형 문자) 입력 중 마지막 글자를 확정하는 Enter가 브라우저에 따라 그대로
+   form의 submit(등록·저장)까지 실행시켜 버리는 경우가 있음 — 각 <form onkeydown>에 걸어
+   그 Enter만 막고, 조합이 끝난 뒤 다시 누르는 진짜 Enter는 그대로 통과시킴. */
+function imeSafeEnter(e){if(e.key==='Enter'&&(e.isComposing||e.keyCode===229))e.preventDefault();}
 const KDAY=['일','월','화','수','목','금','토'];
 const fmtK=d=>d?`${d.slice(5,7)}/${d.slice(8,10)}(${KDAY[new Date(d+'T00:00:00').getDay()]})`:'';
 function setSave(cls,txt){const b=document.getElementById('saveBox');b.className='savebox '+cls;document.getElementById('saveTxt').textContent=txt;}
@@ -953,17 +975,40 @@ async function loadDB(){
     setSave('ok','공유 저장 연결');
     if(!loaded){try{const l=localStorage.getItem(KEY);if(l){const d=JSON.parse(l);if(d&&d.moves)S=d;}}catch(e){}}
   }else{
-    S=makeDummyState();
-    setSave('local','샘플 데이터 — 실시간 공유 연결 필요');
+    // 실시간 공유(Supabase) 연결 전 잠깐 보여줄 초기 화면 — 이 기기에 예전에 저장해 둔 실제
+    // 데이터가 있으면 그걸 먼저 쓰고(연결 실패 시에도 마지막으로 보던 내용이 남아 있게),
+    // 전혀 없을 때만 샘플 데이터를 보여줌. sbConnect()가 연결되면 서버 데이터와 맞춰봄 —
+    // 이 기기에 서버로 못 보낸 편집이 남아 있으면 조용히 덮어쓰지 않고 물어봄.
+    let localS=null;try{const l=localStorage.getItem(KEY);if(l){const d=JSON.parse(l);if(d&&d.moves)localS=d;}}catch(e){}
+    if(localS){S=localS;setSave('local','저장된 내용 불러옴 — 실시간 공유 연결 필요');}
+    else{S=makeDummyState();setSave('local','샘플 데이터 — 실시간 공유 연결 필요');}
   }
   refreshAll();
   sbInit();
 }
 let saveT=null;
+let localStorageBroken=false;   // 용량초과·시크릿모드 접근차단 등 — 조용히 무시하지 않고 최초 1회는 반드시 알림
 function saveDB(){
-  try{localStorage.setItem(KEY,JSON.stringify(S));}catch(e){}
+  let lsOK=true;
+  try{localStorage.setItem(KEY,JSON.stringify(S));}
+  catch(e){
+    lsOK=false;
+    if(!localStorageBroken){
+      localStorageBroken=true;
+      // sbOK(Supabase)뿐 아니라 cap(클로드 아티팩트 공유 저장) 경로가 살아있어도 실제로는
+      // 안전하게 보관됨 — 둘 다 없을 때만 "새로고침하면 사라질 수 있다"고 경고해야 함.
+      toast('이 기기 저장 실패(저장공간 부족 등)'+((sbOK||cap)?' — 서버 저장은 계속 시도합니다':' — 새로고침하면 방금 입력이 사라질 수 있습니다'));
+    }
+  }
+  if(lsOK)localStorageBroken=false;
   if(sbOK&&!sbApplying)sbQueueSave();
+  if(!sbOK&&!cap&&!lsOK)setSave('ro','기기 저장도 실패함 — 화면을 벗어나면 편집 내용이 사라질 수 있습니다');
   if(!cap||readOnly)return;
+  // "못 보낸 편집" 배너가 떠 있는 동안엔 그 안내를 이 cap(클로드 아티팩트) 경로의 상태 표시로
+  // 덮지 않음 — 배너는 Supabase 쪽 동기화를 사용자가 고르기 전까지 멈춰둔 상태를 알리는 것이라,
+  // 이 표시가 "저장 중…"/"공유 저장됨"으로 계속 바뀌면 마치 다 해결된 것처럼 오해할 수 있음
+  // (자체 검토에서 발견).
+  if(sbUnsyncedPending)return;
   setSave('','저장 중…');clearTimeout(saveT);
   saveT=setTimeout(async()=>{
     try{await cap.publish({'data/state.json':{content:JSON.stringify(S),contentType:'application/json'}});setSave('ok','공유 저장됨 '+new Date().toTimeString().slice(0,5));}
@@ -1013,13 +1058,62 @@ function sbApply(raw){
   const j=JSON.stringify(n);
   if(j===sbLastJson)return true;
   sbApplying=true;
-  try{S=n;sbLastJson=j;refreshAll();}finally{sbApplying=false;}
+  try{
+    S=n;sbLastJson=j;
+    // 서버 데이터를 받아들인 시점 = 이 기기 기준으로도 "서버와 맞음"이 확정된 시점 —
+    // KEY(현재 스냅샷)·KEY_SYNCED(마지막 확인된 동기화 스냅샷) 둘 다 갱신해 다음
+    // 새로고침 때 "못 보낸 편집이 남아있다"고 잘못 판단하지 않게 함.
+    try{localStorage.setItem(KEY,j);localStorage.setItem(KEY_SYNCED,j);}catch(e){}
+    refreshAll();
+  }finally{sbApplying=false;}
   return true;
 }
 function sbInit(){
   try{if(typeof supabase!=='undefined')sb=supabase.createClient(SB_URL,SB_ANON,{realtime:{params:{eventsPerSecond:2}}});}catch(e){}
   if(!sb)return;   // 네트워크 차단 환경 — 로컬 모드로 계속 동작
   if(sbPass)sbConnect(sbPass);else sbShowGate();
+}
+/* sbConnect()가 "이 기기에 서버로 못 보낸 편집이 있다"고 판단했을 때 잠시 보관해 두는 서버 데이터
+   — 사용자가 위쪽 배너에서 고르기 전까지는 적용하지 않음(그 사이에도 화면은 로컬 값 그대로 사용 가능). */
+let pendingServerData=null;
+/* 배너가 뜬 시점의 로컬 스냅샷 — "최신 서버 내용 사용"을 고르기 전에 배너를 보면서 또
+   편집했다면(막을 방법은 없음) 그 사이 편집분까지 서버 값으로 조용히 덮이지 않도록,
+   지금 S가 그 시점과 달라졌는지 비교해 한 번 더 확인받기 위함. */
+let pendingLocalSnapshot=null;
+/* 배너가 떠 있는 동안(사용자가 아직 고르지 않은 동안)에는 폴링·브로드캐스트로 받은 서버 데이터를
+   sbApply로 적용하지 않음 — 아래 sbSubscribe/폴링·sbQueueSave의 가드에서 이 플래그를 확인함. */
+let sbUnsyncedPending=false;
+function resolveUnsynced(choice){
+  if(choice==='discard'){
+    // 배너가 뜬 뒤에도 계속 입력했다면(막을 방법은 없음) 지금 S가 그 시점 로컬 값과 달라졌을 수
+    // 있음 — 그 상태에서 서버 값으로 바꾸면 방금 한 편집까지 조용히 사라지므로 한 번 더 확인.
+    if(pendingLocalSnapshot!=null&&JSON.stringify(sbNormalize(S))!==pendingLocalSnapshot){
+      if(!confirm('배너가 떠 있는 동안 추가로 입력한 내용이 있습니다.\n지금 서버 내용으로 바꾸면 그 사이 입력한 내용도 함께 사라집니다.\n그래도 서버 내용을 사용할까요?'))return;
+    }
+    document.getElementById('unsyncedBanner').style.display='none';
+    sbUnsyncedPending=false;
+    if(pendingServerData&&!sbApply(pendingServerData))toast('서버 데이터 형식이 올바르지 않아 로컬 데이터를 유지합니다');
+    else setSave('ok','실시간 공유 연결됨');
+  }else{
+    // 이 기기가 그 사이 또 편집했는지만 볼 게 아니라, 서버 쪽도 이 기기가 마지막으로 알던
+    // 동기화 시점(KEY_SYNCED)과 달라졌는지 확인해야 함 — 그 사이 다른 기기가 실제로 저장한
+    // 내용이 있다면, 이 기기 값으로 그냥 덮어쓸 때 그 내용이 사라진다고 미리 알려야 함
+    // (자체 검토에서 발견 — "내가 더 편집했는지"만 보고 "서버가 그 사이 바뀌었는지"는 안 봤음).
+    let syncedRaw=null;try{syncedRaw=localStorage.getItem(KEY_SYNCED);}catch(e){}
+    const pendingNorm=pendingServerData?sbNormalize(pendingServerData):null;
+    const pendingJson=pendingNorm?JSON.stringify(pendingNorm):null;
+    let syncedJson=null;try{const p=syncedRaw?JSON.parse(syncedRaw):null;const n=p?sbNormalize(p):null;syncedJson=n?JSON.stringify(n):null;}catch(e){}
+    if(pendingJson&&syncedJson!=null&&pendingJson!==syncedJson){
+      if(!confirm('다른 기기에서 그 사이 저장한 변경 내용이 있을 수 있습니다.\n이 기기 내용으로 다시 저장하면 그 변경 내용이 사라질 수 있습니다.\n그래도 이 기기 내용으로 저장할까요?'))return;
+    }
+    document.getElementById('unsyncedBanner').style.display='none';
+    sbUnsyncedPending=false;
+    // 지금 S가 이미 그 못 보낸 편집(+배너가 떠 있는 동안 추가로 한 편집까지) 그대로이므로,
+    // 다시 저장만 시도하면 됨
+    saveDB();
+    toast('다시 저장을 시도합니다');
+  }
+  pendingServerData=null;pendingLocalSnapshot=null;
 }
 function sbShowGate(){
   if(document.getElementById('sbGateBtn'))return;
@@ -1035,7 +1129,7 @@ async function sbConnect(pass){
   if(!sb)return;
   sbPass=pass;
   let res;try{res=await sb.rpc('get_board',{p_id:SB_BOARD,p_passcode:sbPass});}catch(e){toast('연결 실패 — 네트워크 확인');sbShowGate();return;}
-  const{data,error}=res||{};
+  let{data,error}=res||{};
   if(error){toast('연결 실패: '+error.message);sbShowGate();return;}
   if(data===null){toast('비밀번호가 올바르지 않습니다');try{localStorage.removeItem('jjPass');}catch(e){}sbPass='';sbShowGate();return;}
   sbOK=true;
@@ -1071,21 +1165,73 @@ async function sbConnect(pass){
       }
     }
   }catch(e){}
+  // 위 기준정보(jajae-master) 병합에 네트워크 왕복이 한 번 더 있었음 — 그 사이(await 도중) 이
+  // 기기에서 편집→저장이 이미 성공했을 수 있음(자체 검토에서 발견). 맨 위에서 받아온 data를
+  // 그대로 쓰면, 방금 막 저장에 성공해 KEY_SYNCED까지 갱신된 최신 내용을 이보다 오래된 값으로
+  // 덮어쓰고 KEY_SYNCED마저 그 오래된 값으로 되돌려 버릴 위험이 있어, 쓰기 직전에 한 번 더 받아옴.
   if(data&&Object.keys(data).length){
-    if(!sbApply(data)){toast('서버 데이터 형식이 올바르지 않아 로컬 데이터를 유지합니다');}
+    let freshRes;try{freshRes=await sb.rpc('get_board',{p_id:SB_BOARD,p_passcode:sbPass});}catch(e){freshRes=null;}
+    if(freshRes&&freshRes.data&&Object.keys(freshRes.data).length)data=freshRes.data;
+  }
+  if(data&&Object.keys(data).length){
+    // 이 기기에 서버로 못 보낸 편집이 남아 있는지 확인 — 지금 이 기기의 로컬 스냅샷(KEY)이
+    // 막 받아온 서버 값과 다른데, "마지막으로 서버와 맞는다고 확인된" 스냅샷(KEY_SYNCED)이
+    // 없거나 그 값과도 다르면 못 보낸 편집이 있을 수 있다는 뜻(예: 저장 디바운스 중 새로고침,
+    // 저장 실패 후 재접속, 또는 이 안전장치 자체가 배포되기 전부터 밀려 있던 편집 등). 이럴 땐
+    // 조용히 서버 값으로 덮어쓰지 않고 사람이 고르게 함. KEY_SYNCED가 아예 없으면(이 기기가
+    // 이 안전장치 자체를 아직 한 번도 거친 적 없음 — 새 기기이거나, 이 기능이 막 배포된 시점)
+    // 비교 기준이 없으니 그냥 서버 값을 받아들임. 이 경우도 배너를 띄우려는 시도를 검토했지만,
+    // 그러면 그냥 조회만 하던 기기(자기 편집 없이 남의 변경을 받기만 한 기기)조차 서버가 그 사이
+    // 조금만 바뀌어도 거의 매번 오탐 배너가 떠 버려(자체 검토에서 발견) 오히려 배너를 습관적으로
+    // 무시하게 만들 위험이 더 컸음 — KEY_SYNCED가 이번 패치부터 항상 기록되므로, 이 배포 이후의
+    // 진짜 미전송 편집은 그 다음 저장부터 정확히 잡힘(이번 배포 순간의 과거분만 못 잡는 절충).
+    let localRaw=null;try{localRaw=localStorage.getItem(KEY);}catch(e){}
+    let syncedRaw=null;try{syncedRaw=localStorage.getItem(KEY_SYNCED);}catch(e){}
+    const serverNorm=sbNormalize(data),serverJson=serverNorm?JSON.stringify(serverNorm):null;
+    // 로컬·동기화 스냅샷도 서버와 같은 정규화 함수(sbNormalize)를 거친 뒤에만 비교 — 안 그러면
+    // 내용은 완전히 같은데 객체 키 순서만 달라도(예: 최초 시드 직후 곧바로 재접속) "다르다"고
+    // 잘못 판단해 못 보낸 편집이 없는데도 배너가 뜰 수 있음.
+    const toNormJson=raw=>{try{const p=raw?JSON.parse(raw):null;const n=p?sbNormalize(p):null;return n?JSON.stringify(n):null;}catch(e){return null;}};
+    const localJson=toNormJson(localRaw),syncedJson=toNormJson(syncedRaw);
+    if(syncedJson!=null&&localJson&&localJson!==syncedJson&&localJson!==serverJson&&!S._sample){
+      pendingServerData=data;
+      pendingLocalSnapshot=localJson;
+      sbUnsyncedPending=true;
+      document.getElementById('unsyncedBanner').style.display='';
+      setSave('local','이 기기에 저장 못한 변경 있음 — 위에서 선택하세요');
+    }else if(!sbApply(data)){toast('서버 데이터 형식이 올바르지 않아 로컬 데이터를 유지합니다');}
   }else{
     if(S._sample)S={moves:[],orders:[],cons:[],specials:{},notes:[],trash:[],log:[],seq:1,invHist:[],fcPlan:[]};   // 샘플 데이터가 최초 업로드로 올라가지 않게 방지
-    let seedRes;try{seedRes=await sb.rpc('set_board',{p_id:SB_BOARD,p_passcode:sbPass,p_data:S});}catch(e){seedRes=null;}
+    // sbDoSave()와 같은 sbSaveInFlight를 켜서, 이 최초 업로드가 응답을 기다리는 동안 편집이
+    // 생겨도 sbQueueSave()가 곧바로 또 다른 set_board를 겹쳐 보내지 않고 이어서 보내게 함
+    // (자체 검토에서 발견 — 이 시드 업로드만 그 보호를 안 거쳐 응답 순서가 뒤바뀔 위험이 있었음).
+    sbSaveInFlight=true;
+    let seedRes,seedJson=JSON.stringify(S);
+    try{seedRes=await sb.rpc('set_board',{p_id:SB_BOARD,p_passcode:sbPass,p_data:S});}catch(e){seedRes=null;}
+    sbSaveInFlight=false;
     if(!seedRes||seedRes.error){toast('최초 업로드 실패 — 잠시 후 다시 시도하세요');sbOK=false;sbShowGate();return;}
+    sbLastJson=seedJson;
+    try{localStorage.setItem(KEY,seedJson);localStorage.setItem(KEY_SYNCED,seedJson);}catch(e){}
+    if(sbSaveAgain){sbSaveAgain=false;sbDoSave();}   // 업로드를 기다리는 동안 편집이 있었으면 이어서 보냄
     refreshAll();   // M 병합 결과(기준정보) 반영 — S는 그대로라 sbApply를 거치지 않음
   }
   try{localStorage.setItem('jjPass',sbPass);}catch(e){}
-  setSave('ok','실시간 공유 연결됨');
-  toast('실시간 공유 연결됨 — 다른 사람 변경이 자동 반영됩니다');
+  // 위에서 "못 보낸 편집" 배너를 띄운 경우엔 그 안내 상태를 그대로 두고(사용자가 고르기 전까지),
+  // 아래 실시간 구독·폴링은 평소처럼 걸어둠 — 다만 배너가 떠 있는 동안엔 sbApply를 하지 않게
+  // sbUnsyncedPending으로 막아서, 고르기도 전에 다른 기기 변경으로 조용히 덮이지 않게 함
+  // (자체 검토에서 발견 — 배너만 띄우고 그대로 두면 20초 폴링·브로드캐스트가 곧바로 덮어씀).
+  if(!sbUnsyncedPending){
+    setSave('ok','실시간 공유 연결됨');
+    toast('실시간 공유 연결됨 — 다른 사람 변경이 자동 반영됩니다');
+  }
   sbSubscribe();
   clearInterval(sbPollT);
   sbPollT=setInterval(async()=>{
-    if(sbApplying||sbPendingSave)return;
+    // sbGaveUp(자동 재시도 포기)도 반드시 확인해야 함 — 포기 직후엔 sbSaveFailed를 일부러 false로
+    // 되돌리는데(그래야 무한 재시도 루프가 안 됨), 그 상태에서 sbGaveUp을 안 보면 포기한 지 몇 초
+    // 안 돼 이 폴링이 그대로 서버의 옛 데이터를 받아 못 보낸 편집을 조용히 덮어써 버림(자체 검토
+    // 에서 발견) — 새로고침 후 복구 배너로는 잡히지만, 새로고침 전 이 세션에서 바로 사고가 남.
+    if(sbApplying||sbPendingSave||sbUnsyncedPending||sbGaveUp)return;
     if(sbSaveFailed){sbQueueSave();return;}   // 못 보낸 편집이 있으면 받기 전에 먼저 재전송
     try{const{data:nd}=await sb.rpc('get_board',{p_id:SB_BOARD,p_passcode:sbPass});if(nd)sbApply(nd);}catch(e){}
   },20000);
@@ -1094,31 +1240,64 @@ function sbSubscribe(){
   if(!sb||sbCh)return;
   sbCh=sb.channel('board-'+SB_BOARD).on('broadcast',{event:'update'},async({payload})=>{
     if(payload&&payload.by===sbClientId)return;
-    if(sbApplying||sbPendingSave||sbSaveFailed)return;
+    if(sbApplying||sbPendingSave||sbSaveFailed||sbUnsyncedPending||sbGaveUp)return;
     try{const{data}=await sb.rpc('get_board',{p_id:SB_BOARD,p_passcode:sbPass});if(data)sbApply(data);}catch(e){}
   }).subscribe();
 }
 /* 이 기기가 아직 서버로 못 보낸 로컬 수정이 있는 동안은(디바운스 대기·전송 중)
    다른 기기에서 온 데이터로 로컬을 덮어쓰지 않음 — 안 그러면 "수정하고 저장했는데
    반영이 안 됨"처럼 방금 한 편집이 원격 데이터에 덮여 사라지는 경합이 생김. */
-let sbPendingSave=false,sbSaveFailed=false,sbSaveFails=0;
+let sbPendingSave=false,sbSaveFailed=false,sbSaveFails=0,sbSaveInFlight=false,sbSaveAgain=false;
+// 재시도를 완전히 포기한 상태 — sbSaveFailed와는 별도로 둠. 포기할 때 sbSaveFailed는 일부러
+// false로 되돌리는데(그래야 20초 폴링이 다시 서버 데이터를 받아오지, sbSaveFailed가 true인 채로
+// 남으면 폴링이 sbQueueSave()만 계속 다시 불러 영원히 재시도 루프가 됨) — 그 값을 sbDoSave의
+// "전송 중에 또 편집됐으면 이어서 보낸다" 판단에도 그대로 썼더니, 포기 직후 마침 그 편집이
+// 있었으면 "재시도 멈춤" 안내와 동시에 한 번 더 자동 전송이 나가버리는 모순이 있었음(자체 검토).
+let sbGaveUp=false;
 const SB_SAVE_MAX_RETRY=5;   // 이만큼 연달아 실패하면 재시도를 멈추고 수신 동기화를 다시 연다(무한 루프 방지)
-function sbSaveErr(msg){sbSaveFails++;if(sbSaveFails>=SB_SAVE_MAX_RETRY){sbSaveFailed=false;sbSaveFails=0;setSave('ro',msg+' — 새로고침 후 다시 입력하세요');toast('저장이 계속 실패해 자동 재시도를 멈췄습니다 — 새로고침 후 확인');return;}sbSaveFailed=true;setSave('ro',msg+' (자동 재시도 중)');}
+function sbSaveErr(msg){sbSaveFails++;if(sbSaveFails>=SB_SAVE_MAX_RETRY){sbSaveFailed=false;sbSaveFails=0;sbGaveUp=true;setSave('ro',msg+' — 새로고침 후 다시 입력하세요');toast('저장이 계속 실패해 자동 재시도를 멈췄습니다 — 새로고침 후 확인');return;}sbSaveFailed=true;setSave('ro',msg+' (자동 재시도 중)');}
 function sbQueueSave(){
   if(!sb||!sbOK)return;
+  // 위 "못 보낸 편집" 배너에서 아직 고르지 않은 동안에는 절대 서버로 내보내지 않음 — 그 사이에
+  // 또 편집하면 (자체 검토에서 발견) 배너가 보호하려던 다른 기기의 값을 그대로 덮어써 버렸음.
+  // 이 편집은 localStorage(saveDB에서 이미 기록됨)에는 남아 있으니, 배너에서 "이 내용으로
+  // 다시 저장"을 고르면 resolveUnsynced가 그 시점의 최신 S를 그대로 다시 saveDB()해 반영됨.
+  if(sbUnsyncedPending)return;
   sbPendingSave=true;
+  setSave('','저장 중…');   // 디바운스 대기만으로도 바로 표시 — 서버 응답 오기 전엔 '저장됨'이라 하지 않음
   clearTimeout(sbSaveT);
-  sbSaveT=setTimeout(async()=>{
-    try{
-      // 실패하면 sbSaveFailed를 켜서, 다음 폴링이 서버 데이터로 방금 한 편집을 덮어쓰지 않고 재전송하게 함
-      let res;try{res=await sb.rpc('set_board',{p_id:SB_BOARD,p_passcode:sbPass,p_data:S});}catch(e){sbSaveErr('저장 실패 — 네트워크 확인');return;}
-      if(res&&res.error){sbSaveErr('저장 실패: '+res.error.message);return;}
-      sbSaveFailed=false;sbSaveFails=0;sbLastJson=JSON.stringify(S);
-      setSave('ok','실시간 저장됨 '+new Date().toTimeString().slice(0,5));
-      try{sbCh?.send({type:'broadcast',event:'update',payload:{by:sbClientId,ts:Date.now()}});}catch(e){}
-      sendServerPush();   // 앱을 꺼둔 기사에게도 알림
-    }finally{sbPendingSave=false;}
-  },600);
+  sbSaveT=setTimeout(sbDoSave,600);
+}
+/* clearTimeout은 "아직 안 쏜" 예약만 취소할 뿐, 이미 쏴서 응답을 기다리는 중인(await 중) 요청은
+   못 막는다 — 그 상태에서 또 편집이 생기면 예전엔 새 타이머가 하나 더 잡혀 두 요청이 동시에 날아갔고,
+   느린 네트워크에서 응답 순서가 뒤바뀌면 나중에 보낸(최신) 저장이 먼저 보낸(오래된) 저장의 응답에
+   덮여버릴 수 있었음. 지금은 한 번에 하나만 보내고, 전송 중에 또 편집되면 "다시 보내야 함"만
+   표시해뒀다가 지금 요청이 끝나자마자 그때의 최신 S로 이어서 한 번 더 보낸다(직렬화). */
+async function sbDoSave(){
+  if(sbSaveInFlight){sbSaveAgain=true;return;}
+  sbSaveInFlight=true;
+  setSave('','저장 중…');
+  // 이번에 실제로 보내는 값을 미리 스냅샷 — 응답을 기다리는 동안(await) 또 편집되면 S가
+  // 더 앞서가는데, 성공 처리에서 그때의 S를 다시 읽어 "동기화 완료"로 기록하면 아직 안 보낸
+  // 그 편집분까지 이미 저장된 것처럼 표시돼 버림(자체 검토에서 발견 — KEY_SYNCED가 실제로
+  // 전송한 적 없는 스냅샷으로 앞서가 버려서, 그 편집이 실패해도 새로고침 후 복구 배너가 안 뜸).
+  const sentJson=JSON.stringify(S),sentSnapshot=JSON.parse(sentJson);
+  try{
+    // 실패하면 sbSaveFailed를 켜서, 다음 폴링이 서버 데이터로 방금 한 편집을 덮어쓰지 않고 재전송하게 함
+    let res;try{res=await sb.rpc('set_board',{p_id:SB_BOARD,p_passcode:sbPass,p_data:sentSnapshot});}catch(e){sbSaveErr('저장 실패 — 네트워크 확인');return;}
+    if(res&&res.error){sbSaveErr('저장 실패: '+res.error.message);return;}
+    sbSaveFailed=false;sbSaveFails=0;sbGaveUp=false;
+    sbLastJson=sentJson;
+    try{localStorage.setItem(KEY_SYNCED,sentJson);}catch(e){}   // 이 스냅샷까지는 서버에 확실히 반영됨(그 뒤 편집분은 아님)
+    setSave('ok','실시간 저장됨 '+new Date().toTimeString().slice(0,5));
+    try{sbCh?.send({type:'broadcast',event:'update',payload:{by:sbClientId,ts:Date.now()}});}catch(e){}
+    sendServerPush();   // 앱을 꺼둔 기사에게도 알림
+  }finally{
+    sbSaveInFlight=false;
+    const again=sbSaveAgain;sbSaveAgain=false;
+    if(again&&!sbSaveFailed&&!sbGaveUp)sbDoSave();   // 전송 중에 또 편집됐으면 지금 바로 최신 상태로 이어서 보냄
+    else sbPendingSave=false;             // 실패했거나 포기한 경우엔 기존 재시도 흐름(또는 새로고침 안내)에 맡김
+  }
 }
 /* 발주·창고이동 입력 중 신규 품목을 기준정보(M.materials)에 자동 등록 —
    read-modify-write로 jajae-master의 다른 키(statRules·notes 등)는 건드리지 않음. */
@@ -1427,7 +1606,7 @@ function renderBoard(){
     const ordered=it=>S.orders.some(o=>!o.skip&&!o.inDate&&norm(o.item)===norm(it));
     document.getElementById('boardRop').innerHTML=rop.length?rop.map(r=>{
       const shortStk=r.stk<=r.rop;
-      return `<tr><td><b>${esc(r.item)}</b> ${shortStk?'<span class="chip c-late">부족 '+fmtN(Math.max(0,Math.round(r.rop-r.stk)))+'kg</span>':'<span class="chip c-wait">임박</span>'}${r.flag?' <span class="tag">'+esc(r.flag)+'</span>':''}${r.gpps?'<div class="tag">⚠ '+esc(r.gpps)+' · 발주 여부는 검토 후 확정</div>':''}</td><td class="num">${fmtN(Math.round(r.stk))}</td><td class="num">${fmtN(r.rop)}</td><td class="num">${fmtN(r.qty)} kg</td><td>${r.lt}일</td><td><b>${esc(r.vendor)}</b></td><td>${ordered(r.item)?'<span class="chip c-ord">발주됨</span>':`<button class="btn sm warn" onclick="ropOrder('${esc(r.item)}')">발주 체크</button>`}</td></tr>`;
+      return `<tr><td><b>${esc(r.item)}</b> ${shortStk?'<span class="chip c-late">부족 '+fmtN(Math.max(0,Math.round(r.rop-r.stk)))+'kg</span>':'<span class="chip c-wait">임박</span>'}${r.flag?' <span class="tag">'+esc(r.flag)+'</span>':''}${r.gpps?'<div class="tag">⚠ '+esc(r.gpps)+' · 발주 여부는 검토 후 확정</div>':''}</td><td class="num">${fmtN(Math.round(r.stk))}</td><td class="num">${fmtN(r.rop)}</td><td class="num">${fmtN(r.qty)} kg</td><td>${r.lt}일</td><td><b>${esc(r.vendor)}</b></td><td>${ordered(r.item)?'<span class="chip c-ord">발주됨</span>':`<button class="btn sm warn" onclick="ropOrder('${escJs(esc(r.item))}')">발주 체크</button>`}</td></tr>`;
     }).join(''):'<tr><td colspan="7" class="empty">발주점 도달 품목 없음 — 전 품목 재고 여유</td></tr>';
     document.getElementById('cntRop').textContent=rop.length?`부족 ${rop.filter(r=>r.stk<=r.rop).length} · 임박 ${rop.filter(r=>r.stk>r.rop).length}`:'';
   }
@@ -1436,7 +1615,7 @@ function renderBoard(){
   const cycSug=cycleSuggestions();
   document.getElementById('cycSugLbl').style.display=cycSug.length?'':'none';
   document.getElementById('cycSugWrap').style.display=cycSug.length?'':'none';
-  document.getElementById('boardCycSug').innerHTML=cycSug.map(s=>`<tr><td><b>${esc(short(s.item))}</b></td><td>${esc(s.curCycle)}</td><td class="num">${s.avgDays}일 (발주 ${s.n}건)</td><td><b style="color:var(--acc)">${esc(s.sugCycle)}</b></td><td><button class="btn sm pri" onclick="applyCycSuggest('${esc(s.item).replace(/'/g,"\\'")}','${esc(s.sugCycle)}')">적용</button></td></tr>`).join('');
+  document.getElementById('boardCycSug').innerHTML=cycSug.map(s=>`<tr><td><b>${esc(short(s.item))}</b></td><td>${esc(s.curCycle)}</td><td class="num">${s.avgDays}일 (발주 ${s.n}건)</td><td><b style="color:var(--acc)">${esc(s.sugCycle)}</b></td><td><button class="btn sm pri" onclick="applyCycSuggest('${escJs(esc(s.item))}','${escJs(esc(s.sugCycle))}')">적용</button></td></tr>`).join('');
   // 사급
   const cs=S.cons.filter(c=>!c.done);
   document.getElementById('boardCs').innerHTML=cs.length?cs.map(c=>csRow(c,true)).join(''):'<tr><td colspan="7" class="empty">대기 중인 사급 요청 없음</td></tr>';
@@ -1748,7 +1927,7 @@ function renderQm(){
   const memoTxt=document.getElementById('qmMemoTxt');if(memoTxt&&document.activeElement!==memoTxt)memoTxt.placeholder=`${qmDept} 메모 (예: 신규 원료 OOO 추가 필요, 특이사항 등)`;
   const curNote=(S.specials[realToday()]||{})[qmDept]||'';   // 특이사항은 실제 오늘 기준 — cur이 다른 날이어도 오늘 내용을 보여줌
   document.getElementById('qmMemoCur').textContent=curNote?`${qmDept} 특이사항(오늘): ${curNote}`:'';
-  document.getElementById('qmItems').innerHTML=qmGrouped(qmDept).map(it=>`<button class="${qmItem===it?'sel':''}" onclick="qmPick('${it.replace(/'/g,"\\'")}')">${it}</button>`).join('');
+  document.getElementById('qmItems').innerHTML=qmGrouped(qmDept).map(it=>`<button class="${qmItem===it?'sel':''}" onclick="qmPick('${escJs(it)}')">${it}</button>`).join('');
   const box=document.getElementById('qmQtyBox');
   if(qmItem){
     box.style.display='';
@@ -2977,7 +3156,7 @@ function renderDriver(){
   h+=`<div class="card" style="font-size:15px">
     <div class="quick">${DRV_ADD.map((d,i)=>`<button style="font-size:15px;padding:10px 14px;${drvSel===d.item?'background:var(--acc);color:#fff;border-color:var(--acc)':''}" onclick="drvPick(${i})">${d.item}</button>`).join('')}</div>
     <div class="quick" style="margin-top:8px">${[1,2,3,4,5].map(n2=>`<button style="font-size:16px;font-weight:700;min-width:60px;padding:10px 0" onclick="drvAdd(${n2*1000})">${n2}t</button>`).join('')}</div>
-    <form class="row" style="margin-top:8px" onsubmit="event.preventDefault();drvAddCustom()">
+    <form class="row" style="margin-top:8px" onsubmit="event.preventDefault();drvAddCustom()" onkeydown="imeSafeEnter(event)">
       <select id="drvDept" style="font-size:15px"><option>창호</option><option>경질</option><option>타일</option><option>DBP</option><option>기타</option></select>
       <input id="drvItem2" list="itemList" placeholder="다른 부서 품목 직접 입력 (비슷한 품목 자동완성)" style="flex:1;min-width:130px;font-size:15px">
       <input id="drvQty2" type="number" placeholder="kg" style="width:90px;text-align:right;font-size:15px">
@@ -2989,7 +3168,7 @@ function renderDriver(){
   h+=`<div class="tag" style="margin:-4px 0 8px">⚠ 찢어진 지대는 사급 출고 금지 — 자재과 협의 후 자사 생산 투입 · 전산 재고 차감은 배차완료(실물 출고) 시점</div>`;
   const outsGroup=list=>{
     const byC={};list.forEach(c=>(byC[c.consignee]=byC[c.consignee]||[]).push(c));
-    return list.length?Object.entries(byC).map(([k,l])=>{const kj=esc(k).replace(/'/g,"\\'");
+    return list.length?Object.entries(byC).map(([k,l])=>{const kj=escJs(esc(k));
       // 같은 사급처 안에서 동일 품목이면 한 행으로 합쳐 수량을 더하고, 완료 체크도 묶어서 한 번에 처리
       // 품목명이 같아도 출고창고(loc)·포장(pack)이 다르면 실물 위치가 달라 헷갈릴 수 있어 별도 행 유지
       // 완료된 건은 미완료 건과 한 행으로 섞지 않음(체크 해제가 어느 건을 되돌리는지 분명하게)

@@ -220,7 +220,7 @@ details.card summary .cnt{font-size:11.5px;color:var(--mut);font-weight:500}
   <span class="sub">입고 · 창고이동 · 발주 · 사급 한 화면</span>
   <!-- 화면이 최신 버전인지 바로 확인할 수 있게 표시 — 이 값이 다르면 브라우저가
        예전 파일을 캐시해 둔 것이므로 강력 새로고침(Ctrl+F5 / 아이폰은 Safari 재실행) 필요 -->
-  <span class="sub" id="buildStamp" title="화면 버전 — 최신이 아니면 Ctrl+F5로 강력 새로고침">v2026-09-07k</span>
+  <span class="sub" id="buildStamp" title="화면 버전 — 최신이 아니면 Ctrl+F5로 강력 새로고침">v2026-09-07l</span>
   <span class="sp"></span>
   <span class="date">기준일 <button class="btn sm" onclick="setDate(addDays(cur,-1))" title="하루 전 (기준일 −1)">◀</button><input type="date" id="curDate" onchange="setDate(this.value)"><button class="btn sm" onclick="setDate(addDays(cur,1))" title="하루 뒤 (기준일 +1)">▶</button></span>
   <span id="curWarn" class="tag" style="display:none;background:var(--amber-soft);color:var(--amber);border:1px solid var(--amber);padding:3px 8px;border-radius:2px;font-weight:700;cursor:pointer" title="기준일이 오늘이 아니면 등록·체크가 이 날짜로 기록됩니다" onclick="setDate(realToday())">⚠ 기준일이 오늘이 아님 — 오늘로</span>
@@ -2705,20 +2705,33 @@ function csSalesMatch(rows,src,skipped){
     const rn=csSalesRegNo(r.consignee);if(rn)g.regNos.add(rn);
   });
   const outstanding=S.cons.filter(c=>c.action==='발주'&&!c.done);
-  // 사급처는 정확히(정규화 후) 일치할 때만 자동 처리 대상으로 봄 — "삼성"↔"삼성전자"처럼 서로
-  // 다른 실제 회사 이름이 부분 포함 관계인 경우가 흔해서, 사급처까지 느슨하게(포함 관계로)
-  // 매칭하면 실제로는 안 받은 다른 회사의 발주를 입고완료로 잘못 처리할 위험이 있음(코드리뷰로
-  // 발견). norm()이 이미 "(주)"·"주식회사" 등 흔한 법인 표기 차이는 지워주고, csSalesConNorm이
-  // 사업자번호 같은 순수 숫자 괄호도 지워주므로 정확 일치만으로도 실무에서 대부분 커버됨.
+  // 사급처 후보는 두 단계로 봄: (1) 전체 표기가 정확히 일치하는 등록 발주에서 먼저 품목을 찾고,
+  // (2) 거기서 못 찾았을 때만 첫 단어(회사명 부분)가 같은 등록 발주로 넓힘. 실제 운영 데이터에서
+  // 같은 회사가 "두하"와 "두하 생산관리"로 나뉘어 등록돼 있었고(담당자 확인: 같은 회사, 이런
+  // 부서/구분 표현이 붙는 이름이 흔함), 정확 일치만 보면 "두하" 쪽 3건만 후보로 잡혀 "두하
+  // 생산관리" 쪽 발주와는 영영 매칭이 안 됐음. 두 단계를 합집합으로 한 번에 보지 않는 이유: 양쪽
+  // 표기에 같은 품목 발주가 각각 있으면 예전엔 정확 일치 쪽이 매칭되던 것이 2건 겹침으로 바뀌어
+  // 회귀함(코드리뷰로 발견) — 정확 일치 단계를 먼저 끝내면 기존 매칭은 그대로고 새 매칭만 추가됨.
+  // 정확 일치 단계는 "두하생산관리"(공백 없이 등록)↔"두하 생산관리"처럼 첫 단어 계산이 갈리는 표기도
+  // 잡아주므로(norm은 공백을 지움) 첫 단어 기준으로만 바꾸지 않음.
+  // 안전장치: "삼성"↔"삼성전자"처럼 공백 없이 붙은 서로 다른 회사명은 첫 단어 자체가 달라 합쳐지지
+  // 않고, 같은 회사명 첫 단어인데 파일 안 사업자번호가 서로 다르면(남남 회사가 섞인 증거) 2단계로
+  // 넓히지 않으며, 후보 안에서 품목이 2건 이상 걸리면 아래에서 확인 필요로 남김. 자동 처리 결과는
+  // 비고에 매각내역 쪽 사급처 표기를 남기고 추적 목록의 "입고 취소"로 되돌릴 수 있음.
+  // 잔여 위험(파일에 사업자번호가 없고 첫 단어만 같은 남남 회사, 예: "대성"↔"대성 물류센터")은
+  // 담당자가 인지하고 수용함.
   // 품목명은 포장·규격 표기 차이가 흔하고 회사 단위 위험이 없어 계속 포함 관계로 느슨하게 매칭.
-  const byConsignee={},byConsigneeBase={},consFullNorm={};
+  const byConsignee={},byConsigneeBase={};
   outstanding.forEach(c=>{
     const full=csSalesConNorm(c.consignee);
-    consFullNorm[c.id]=full;
     (byConsignee[full]=byConsignee[full]||[]).push(c);
     const base=csSalesConBase(c.consignee);
-    if(base)(byConsigneeBase[base]=byConsigneeBase[base]||[]).push(c);
+    if(base.length>=2)(byConsigneeBase[base]=byConsigneeBase[base]||[]).push(c);
   });
+  // 파일 쪽: 회사명 첫 단어별로 등장한 사업자번호를 모아둠 — "대성(111…)"과 "대성 물류센터(222…)"가
+  // 한 파일에 같이 있으면 첫 단어만 같은 서로 다른 회사라는 증거이므로 2단계 매칭을 막는 데 씀
+  const baseRegNos={};
+  Object.values(agg).forEach(sg=>{const b=csSalesConBase(sg.consignee);if(b.length>=2){const s=baseRegNos[b]=baseRegNos[b]||new Set();sg.regNos.forEach(r=>s.add(r));}});
   const matched=[],unresolved=[];
   Object.values(agg).forEach(sg=>{
     const nCon=csSalesConNorm(sg.consignee),nItem=norm(sg.item),nItemCode=norm(sg.itemCode||'');
@@ -2726,33 +2739,28 @@ function csSalesMatch(rows,src,skipped){
     // 이름만 같고(예: "두하") 사업자번호가 서로 다른 매각 행이 섞여 있으면 실제로는 서로 다른
     // 회사일 수 있어 자동으로 합쳐 처리하지 않음 — 사업자번호를 지운 매칭이라 생기는 잔여 위험
     if(sg.regNos.size>1){unresolved.push({...sg,reason:'이름은 같지만 사업자번호가 서로 다른 매각 행이 섞여 있어 확인 필요(서로 다른 회사일 수 있음)'});return;}
-    const consCand=byConsignee[nCon];
-    if(!consCand||!consCand.length){
-      // 전체 표기가 정확히 일치하는 등록 사급처가 없으면, 뒤에 부서/구분 표현이 붙은 등록명이
-      // 있는지 첫 단어(회사명 부분) 기준으로 힌트만 찾아봄(실제 업로드로 발견된 문제 — "두하"로
-      // 온 매각내역이 전부 "두하 생산관리"로 등록된 발주와 매칭 안 됐음). 다만 이 힌트만으로
-      // 자동 처리는 하지 않음 — 첫 단어가 같은 건 서로 다른 두 회사(예: "대성"↔"대성 물류센터"가
-      // 실제로는 남남인 경우)의 우연의 일치일 수도 있고, 품목코드는 여러 회사가 같은 원자재를
-      // 공용으로 쓸 수도 있어 품목까지 맞아도 안심할 수 없음(코드리뷰로 발견) — 사람이 확인하고
-      // 처리하도록, 후보 등록명을 알려주는 확인 필요 항목으로만 남김.
-      const nConBase=csSalesConBase(sg.consignee);
-      const baseCand=nConBase?byConsigneeBase[nConBase]:null;
-      if(baseCand&&baseCand.length){
-        const distinctNames=new Set(baseCand.map(c=>consFullNorm[c.id]));
-        if(distinctNames.size>1){unresolved.push({...sg,reason:'사급처 이름이 등록된 서로 다른 여러 표기와 겹쳐 확인 필요(같은 회사인지 확인 필요)'});return;}
-        unresolved.push({...sg,reason:`사급처 표기가 등록된 발주("${baseCand[0].consignee}")와 정확히 일치하지 않아 자동 처리하지 않음 — 같은 회사인지 확인 후 직접 처리하세요`});
-        return;
-      }
-      unresolved.push({...sg,reason:'같은 사급처의 미완료 발주 건 없음'});
-      return;
-    }
+    const nConBase=csSalesConBase(sg.consignee);
+    const exactCand=byConsignee[nCon]||[],baseCand=nConBase.length>=2?(byConsigneeBase[nConBase]||[]):[];
+    if(!exactCand.length&&!baseCand.length){unresolved.push({...sg,reason:'같은 사급처의 미완료 발주 건 없음'});return;}
     // 앱에 등록된 사급발주 품목은 품목명 전체 문구가 아니라 그 안에 포함된 짧은 제품 코드로
     // 적혀 있는 경우가 흔함(실제 업로드로 확인됨) — 품목명과 품목코드 칸 둘 다에 대해 정확
     // 일치 → 포함 관계 순서로 확인(둘 중 하나라도 맞으면 후보로 봄).
-    let cand=consCand.filter(c=>{const it=norm(c.item);return it===nItem||(nItemCode&&nItemCode.length>=2&&it===nItemCode);});
-    if(!cand.length)cand=consCand.filter(c=>{const it=norm(c.item);if(it.length<2)return false;return it.includes(nItem)||nItem.includes(it)||(nItemCode&&nItemCode.length>=2&&(it.includes(nItemCode)||nItemCode.includes(it)));});
+    const pickItem=list=>{
+      let cand=list.filter(c=>{const it=norm(c.item);return it===nItem||(nItemCode&&nItemCode.length>=2&&it===nItemCode);});
+      if(!cand.length)cand=list.filter(c=>{const it=norm(c.item);if(it.length<2)return false;return it.includes(nItem)||nItem.includes(it)||(nItemCode&&nItemCode.length>=2&&(it.includes(nItemCode)||nItemCode.includes(it)));});
+      return cand;
+    };
+    let cand=pickItem(exactCand);
+    if(!cand.length&&baseCand.length){
+      if((baseRegNos[nConBase]||new Set()).size>1){unresolved.push({...sg,reason:'회사명 첫 단어는 같지만 사업자번호가 서로 다른 매각처가 파일에 섞여 있어 확인 필요(서로 다른 회사일 수 있음)'});return;}
+      cand=pickItem(baseCand);
+    }
     if(!cand.length){unresolved.push({...sg,reason:'같은 사급처에 대응하는 품목의 미완료 발주 없음'});return;}
-    if(cand.length>1){unresolved.push({...sg,reason:`같은 사급처·품목 미완료 발주가 ${cand.length}건 겹쳐 확인 필요`});return;}
+    if(cand.length>1){
+      // 서로 다른 등록 표기(예: "두하"와 "두하 생산관리")에 걸쳐 겹치면 어느 쪽인지 바로 찾을 수 있게 표기를 같이 알려줌
+      const names=[...new Set(cand.map(c=>c.consignee))];
+      unresolved.push({...sg,reason:`같은 사급처·품목 미완료 발주가 ${cand.length}건 겹쳐 확인 필요${names.length>1?`(등록 사급처: ${names.join(', ')})`:''}`});return;
+    }
     const c=cand[0];
     // 이번 매칭 실행 중 다른 매각 항목이 이미 이 발주 건을 처리했으면(느슨한 매칭이 서로 다른
     // 표기의 매각 행을 같은 발주 건에 중복으로 연결하는 경우) 두 번 처리하지 않음
@@ -2762,7 +2770,10 @@ function csSalesMatch(rows,src,skipped){
     c.done=true;
     c.inDate=sg.dates.length?sg.dates.sort().slice(-1)[0]:cur;
     c.outBy=whoNow();
-    c.note=(c.note?c.note+' · ':'')+`사급매각내역 자동매칭(매각 ${fmtN(sg.qty)}${c.unit||'kg'})`;
+    // 사급처 표기가 등록명과 달랐다면(부서 표현 차이 등) 매각내역 쪽 표기를 비고에 남겨 나중에
+    // 확인·되돌리기 쉽게 함
+    const conDiff=nCon!==csSalesConNorm(c.consignee)?` · 매각내역 사급처 "${sg.consignee}"`:'';
+    c.note=(c.note?c.note+' · ':'')+`사급매각내역 자동매칭(매각 ${fmtN(sg.qty)}${c.unit||'kg'}${conDiff})`;
     matched.push({consignee:c.consignee,item:c.item,ordQty:c.qty,soldQty:sg.qty,inDate:c.inDate});
   });
   if(matched.length)saveDB();

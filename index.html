@@ -217,7 +217,7 @@ details.card summary .cnt{font-size:11.5px;color:var(--mut);font-weight:500}
   <span class="sub">입고 · 창고이동 · 발주 · 사급 한 화면</span>
   <!-- 화면이 최신 버전인지 바로 확인할 수 있게 표시 — 이 값이 다르면 브라우저가
        예전 파일을 캐시해 둔 것이므로 강력 새로고침(Ctrl+F5 / 아이폰은 Safari 재실행) 필요 -->
-  <span class="sub" id="buildStamp" title="화면 버전 — 최신이 아니면 Ctrl+F5로 강력 새로고침">v2026-09-03e</span>
+  <span class="sub" id="buildStamp" title="화면 버전 — 최신이 아니면 Ctrl+F5로 강력 새로고침">v2026-09-07</span>
   <span class="sp"></span>
   <span class="date">기준일 <button class="btn sm" onclick="setDate(addDays(cur,-1))" title="하루 전 (기준일 −1)">◀</button><input type="date" id="curDate" onchange="setDate(this.value)"><button class="btn sm" onclick="setDate(addDays(cur,1))" title="하루 뒤 (기준일 +1)">▶</button></span>
   <span id="curWarn" class="tag" style="display:none;background:var(--amber-soft);color:var(--amber);border:1px solid var(--amber);padding:3px 8px;border-radius:2px;font-weight:700;cursor:pointer" title="기준일이 오늘이 아니면 등록·체크가 이 날짜로 기록됩니다" onclick="setDate(realToday())">⚠ 기준일이 오늘이 아님 — 오늘로</span>
@@ -3253,7 +3253,10 @@ function dlgSave(){
 }
 /* 수정 창에서 Enter = 저장. 입력칸에 있을 때와, 아무 칸에도 포커스가 없어 창 자체에 있을 때 저장.
    셀렉트(Enter는 목록 열기/선택)·textarea(줄바꿈)·버튼(취소/삭제 등 원래 동작)은 건드리지 않음.
-   한글 입력 중 조합을 끝내는 Enter도 그대로 저장으로 이어지게 둠(예전과 동일 — 한 번만 누르면 됨). */
+   한글 조합 중(예: "확인자" 칸에 이름을 입력하는 도중) 그 조합을 끝내는 Enter는 저장으로 이어지지
+   않게 막음 — R696 완료 확인창처럼 여러 칸을 채워야 하는 창에서, 이름을 입력하다 조합만
+   끝내려던 Enter가 그대로 [저장]을 눌러버려 실물이동을 안 했는데 완료 처리돼 버리는 사고가
+   실제로 있었음(신고로 발견). 조합이 끝난 뒤 다시 누르는 진짜 Enter는 그대로 저장으로 동작함. */
 const DLG_DISCARD_MSG='수정한 내용이 저장되지 않았습니다. 저장하지 않고 닫을까요?';
 dlg.addEventListener('keydown',e=>{
   if(e.key==='Escape'){
@@ -3263,6 +3266,7 @@ dlg.addEventListener('keydown',e=>{
     return;
   }
   if(e.key!=='Enter')return;
+  if(e.isComposing||e.keyCode===229)return;
   const t=e.target.tagName;
   if(t!=='INPUT'&&t!=='DIALOG')return;
   e.preventDefault();dlgSave();

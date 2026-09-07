@@ -220,7 +220,7 @@ details.card summary .cnt{font-size:11.5px;color:var(--mut);font-weight:500}
   <span class="sub">입고 · 창고이동 · 발주 · 사급 한 화면</span>
   <!-- 화면이 최신 버전인지 바로 확인할 수 있게 표시 — 이 값이 다르면 브라우저가
        예전 파일을 캐시해 둔 것이므로 강력 새로고침(Ctrl+F5 / 아이폰은 Safari 재실행) 필요 -->
-  <span class="sub" id="buildStamp" title="화면 버전 — 최신이 아니면 Ctrl+F5로 강력 새로고침">v2026-09-07e</span>
+  <span class="sub" id="buildStamp" title="화면 버전 — 최신이 아니면 Ctrl+F5로 강력 새로고침">v2026-09-07g</span>
   <span class="sp"></span>
   <span class="date">기준일 <button class="btn sm" onclick="setDate(addDays(cur,-1))" title="하루 전 (기준일 −1)">◀</button><input type="date" id="curDate" onchange="setDate(this.value)"><button class="btn sm" onclick="setDate(addDays(cur,1))" title="하루 뒤 (기준일 +1)">▶</button></span>
   <span id="curWarn" class="tag" style="display:none;background:var(--amber-soft);color:var(--amber);border:1px solid var(--amber);padding:3px 8px;border-radius:2px;font-weight:700;cursor:pointer" title="기준일이 오늘이 아니면 등록·체크가 이 날짜로 기록됩니다" onclick="setDate(realToday())">⚠ 기준일이 오늘이 아님 — 오늘로</span>
@@ -451,6 +451,15 @@ details.card summary .cnt{font-size:11.5px;color:var(--mut);font-weight:500}
   <div class="card" id="csMailCard" style="display:none">
     <h2>③ 발주 메일 · 출고 지시서 (복사해서 사용)</h2>
     <div class="grid g2" id="csMails"></div>
+  </div>
+  <div class="card">
+    <h2>사급 매각내역 업로드 — 발주 입고 자동 매칭</h2>
+    <div class="hint">사급 매각내역 엑셀(사급처·품목·수량·날짜 포함)을 올리면, 아직 입고완료 처리 안 된 <b>발주</b> 건 중 사급처·품목·수량이 맞는 것을 찾아 자동으로 입고완료 처리합니다. 여러 건이 겹치거나 수량이 부족하면 자동 처리하지 않고 확인 목록으로 알려줍니다 — 처리 결과는 항상 아래 팝업으로 확인하세요.</div>
+    <div class="row" style="margin-top:8px">
+      <button class="btn sm pri" onclick="csSalesFile.click()">매각내역 엑셀 올리기</button>
+      <input type="file" id="csSalesFile" accept=".xlsx,.xls,.csv" style="display:none" onchange="readCsSales(this.files[0]);this.value=''">
+    </div>
+    <div id="csSalesMap" style="margin-top:8px"></div>
   </div>
   <div class="card">
     <h2>사급 요청 추적 <span class="cnt" id="cntCs2"></span></h2>
@@ -2551,6 +2560,143 @@ function csBulkMark(){
   if(skipped)parts.push(`M-210 ${skipped}건은 개별 확인 필요`);
   if(hidden)parts.push(`필터에 가려 안 보이던 ${hidden}건은 제외`);
   toast(parts.length>1?`${parts[0]} (${parts.slice(1).join(' · ')})`:parts[0]);
+}
+
+/* ═════════ 사급 매각내역 업로드 → 발주 입고 자동 매칭 ═════════
+   더존 등에서 뽑는 "사급매각내역" 엑셀(사급처·품목·수량·날짜 컬럼)을 올리면, 아직 입고완료
+   안 된 action==='발주' 건 중 사급처·품목이 같고 매각수량이 발주수량 이상인 걸 찾아 자동으로
+   입고완료 처리. 같은 사급처+품목으로 미완료 발주가 여러 건 겹치면 어느 걸 매칭할지 애매해서
+   자동 처리하지 않고 "확인 필요" 목록으로 안내(잘못 매칭해서 실제로 안 온 걸 입고완료로
+   거짓 처리하는 사고를 막는 게 최우선). M-210(행선지 건별 확인 필요 품목)도 같은 이유로 제외. */
+let CS_SALES_GRID=null;
+const CS_SALES_RE_VENDOR=/사급처|매입처|거래처|업체명|공급받는자|납품처/,CS_SALES_RE_ITEM=/품목|품명|자재명|규격/,CS_SALES_RE_QTY=/수량|매각수량|판매수량/,CS_SALES_RE_DATE=/날짜|일자|매각일|거래일/;
+function readCsSales(f){
+  if(!f)return;
+  const r=new FileReader();
+  r.onload=e=>{try{
+    const wb=XLSX.read(new Uint8Array(e.target.result),{type:'array',cellDates:true});
+    const grid=XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]],{header:1,raw:false,dateNF:'yyyy-mm-dd',defval:''});
+    csSalesIngestGrid(grid,f.name);
+  }catch(err){toast('매각내역 파일을 읽지 못함: '+err.message);}};
+  r.readAsArrayBuffer(f);
+}
+function csSalesDetect(grid){
+  for(let ri=0;ri<Math.min(grid.length,10);ri++){
+    const row=grid[ri]||[];let vi=-1,ii=-1,qi=-1,di=-1;
+    for(let i=0;i<row.length;i++){const s=String(row[i]).replace(/\s/g,'');
+      if(vi<0&&CS_SALES_RE_VENDOR.test(s))vi=i;
+      else if(ii<0&&CS_SALES_RE_ITEM.test(s))ii=i;
+      else if(qi<0&&CS_SALES_RE_QTY.test(s))qi=i;
+      else if(di<0&&CS_SALES_RE_DATE.test(s))di=i;}
+    if(vi>=0&&ii>=0&&qi>=0)return{h:ri,vi,ii,qi,di};
+  }
+  return null;
+}
+function csSalesIngestGrid(grid,src){
+  CS_SALES_GRID=grid;
+  const det=csSalesDetect(grid);
+  if(det){csSalesApplyMap(det.h,det.vi,det.ii,det.qi,det.di,src);return;}
+  csSalesRenderMap(grid);
+  toast('열을 자동 인식하지 못했습니다 — 아래에서 직접 지정하세요');
+}
+function csSalesRenderMap(grid){
+  const ncol=Math.max(1,...grid.slice(0,6).map(r=>r.length));
+  const sample=grid[1]||grid[0]||[];
+  let opts='<option value="-1">—</option>';
+  for(let i=0;i<ncol;i++)opts+=`<option value="${i}">${i+1}열: ${esc(String(sample[i]??'').slice(0,14))}</option>`;
+  document.getElementById('csSalesMap').innerHTML=
+   `<div class="hint" style="margin-bottom:6px">헤더 행 번호(1부터, 헤더 없으면 0)와 열을 지정한 뒤 [적용]</div>
+    <div class="row" style="align-items:center">
+      <label>헤더행</label><input id="csSalesMapH" type="number" value="1" min="0" style="width:64px">
+      <label>사급처열</label><select id="csSalesMapV">${opts}</select>
+      <label>품목열</label><select id="csSalesMapI">${opts}</select>
+      <label>수량열</label><select id="csSalesMapQ">${opts}</select>
+      <label>날짜열(선택)</label><select id="csSalesMapD">${opts}</select>
+      <button class="btn sm" onclick="csSalesManualMap()">적용</button>
+    </div>`;
+}
+function csSalesManualMap(){
+  if(!CS_SALES_GRID){toast('먼저 파일을 올리세요');return;}
+  const h=(+document.getElementById('csSalesMapH').value||0)-1;
+  const vi=+document.getElementById('csSalesMapV').value,ii=+document.getElementById('csSalesMapI').value,qi=+document.getElementById('csSalesMapQ').value,di=+document.getElementById('csSalesMapD').value;
+  if(vi<0||ii<0||qi<0){toast('사급처열·품목열·수량열은 필수입니다');return;}
+  csSalesApplyMap(h,vi,ii,qi,di,'수동 매핑');
+}
+const csSalesNum=v=>{if(v==null)return NaN;const s=String(v).trim().replace(/,/g,'');return /^-?\d+(\.\d+)?$/.test(s)?+s:NaN;};
+function csSalesApplyMap(h,vi,ii,qi,di,src){
+  const rows=[];let skipped=0;
+  for(let ri=h+1;ri<CS_SALES_GRID.length;ri++){
+    const row=CS_SALES_GRID[ri];if(!row||!row.some(c=>String(c??'').trim()))continue;   // 완전 빈 행은 건너뜀 카운트에서도 제외
+    const consignee=String(row[vi]??'').trim(),item=String(row[ii]??'').trim();
+    if(!consignee||!item){skipped++;continue;}
+    const qty=csSalesNum(row[qi]);
+    if(!isFinite(qty)||qty<=0){skipped++;continue;}   // 예: "1,234 kg"처럼 숫자로 못 읽는 값 — 매칭에서 조용히 빠지지 않게 건수만 세서 안내
+    const date=di>=0?fcDateOf(row[di]):'';
+    rows.push({consignee,item,qty,date});
+  }
+  document.getElementById('csSalesMap').innerHTML='';
+  if(!rows.length){toast('매각내역 행을 찾지 못했습니다 — 열 지정을 확인하세요');csSalesRenderMap(CS_SALES_GRID);return;}
+  csSalesMatch(rows,src,skipped);
+}
+function csSalesMatch(rows,src,skipped){
+  // 같은 사급처+품목끼리 매각수량 합산(여러 줄로 나뉜 출하분이 한 발주에 대응하는 경우 대비)
+  const agg={};
+  rows.forEach(r=>{
+    const key=norm(r.consignee)+'|'+norm(r.item);
+    const g=agg[key]=agg[key]||{consignee:r.consignee,item:r.item,qty:0,dates:[]};
+    g.qty+=r.qty;if(r.date)g.dates.push(r.date);
+  });
+  const outstanding=S.cons.filter(c=>c.action==='발주'&&!c.done);
+  // 사급처는 정확히(정규화 후) 일치할 때만 자동 처리 대상으로 봄 — "삼성"↔"삼성전자"처럼 서로
+  // 다른 실제 회사 이름이 부분 포함 관계인 경우가 흔해서, 사급처까지 느슨하게(포함 관계로)
+  // 매칭하면 실제로는 안 받은 다른 회사의 발주를 입고완료로 잘못 처리할 위험이 있음(코드리뷰로
+  // 발견). norm()이 이미 "(주)"·"주식회사" 등 흔한 법인 표기 차이는 지워주므로 정확 일치만으로도
+  // 실무에서 대부분 커버됨. 품목명은 포장·규격 표기 차이가 흔하고 회사 단위 위험이 없어 계속
+  // 포함 관계로 느슨하게 매칭.
+  const byConsignee={};
+  outstanding.forEach(c=>{(byConsignee[norm(c.consignee)]=byConsignee[norm(c.consignee)]||[]).push(c);});
+  const matched=[],unresolved=[];
+  Object.values(agg).forEach(sg=>{
+    const nCon=norm(sg.consignee),nItem=norm(sg.item);
+    if(!nCon||!nItem){unresolved.push({...sg,reason:'사급처·품목명을 인식할 수 없음(빈 값)'});return;}
+    const consCand=byConsignee[nCon];
+    if(!consCand||!consCand.length){unresolved.push({...sg,reason:'같은 사급처의 미완료 발주 건 없음'});return;}
+    let cand=consCand.filter(c=>norm(c.item)===nItem);
+    if(!cand.length)cand=consCand.filter(c=>{const it=norm(c.item);return it.length>=2&&(it.includes(nItem)||nItem.includes(it));});
+    if(!cand.length){unresolved.push({...sg,reason:'같은 사급처에 대응하는 품목의 미완료 발주 없음'});return;}
+    if(cand.length>1){unresolved.push({...sg,reason:`같은 사급처·품목 미완료 발주가 ${cand.length}건 겹쳐 확인 필요`});return;}
+    const c=cand[0];
+    // 이번 매칭 실행 중 다른 매각 항목이 이미 이 발주 건을 처리했으면(느슨한 매칭이 서로 다른
+    // 표기의 매각 행을 같은 발주 건에 중복으로 연결하는 경우) 두 번 처리하지 않음
+    if(c.done){unresolved.push({...sg,reason:'이번 매칭 중 다른 매각 항목과 이미 매칭된 발주 건(중복 여부 확인 필요)'});return;}
+    if(isM210(c.item)&&!c.m210by){unresolved.push({...sg,reason:'M-210(행선지 확인 필요 품목)은 자동 처리하지 않음 — 추적 목록에서 직접 확인'});return;}
+    if(sg.qty+0.5<c.qty){unresolved.push({...sg,reason:`발주수량 ${fmtN(c.qty)} 중 ${fmtN(sg.qty)}만 확인됨(수량 부족)`});return;}
+    c.done=true;
+    c.inDate=sg.dates.length?sg.dates.sort().slice(-1)[0]:cur;
+    c.outBy=whoNow();
+    c.note=(c.note?c.note+' · ':'')+`사급매각내역 자동매칭(매각 ${fmtN(sg.qty)}${c.unit||'kg'})`;
+    matched.push({consignee:c.consignee,item:c.item,ordQty:c.qty,soldQty:sg.qty,inDate:c.inDate});
+  });
+  if(matched.length)saveDB();
+  refreshAll();
+  csSalesShowResult(src,matched,unresolved,skipped||0);
+}
+function csSalesShowResult(src,matched,unresolved,skipped){
+  dlgTitle.textContent=`사급 매각내역 매칭 결과 — ${esc(src)}`;
+  const mRows=matched.length?matched.map(m=>`<tr><td><b>${esc(m.consignee)}</b></td><td>${esc(m.item)}</td><td class="num">발주 ${fmtN(m.ordQty)} / 매각 ${fmtN(m.soldQty)}</td><td>${esc(m.inDate)}</td></tr>`).join(''):'<tr><td colspan="4" class="empty">없음</td></tr>';
+  const uRows=unresolved.length?unresolved.map(u=>`<tr><td><b>${esc(u.consignee)}</b></td><td>${esc(u.item)}</td><td class="num">${fmtN(u.qty)}</td><td class="tag">${esc(u.reason)}</td></tr>`).join(''):'<tr><td colspan="4" class="empty">없음</td></tr>';
+  dlgBody.innerHTML=`
+    <div style="grid-column:1/-1">
+    ${skipped?`<div class="hint" style="color:var(--amber)">⚠ 사급처·품목·수량을 읽지 못해 건너뛴 행 ${skipped}건 — 파일 내용·열 지정을 확인하세요</div>`:''}
+      <div class="grp-lbl">자동으로 입고완료 처리됨 <span class="cnt">${matched.length}건</span></div>
+      <div class="tbl scroll" style="max-height:220px"><table><thead><tr><th>사급처</th><th>품목</th><th class="num">수량</th><th>입고일</th></tr></thead><tbody>${mRows}</tbody></table></div>
+      <div class="grp-lbl" style="margin-top:12px">확인 필요(자동 처리 안 됨) <span class="cnt">${unresolved.length}건</span></div>
+      <div class="tbl scroll" style="max-height:220px"><table><thead><tr><th>사급처</th><th>품목</th><th class="num">매각수량</th><th>사유</th></tr></thead><tbody>${uRows}</tbody></table></div>
+    </div>`;
+  document.getElementById('dlgDelBtn').style.display='none';
+  dlgCtx={obj:{},fields:[],onDel:()=>{},onSave:()=>{}};
+  dlg.showModal();
+  toast(`매각내역 매칭: ${matched.length}건 자동 입고완료${unresolved.length?` · ${unresolved.length}건 확인 필요`:''}${skipped?` · ${skipped}건 못 읽음`:''}`);
 }
 function csStatus(c){if(c.action==='제외')return'제외';if(c.done)return'완료';if(c.action==='발주')return c.ordDate?(c.due&&cur>c.due?'입고지연':'입고대기'):'발주대기';if(c.action==='직접출고')return c.outDate?'출고완료':'출고대기';return'확인필요';}
 function csRow(c,board){const st=csStatus(c);const cls={'발주대기':'c-wait','출고대기':'c-wait','확인필요':'c-late','입고지연':'c-late','입고대기':'c-ord','출고완료':'c-done','완료':'c-done','제외':'c-mut'}[st];

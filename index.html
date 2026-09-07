@@ -220,7 +220,7 @@ details.card summary .cnt{font-size:11.5px;color:var(--mut);font-weight:500}
   <span class="sub">입고 · 창고이동 · 발주 · 사급 한 화면</span>
   <!-- 화면이 최신 버전인지 바로 확인할 수 있게 표시 — 이 값이 다르면 브라우저가
        예전 파일을 캐시해 둔 것이므로 강력 새로고침(Ctrl+F5 / 아이폰은 Safari 재실행) 필요 -->
-  <span class="sub" id="buildStamp" title="화면 버전 — 최신이 아니면 Ctrl+F5로 강력 새로고침">v2026-09-07d</span>
+  <span class="sub" id="buildStamp" title="화면 버전 — 최신이 아니면 Ctrl+F5로 강력 새로고침">v2026-09-07e</span>
   <span class="sp"></span>
   <span class="date">기준일 <button class="btn sm" onclick="setDate(addDays(cur,-1))" title="하루 전 (기준일 −1)">◀</button><input type="date" id="curDate" onchange="setDate(this.value)"><button class="btn sm" onclick="setDate(addDays(cur,1))" title="하루 뒤 (기준일 +1)">▶</button></span>
   <span id="curWarn" class="tag" style="display:none;background:var(--amber-soft);color:var(--amber);border:1px solid var(--amber);padding:3px 8px;border-radius:2px;font-weight:700;cursor:pointer" title="기준일이 오늘이 아니면 등록·체크가 이 날짜로 기록됩니다" onclick="setDate(realToday())">⚠ 기준일이 오늘이 아님 — 오늘로</span>
@@ -268,11 +268,11 @@ details.card summary .cnt{font-size:11.5px;color:var(--mut);font-weight:500}
   <div class="grid g2" id="boardCards">
     <div class="card" id="inCard">
       <h2>오늘 입고 예정 <span class="cnt" id="cntIn"></span></h2>
-      <div class="tbl scroll"><table><thead><tr><th>창고</th><th>품목</th><th class="num">수량</th><th>부서</th><th>업체</th><th>비고</th><th></th></tr></thead><tbody id="boardIn"></tbody></table></div>
+      <div class="tbl scroll"><table><thead><tr><th>품목</th><th>업체</th><th>창고</th><th class="num">수량</th><th>부서</th><th>비고</th><th></th></tr></thead><tbody id="boardIn"></tbody></table></div>
     </div>
     <div class="card">
       <h2>창고이동 요청 (생산라인 → 창고) <span class="cnt" id="cntMv"></span></h2>
-      <div class="tbl scroll"><table><thead><tr><th>부서</th><th>품목</th><th class="num">수량</th><th>출고창고</th><th>비고</th><th></th></tr></thead><tbody id="boardMv"></tbody></table></div>
+      <div class="tbl scroll"><table><thead><tr><th>품목</th><th>부서</th><th>출고창고</th><th class="num">수량</th><th>비고</th><th></th></tr></thead><tbody id="boardMv"></tbody></table></div>
     </div>
     <div class="card" id="dueCard">
       <h2>오늘 발주할 것 <span class="cnt" id="cntDue"></span></h2>
@@ -284,16 +284,16 @@ details.card summary .cnt{font-size:11.5px;color:var(--mut);font-weight:500}
       </div>
       <div id="ropWrap" style="display:none">
         <div class="grp-lbl">재고 기준 — 발주점(ROP) 도달 <span class="cnt" id="cntRop"></span></div>
-        <div class="tbl scroll"><table><thead><tr><th>품목</th><th class="num">현재고(kg)</th><th class="num">발주점(kg)</th><th class="num">1회 발주량</th><th>입고까지</th><th>업체</th><th></th></tr></thead><tbody id="boardRop"></tbody></table></div>
+        <div class="tbl scroll"><table><thead><tr><th>품목</th><th>업체</th><th class="num">현재고(kg)</th><th class="num">발주점(kg)</th><th class="num">1회 발주량</th><th>입고까지</th><th></th></tr></thead><tbody id="boardRop"></tbody></table></div>
       </div>
       <div class="grp-lbl" id="cycLbl">주기 기준</div>
-      <div class="tbl scroll"><table><thead><tr><th>납품처</th><th>품목</th><th class="num">수량</th><th>주기</th><th>마지막 발주</th><th>경과</th><th></th></tr></thead><tbody id="boardDue"></tbody></table></div>
+      <div class="tbl scroll"><table><thead><tr><th>품목</th><th>납품처</th><th class="num">수량</th><th>주기</th><th>마지막 발주</th><th>경과</th><th></th></tr></thead><tbody id="boardDue"></tbody></table></div>
       <div class="grp-lbl" id="cycSugLbl" style="display:none">발주 주기 제안 <span class="tag" style="font-weight:400">2026-08-26부터 실제 발주 간격 기준 · 적용은 직접 눌러야 반영됨</span></div>
       <div class="tbl scroll" id="cycSugWrap" style="display:none"><table><thead><tr><th>품목</th><th>현재 주기</th><th class="num">실제 평균 간격</th><th>제안 주기</th><th></th></tr></thead><tbody id="boardCycSug"></tbody></table></div>
     </div>
     <div class="card" id="csCard">
       <h2>사급 출고 · 사급 발주 대기 <span class="cnt" id="cntCs"></span></h2>
-      <div class="tbl scroll"><table><thead><tr><th>사급처</th><th>품목</th><th class="num">수량</th><th>처리</th><th>요청납기</th><th>상태</th><th></th></tr></thead><tbody id="boardCs"></tbody></table></div>
+      <div class="tbl scroll"><table><thead><tr><th>품목</th><th>사급처</th><th class="num">수량</th><th>처리</th><th>요청납기</th><th>상태</th><th></th></tr></thead><tbody id="boardCs"></tbody></table></div>
     </div>
   </div>
   <div class="card" style="margin-top:14px">
@@ -361,7 +361,7 @@ details.card summary .cnt{font-size:11.5px;color:var(--mut);font-weight:500}
   </div>
   <div class="card">
     <h2>기준일 요청 목록 <span class="cnt" id="cntMv2"></span><span style="margin-left:auto;display:flex;gap:8px;align-items:center;flex-wrap:wrap"><span class="tag" id="mvSelCnt"></span><button class="btn sm pri" onclick="bulkDoneMv()">실물이동완료</button><button class="btn sm" onclick="bulkErpMv()">전산이동완료</button></span></h2>
-    <div class="tbl scroll"><table><thead><tr><th><input type="checkbox" id="mvSelAll" onchange="toggleAllMv(this.checked)" title="전체 선택"></th><th>부서</th><th>품목</th><th class="num">수량</th><th>출고창고</th><th>비고</th><th>실물</th><th>전산이동</th></tr></thead><tbody id="mvBody"></tbody></table></div>
+    <div class="tbl scroll"><table><thead><tr><th><input type="checkbox" id="mvSelAll" onchange="toggleAllMv(this.checked)" title="전체 선택"></th><th>품목</th><th>부서</th><th>출고창고</th><th class="num">수량</th><th>비고</th><th>실물</th><th>전산이동</th></tr></thead><tbody id="mvBody"></tbody></table></div>
   </div>
   <details class="card">
     <summary>상세 등록 <span class="cnt">전 품목 자동완성 · 단위·창고·비고 직접 입력</span></summary>
@@ -417,7 +417,7 @@ details.card summary .cnt{font-size:11.5px;color:var(--mut);font-weight:500}
       <button class="btn sm" id="odBulkDelBtn" style="color:var(--red)" onclick="bulkDelOrder()">삭제</button>
       <span class="tag" id="odSelCnt"></span>
     </div>
-    <div class="tbl scroll"><table><thead><tr><th><input type="checkbox" id="odSelAll" onchange="toggleAllOd(this.checked)" title="전체 선택"></th><th class="due-hl" id="odEtaTh" style="cursor:pointer" onclick="odSortByEta()" title="클릭하면 착일 기준 정렬">착일</th><th>구분</th><th>매입처</th><th>품목</th><th>납품처</th><th class="num">수량</th><th>발주일</th><th>D-day</th><th>창고</th><th>상태</th><th></th></tr></thead><tbody id="odBody"></tbody></table></div>
+    <div class="tbl scroll"><table><thead><tr><th><input type="checkbox" id="odSelAll" onchange="toggleAllOd(this.checked)" title="전체 선택"></th><th>품목</th><th>매입처</th><th>납품처</th><th>창고</th><th class="num">수량</th><th class="due-hl" id="odEtaTh" style="cursor:pointer" onclick="odSortByEta()" title="클릭하면 착일 기준 정렬">착일</th><th>상태</th><th>구분</th><th>발주일</th><th>D-day</th><th></th></tr></thead><tbody id="odBody"></tbody></table></div>
   </div>
 </section>
 
@@ -466,7 +466,7 @@ details.card summary .cnt{font-size:11.5px;color:var(--mut);font-weight:500}
       <button class="btn sm pri" onclick="csBulkMark()">선택 입고완료 처리</button>
       <span class="tag" id="csSelCnt"></span>
     </div>
-    <div class="tbl scroll"><table><thead><tr><th><input type="checkbox" id="csSelAll" onchange="toggleAllCs(this.checked)" title="전체 선택"></th><th class="due-hl" id="csDueTh" style="cursor:pointer" onclick="csSortByDue()" title="클릭하면 요청납기 기준 정렬">요청납기</th><th>사급처</th><th>품목</th><th class="num">수량</th><th>처리</th><th>공급사</th><th>접수일</th><th>발주일</th><th>출고/입고일</th><th>상태</th><th></th></tr></thead><tbody id="csBody"></tbody></table></div>
+    <div class="tbl scroll"><table><thead><tr><th><input type="checkbox" id="csSelAll" onchange="toggleAllCs(this.checked)" title="전체 선택"></th><th>품목</th><th>사급처</th><th>공급사</th><th class="num">수량</th><th>처리</th><th class="due-hl" id="csDueTh" style="cursor:pointer" onclick="csSortByDue()" title="클릭하면 요청납기 기준 정렬">요청납기</th><th>접수일</th><th>발주일</th><th>출고/입고일</th><th>상태</th><th></th></tr></thead><tbody id="csBody"></tbody></table></div>
   </div>
 </section>
 
@@ -1365,6 +1365,13 @@ function openShare(){document.getElementById('lnkAdmin').value=curUrl()+'#admin'
 function copyText(t){navigator.clipboard?.writeText(t).then(()=>toast('복사됨'),()=>toast('복사 실패 — 직접 드래그해 복사'));}
 
 /* ═════════ 탭 · 날짜 ═════════ */
+/* refreshAll()이 데이터가 바뀔 때마다(로컬 저장·20초 폴링·실시간 브로드캐스트) 지금 안 보고 있는
+   탭까지 전부 다시 그리던 걸, 실제로 보고 있는 탭만 그리도록 아래서 범위를 좁힘 — 그래서 탭을
+   전환하는 시점에는 그동안 안 그려졌을 수 있는 그 탭을 여기서 한 번 그려 최신 상태를 보장함.
+   (배지·알림류는 렌더 함수의 부수효과가 아니라 S 데이터에서 직접 계산되므로 이 범위 밖 — 탭을
+   안 보고 있어도 항상 최신으로 유지됨. 예외: 삭제기록 배지(bTrash)는 renderTrashTab()의
+   부수효과라 그 함수 자체는 refreshAll()에서 계속 무조건 호출함.) */
+const TAB_RENDER={board:()=>renderBoard(),move:()=>renderMoves(),order:()=>renderOrders(),consign:()=>renderCs(),master:()=>renderMaster(),cal:()=>renderCalendar(),stats:()=>renderStats(),fc:()=>renderFc()};
 function showTab(t){
   // 삭제기록은 자재과 전용 — 비밀번호를 통과하기 전에는 열지 않음
   if(t==='trash'&&!trashUnlocked){askTrashPin();return;}
@@ -1372,6 +1379,8 @@ function showTab(t){
   document.querySelectorAll('nav button').forEach(b=>b.classList.toggle('on',b.dataset.t===t));
   if(t==='driver')renderDriver();
   if(t==='trash')markLogSeen();   // 열어본 시점에만 경고 해제
+  if(TAB_RENDER[t])TAB_RENDER[t]();   // refreshAll()이 이 탭을 그동안 건너뛰었을 수 있어 전환 시 한 번 최신화
+  if(t==='move'){renderSpQuick();renderQm();}
 }
 /* 기준일을 바꾸면 이전 날짜에서 체크해 둔 선택(일괄 처리용)은 비움 — 안 보이는 행이 일괄 완료되는 사고 방지 */
 function setDate(d){cur=/^\d{4}-\d{2}-\d{2}$/.test(d||'')?d:realToday();selMv.clear();selOd.clear();selCs.clear();refreshAll();}   // 날짜칸을 비우거나 잘못된 값이면 오늘로
@@ -1423,11 +1432,24 @@ function toggleDriver(){
 }
 
 /* ═════════ 공통 렌더 ═════════ */
+function isTabActive(t){const s=document.getElementById('tab-'+t);return!!s&&s.style.display!=='none';}
 function refreshAll(){
   document.getElementById('curDate').value=cur;
   // 관리 화면에도 "기준일 ≠ 오늘" 경고(기사 화면엔 원래 있음) — 다른 날짜로 옮겨둔 채 등록·체크하는 사고 방지
   const cw=document.getElementById('curWarn');if(cw)cw.style.display=cur!==realToday()?'':'none';
-  renderBoard();renderMoves();renderOrders();renderCs();renderMaster(true);renderDriver();fillLists();renderSpQuick();renderQm();renderCalendar();renderStats();renderFc();
+  // 데이터가 바뀔 때마다(로컬 저장·20초 폴링·실시간 브로드캐스트) 지금 안 보고 있는 탭까지
+  // 전부 다시 그리던 걸, 실제로 보고 있는 탭만 그리도록 좁힘 — showTab()이 탭 전환 시 그
+  // 탭을 최신화하므로 안 보이는 동안 안 그려도 다음에 열 때는 항상 최신임(위 TAB_RENDER 참고).
+  if(isTabActive('board'))renderBoard();
+  if(isTabActive('move')){renderMoves();renderSpQuick();renderQm();}
+  if(isTabActive('order'))renderOrders();
+  if(isTabActive('consign'))renderCs();
+  if(isTabActive('master'))renderMaster(true);
+  if(isTabActive('cal'))renderCalendar();
+  if(isTabActive('stats'))renderStats();
+  if(isTabActive('fc'))renderFc();
+  renderDriver();   // 기사 화면은 안전이 걸려 있어 탭 활성 여부와 무관하게 항상 최신 유지
+  fillLists();   // 여러 탭의 입력칸이 공유하는 datalist라 항상 최신 유지 필요
   const odN=S.orders.filter(o=>!o.skip&&!o.inDate).length, mvN=S.moves.filter(m=>m.date===cur&&!m.done).length, csN=S.cons.filter(c=>!c.done&&!c.ordDate&&!c.outDate).length;
   badge('bMove',mvN);badge('bOrder',odN);badge('bCons',csN);
   updateDrvNotif();
@@ -1594,14 +1616,14 @@ function renderBoard(){
   const late=S.orders.filter(o=>!o.inDate&&o.eta&&o.eta<cur&&o.type==='self');
   const tb=document.getElementById('boardIn');
   const rows=[...late.map(o=>({...o,_late:true})),...ins];
-  tb.innerHTML=rows.length?rows.map(o=>`<tr class="${o.inDate?'done':''}"><td><span class="loc">${esc(o.loc||'?')}</span></td><td><b>${esc(o.item)}</b>${o._late?` <span class="chip c-late">지연 ${fmtK(o.eta)}</span>`:''}</td><td class="num">${fmtN(o.qty)} ${esc(o.unit)}</td><td>${deptChip(o.dept)}</td><td><b>${esc(o.vendor)}</b></td><td class="tag">${esc(o.note)}</td><td>${o.inDate?`<span class="chip c-done">입고${isThird(o.inBy)?' ✋'+esc(o.inBy):''}</span>`:`<button class="btn sm" onclick="markIn(${o.id})">입고 체크</button>`}</td></tr>`).join(''):'<tr><td colspan="7" class="empty">오늘 입고 예정 없음 — [발주·입고] 탭에서 발주를 등록하면 착일 기준으로 표시됨</td></tr>';
+  tb.innerHTML=rows.length?rows.map(o=>`<tr class="${o.inDate?'done':''}"><td><b>${esc(o.item)}</b>${o._late?` <span class="chip c-late">지연 ${fmtK(o.eta)}</span>`:''}</td><td><b>${esc(o.vendor)}</b></td><td><span class="loc">${esc(o.loc||'?')}</span></td><td class="num">${fmtN(o.qty)} ${esc(o.unit)}</td><td>${deptChip(o.dept)}</td><td class="tag">${esc(o.note)}</td><td>${o.inDate?`<span class="chip c-done">입고${isThird(o.inBy)?' ✋'+esc(o.inBy):''}</span>`:`<button class="btn sm" onclick="markIn(${o.id})">입고 체크</button>`}</td></tr>`).join(''):'<tr><td colspan="7" class="empty">오늘 입고 예정 없음 — [발주·입고] 탭에서 발주를 등록하면 착일 기준으로 표시됨</td></tr>';
   document.getElementById('cntIn').textContent=rows.length?`${rows.filter(o=>!o.inDate).length}건 대기`:'';
   // 창고이동
   const mv=S.moves.filter(m=>m.date===cur);
   const order={'경질':0,'창호':1,'타일':2,'DBP':3};
   mv.sort((a,b)=>(order[a.dept]??9)-(order[b.dept]??9));
   document.getElementById('boardMv').innerHTML=mv.length?mv.map(m=>{const cv=convInfo(m.item,m.qty,m.unit);
-    return`<tr class="${m.done&&m.erp?'done':''}"><td>${deptChip(m.dept)}</td><td><b>${esc(m.item)}</b>${r696Badge(m)}${isThird(m.addedBy)?` <span class="chip c-ord">✋ ${esc(m.addedBy)} 등록</span>`:''}${m.done?byBadge(m.doneBy):''}</td><td class="num">${fmtN(m.qty)} ${esc(m.unit)}${cv?`<div class="tag">${esc(cv)}</div>`:''}</td><td><span class="loc">${esc(m.loc||'?')}</span></td><td class="tag">${esc(m.note)}</td><td>${!m.done?`<button class="btn sm" onclick="toggleMove(${m.id})">실물완료</button>`:(!m.erp?`<span class="chip c-wait">전산 대기</span> <button class="btn sm pri" onclick="toggleErp(${m.id})">전산완료</button> <button class="btn sm ghost" onclick="toggleMove(${m.id})" title="실물 완료 취소">↩</button>`:`<span class="chip c-done">전산완료</span> <button class="btn sm ghost" onclick="toggleErp(${m.id})" title="전산 완료 취소">↩</button>`)}</td></tr>`;}).join(''):'<tr><td colspan="6" class="empty">요청 없음 — [배합실요청] 탭에서 입력</td></tr>';
+    return`<tr class="${m.done&&m.erp?'done':''}"><td><b>${esc(m.item)}</b>${r696Badge(m)}${isThird(m.addedBy)?` <span class="chip c-ord">✋ ${esc(m.addedBy)} 등록</span>`:''}${m.done?byBadge(m.doneBy):''}</td><td>${deptChip(m.dept)}</td><td><span class="loc">${esc(m.loc||'?')}</span></td><td class="num">${fmtN(m.qty)} ${esc(m.unit)}${cv?`<div class="tag">${esc(cv)}</div>`:''}</td><td class="tag">${esc(m.note)}</td><td>${!m.done?`<button class="btn sm" onclick="toggleMove(${m.id})">실물완료</button>`:(!m.erp?`<span class="chip c-wait">전산 대기</span> <button class="btn sm pri" onclick="toggleErp(${m.id})">전산완료</button> <button class="btn sm ghost" onclick="toggleMove(${m.id})" title="실물 완료 취소">↩</button>`:`<span class="chip c-done">전산완료</span> <button class="btn sm ghost" onclick="toggleErp(${m.id})" title="전산 완료 취소">↩</button>`)}</td></tr>`;}).join(''):'<tr><td colspan="6" class="empty">요청 없음 — [배합실요청] 탭에서 입력</td></tr>';
   document.getElementById('cntMv').textContent=mv.length?`실물 ${mv.filter(m=>!m.done).length} · 전산 ${mv.filter(m=>m.done&&!m.erp).length}건 남음`:'';
   // 발주할 것 — 재고(ROP) 기준 + 주기 기준
   const rop=ropDue();
@@ -1617,11 +1639,11 @@ function renderBoard(){
     const ordered=it=>S.orders.some(o=>!o.skip&&!o.inDate&&norm(o.item)===norm(it));
     document.getElementById('boardRop').innerHTML=rop.length?rop.map(r=>{
       const shortStk=r.stk<=r.rop;
-      return `<tr><td><b>${esc(r.item)}</b> ${shortStk?'<span class="chip c-late">부족 '+fmtN(Math.max(0,Math.round(r.rop-r.stk)))+'kg</span>':'<span class="chip c-wait">임박</span>'}${r.flag?' <span class="tag">'+esc(r.flag)+'</span>':''}${r.gpps?'<div class="tag">⚠ '+esc(r.gpps)+' · 발주 여부는 검토 후 확정</div>':''}</td><td class="num">${fmtN(Math.round(r.stk))}</td><td class="num">${fmtN(r.rop)}</td><td class="num">${fmtN(r.qty)} kg</td><td>${r.lt}일</td><td><b>${esc(r.vendor)}</b></td><td>${ordered(r.item)?'<span class="chip c-ord">발주됨</span>':`<button class="btn sm warn" onclick="ropOrder('${escJs(esc(r.item))}')">발주 체크</button>`}</td></tr>`;
+      return `<tr><td><b>${esc(r.item)}</b> ${shortStk?'<span class="chip c-late">부족 '+fmtN(Math.max(0,Math.round(r.rop-r.stk)))+'kg</span>':'<span class="chip c-wait">임박</span>'}${r.flag?' <span class="tag">'+esc(r.flag)+'</span>':''}${r.gpps?'<div class="tag">⚠ '+esc(r.gpps)+' · 발주 여부는 검토 후 확정</div>':''}</td><td><b>${esc(r.vendor)}</b></td><td class="num">${fmtN(Math.round(r.stk))}</td><td class="num">${fmtN(r.rop)}</td><td class="num">${fmtN(r.qty)} kg</td><td>${r.lt}일</td><td>${ordered(r.item)?'<span class="chip c-ord">발주됨</span>':`<button class="btn sm warn" onclick="ropOrder('${escJs(esc(r.item))}')">발주 체크</button>`}</td></tr>`;
     }).join(''):'<tr><td colspan="7" class="empty">발주점 도달 품목 없음 — 전 품목 재고 여유</td></tr>';
     document.getElementById('cntRop').textContent=rop.length?`부족 ${rop.filter(r=>r.stk<=r.rop).length} · 임박 ${rop.filter(r=>r.stk>r.rop).length}`:'';
   }
-  document.getElementById('boardDue').innerHTML=due.length?due.map((p,i)=>{const rp=ropOf(p.item);return`<tr><td>${p.type==='self'?'<span class="chip c-mut">자가</span>':'<span class="chip c-ord">'+esc(p.dest)+'</span>'}</td><td><b>${esc(short(p.item))}</b>${rp&&rp.loc?` <span class="loc">${esc(rp.loc)}</span>`:''}</td><td class="num">${p.qty?fmtN(p.qty)+' '+esc(p.unit):'—'}</td><td>${esc(p.cycle)}</td><td>${p.last?fmtK(p.last):'<span class="tag">이력 없음</span>'}</td><td class="dday ${p.gap!=null&&p.gap>p.cyc+1?'late':'soon'}">${p.gap!=null?`+${p.gap}일`:'—'}</td><td><button class="btn sm warn" onclick="quickOrder('${p.type}',${p.type==='self'?M.presetSelf.indexOf(M.presetSelf.find(x=>x.label===p.label)):M.presetConsign.indexOf(M.presetConsign.find(x=>x.label===p.label))})">발주 체크</button> <button class="btn sm ghost" onclick="skipOrder('${p.type}',${p.type==='self'?M.presetSelf.indexOf(M.presetSelf.find(x=>x.label===p.label)):M.presetConsign.indexOf(M.presetConsign.find(x=>x.label===p.label))})" title="오늘은 발주 안 함 (주기 리셋)">건너뜀</button></td></tr>`;}).join(''):'<tr><td colspan="7" class="empty">오늘 주기 도래 품목 없음</td></tr>';
+  document.getElementById('boardDue').innerHTML=due.length?due.map((p,i)=>{const rp=ropOf(p.item);return`<tr><td><b>${esc(short(p.item))}</b>${rp&&rp.loc?` <span class="loc">${esc(rp.loc)}</span>`:''}</td><td>${p.type==='self'?'<span class="chip c-mut">자가</span>':'<span class="chip c-ord">'+esc(p.dest)+'</span>'}</td><td class="num">${p.qty?fmtN(p.qty)+' '+esc(p.unit):'—'}</td><td>${esc(p.cycle)}</td><td>${p.last?fmtK(p.last):'<span class="tag">이력 없음</span>'}</td><td class="dday ${p.gap!=null&&p.gap>p.cyc+1?'late':'soon'}">${p.gap!=null?`+${p.gap}일`:'—'}</td><td><button class="btn sm warn" onclick="quickOrder('${p.type}',${p.type==='self'?M.presetSelf.indexOf(M.presetSelf.find(x=>x.label===p.label)):M.presetConsign.indexOf(M.presetConsign.find(x=>x.label===p.label))})">발주 체크</button> <button class="btn sm ghost" onclick="skipOrder('${p.type}',${p.type==='self'?M.presetSelf.indexOf(M.presetSelf.find(x=>x.label===p.label)):M.presetConsign.indexOf(M.presetConsign.find(x=>x.label===p.label))})" title="오늘은 발주 안 함 (주기 리셋)">건너뜀</button></td></tr>`;}).join(''):'<tr><td colspan="7" class="empty">오늘 주기 도래 품목 없음</td></tr>';
   document.getElementById('cntDue').textContent=dueN?(hasInv?`재고부족 ${rop.filter(r=>r.stk<=r.rop).length} · 주기 ${due.length}건`:`${due.length}건`):'';
   const cycSug=cycleSuggestions();
   document.getElementById('cycSugLbl').style.display=cycSug.length?'':'none';
@@ -2135,7 +2157,7 @@ function renderMoves(){
   const allSel=mv.length>0&&mv.every(m=>selMv.has(m.id));
   const selAllEl=document.getElementById('mvSelAll');if(selAllEl)selAllEl.checked=allSel;
   document.getElementById('mvBody').innerHTML=mv.length?mv.map(m=>{const cv=convInfo(m.item,m.qty,m.unit);
-    return`<tr class="${m.done&&m.erp?'done':''}"><td><input type="checkbox" ${selMv.has(m.id)?'checked':''} onchange="toggleSelMv(${m.id},this.checked)" title="선택"></td><td>${deptChip(m.dept)}</td><td><b>${esc(m.item)}</b>${r696Badge(m)}${isThird(m.addedBy)?` <span class="chip c-ord">✋ ${esc(m.addedBy)} 등록</span>`:''}${m.done?byBadge(m.doneBy,'실물이동완료'):''}</td><td class="num">${fmtN(m.qty)} ${esc(m.unit)}${m.actKg?`<div class="tag" style="color:var(--acc)">전산 ${fmtN(m.actKg)}kg (실출고 보정)${isThird(m.actKgBy)?` <span class="chip c-ord">✋ ${esc(m.actKgBy)} 보정</span>`:''}</div>`:(cv?`<div class="tag">${esc(cv)}</div>`:'')}</td><td><span class="loc">${esc(m.loc||'?')}</span></td><td class="tag">${esc(m.note)}</td><td><input type="checkbox" ${m.done?'checked':''} onchange="toggleMove(${m.id})" title="실물이동"></td><td>${m.erp?`<span class="chip c-done">전산완료</span> <button class="btn sm ghost" onclick="toggleErp(${m.id})" title="전산 완료 취소">↩</button>`:`<span class="chip c-wait">전산 대기</span> <button class="btn sm pri" onclick="toggleErp(${m.id})">전산완료</button>`} <button class="btn sm" onclick="editMove(${m.id})">수정</button> <button class="btn sm" style="color:var(--red)" onclick="delMove(${m.id})">${armLbl('mv'+m.id)}</button></td></tr>`;}).join(''):'<tr><td colspan="8" class="empty">기준일 요청 없음</td></tr>';
+    return`<tr class="${m.done&&m.erp?'done':''}"><td><input type="checkbox" ${selMv.has(m.id)?'checked':''} onchange="toggleSelMv(${m.id},this.checked)" title="선택"></td><td><b>${esc(m.item)}</b>${r696Badge(m)}${isThird(m.addedBy)?` <span class="chip c-ord">✋ ${esc(m.addedBy)} 등록</span>`:''}${m.done?byBadge(m.doneBy,'실물이동완료'):''}</td><td>${deptChip(m.dept)}</td><td><span class="loc">${esc(m.loc||'?')}</span></td><td class="num">${fmtN(m.qty)} ${esc(m.unit)}${m.actKg?`<div class="tag" style="color:var(--acc)">전산 ${fmtN(m.actKg)}kg (실출고 보정)${isThird(m.actKgBy)?` <span class="chip c-ord">✋ ${esc(m.actKgBy)} 보정</span>`:''}</div>`:(cv?`<div class="tag">${esc(cv)}</div>`:'')}</td><td class="tag">${esc(m.note)}</td><td><input type="checkbox" ${m.done?'checked':''} onchange="toggleMove(${m.id})" title="실물이동"></td><td>${m.erp?`<span class="chip c-done">전산완료</span> <button class="btn sm ghost" onclick="toggleErp(${m.id})" title="전산 완료 취소">↩</button>`:`<span class="chip c-wait">전산 대기</span> <button class="btn sm pri" onclick="toggleErp(${m.id})">전산완료</button>`} <button class="btn sm" onclick="editMove(${m.id})">수정</button> <button class="btn sm" style="color:var(--red)" onclick="delMove(${m.id})">${armLbl('mv'+m.id)}</button></td></tr>`;}).join(''):'<tr><td colspan="8" class="empty">기준일 요청 없음</td></tr>';
   document.getElementById('cntMv2').textContent=mv.length?`${mv.length}건`:'';
   updateMvSelCnt();
 }
@@ -2234,7 +2256,7 @@ function renderOrders(){
   const selAllEl=document.getElementById('odSelAll');if(selAllEl)selAllEl.checked=allSel;
   document.getElementById('odBody').innerHTML=rows.length?rows.map(o=>{const st=orderStatus(o),d=o.eta&&!o.inDate?diffDays(o.eta,cur):null;const cls={'발주완료':'c-ord','입고지연':'c-late','입고완료':'c-done','취소':'c-mut'}[st];
     const actBtns=o.skip?`<button class="btn sm pri" onclick="restoreOrder(${o.id})">복구</button> `:(!o.inDate?`<button class="btn sm" onclick="markIn(${o.id})">입고</button> <button class="btn sm ghost" onclick="cancelOrder(${o.id})">발주취소</button> `:`<button class="btn sm ghost" onclick="cancelIn(${o.id})" title="입고 취소">↩ 입고취소</button> `);
-    return `<tr class="${o.inDate||o.skip?'done':''}"><td><input type="checkbox" ${selOd.has(o.id)?'checked':''} onchange="toggleSelOd(${o.id},this.checked)" title="선택"></td><td class="due-hl"><b>${o.eta||''}</b></td><td>${o.type==='self'?'자가':'사급'}</td><td><b>${esc(o.vendor)}</b></td><td><b>${esc(o.item)}</b>${o.note?`<div class="tag">${esc(o.note)}</div>`:''}</td><td>${esc(o.dest)}</td><td class="num">${fmtN(o.qty)} ${esc(o.unit)}</td><td>${o.ordDate||''}</td><td class="dday ${d!=null&&d<0?'late':(d===0?'soon':'')}">${d==null?(o.inDate?'입고 '+o.inDate:''):(d<0?`D+${-d}`:`D-${d}`)}</td><td>${o.loc?`<span class="loc">${esc(o.loc)}</span>`:''}</td><td><span class="chip ${cls}">${st}</span></td><td>${actBtns}<button class="btn sm" onclick="editOrder(${o.id})">수정</button> <button class="btn sm" style="color:var(--red)" onclick="delOrder(${o.id})">${armLbl('od'+o.id)}</button></td></tr>`;}).join(''):'<tr><td colspan="12" class="empty">발주 건 없음</td></tr>';
+    return `<tr class="${o.inDate||o.skip?'done':''}"><td><input type="checkbox" ${selOd.has(o.id)?'checked':''} onchange="toggleSelOd(${o.id},this.checked)" title="선택"></td><td><b>${esc(o.item)}</b>${o.note?`<div class="tag">${esc(o.note)}</div>`:''}</td><td><b>${esc(o.vendor)}</b></td><td>${esc(o.dest)}</td><td>${o.loc?`<span class="loc">${esc(o.loc)}</span>`:''}</td><td class="num">${fmtN(o.qty)} ${esc(o.unit)}</td><td class="due-hl"><b>${o.eta||''}</b></td><td><span class="chip ${cls}">${st}</span></td><td>${o.type==='self'?'자가':'사급'}</td><td>${o.ordDate||''}</td><td class="dday ${d!=null&&d<0?'late':(d===0?'soon':'')}">${d==null?(o.inDate?'입고 '+o.inDate:''):(d<0?`D+${-d}`:`D-${d}`)}</td><td>${actBtns}<button class="btn sm" onclick="editOrder(${o.id})">수정</button> <button class="btn sm" style="color:var(--red)" onclick="delOrder(${o.id})">${armLbl('od'+o.id)}</button></td></tr>`;}).join(''):'<tr><td colspan="12" class="empty">발주 건 없음</td></tr>';
   document.getElementById('cntOd').textContent=`${rows.length}건`;
   const bulkDelBtn=document.getElementById('odBulkDelBtn');if(bulkDelBtn)bulkDelBtn.textContent=selOd.size?armLbl(odBulkDelKey()):'삭제';
   const th=document.getElementById('odEtaTh');if(th)th.textContent='착일'+(odSort==='asc'?' ▲':odSort==='desc'?' ▼':'');
@@ -2534,8 +2556,8 @@ function csStatus(c){if(c.action==='제외')return'제외';if(c.done)return'완�
 function csRow(c,board){const st=csStatus(c);const cls={'발주대기':'c-wait','출고대기':'c-wait','확인필요':'c-late','입고지연':'c-late','입고대기':'c-ord','출고완료':'c-done','완료':'c-done','제외':'c-mut'}[st];
   const act=`<span class="act-${CS_ACTION_CLASS[c.action]}">${c.action}</span>`;
   const btn=c.action==='발주'&&!c.ordDate?`<button class="btn sm warn" onclick="csMark(${c.id},'ordDate')">발주 체크</button>`:(c.action==='직접출고'&&!c.outDate?`<button class="btn sm warn" onclick="csMark(${c.id},'outDate')">출고 체크</button>`:(c.action==='직접출고'&&c.outDate?`<button class="btn sm ghost" onclick="csUndoOut(${c.id})" title="출고 처리를 취소하고 출고 대기로 되돌림">↩ 출고 취소</button>`:(c.action==='발주'&&c.done?`<button class="btn sm ghost" onclick="csUndoIn(${c.id})" title="입고 완료 처리를 취소하고 입고 대기로 되돌림">↩ 입고 취소</button>`:(!c.done?`<button class="btn sm" onclick="csMark(${c.id},'done')">${c.action==='발주'?'입고 완료':'완료'}</button>`:''))));
-  if(board)return`<tr class="${c.done?'done':''}"><td><b>${esc(c.consignee)}</b></td><td><b>${esc(c.item)}</b></td><td class="num">${fmtN(c.qty)}</td><td>${act}</td><td>${c.due?fmtK(c.due):''}</td><td><span class="chip ${cls}">${st}</span></td><td>${btn}</td></tr>`;
-  return`<tr class="${c.done?'done':''}"><td><input type="checkbox" class="csSel" value="${c.id}" ${selCs.has(c.id)?'checked':''} onchange="toggleSelCs(${c.id},this.checked)"></td><td class="due-hl"><b>${c.due||''}</b></td><td><b>${esc(c.consignee)}</b></td><td><b>${esc(c.item)}</b>${c.loc?` <span class="loc">${esc(c.loc)}</span>`:''}</td><td class="num">${fmtN(c.qty)}</td><td>${act}</td><td><b>${esc(c.supplier)}</b></td><td>${c.recvDate||''}</td><td>${c.ordDate||''}</td><td>${c.outDate||(c.done?'✓':'')}${isThird(c.outBy)?` <span class="chip c-wait">✋ ${esc(c.outBy)}</span>`:''}</td><td><span class="chip ${cls}">${st}</span></td><td>${btn} <button class="btn sm" onclick="editCs(${c.id})">수정</button> <button class="btn sm" style="color:var(--red)" onclick="delCs(${c.id})">${armLbl('cs'+c.id)}</button></td></tr>`;}
+  if(board)return`<tr class="${c.done?'done':''}"><td><b>${esc(c.item)}</b></td><td><b>${esc(c.consignee)}</b></td><td class="num">${fmtN(c.qty)}</td><td>${act}</td><td>${c.due?fmtK(c.due):''}</td><td><span class="chip ${cls}">${st}</span></td><td>${btn}</td></tr>`;
+  return`<tr class="${c.done?'done':''}"><td><input type="checkbox" class="csSel" value="${c.id}" ${selCs.has(c.id)?'checked':''} onchange="toggleSelCs(${c.id},this.checked)"></td><td><b>${esc(c.item)}</b>${c.loc?` <span class="loc">${esc(c.loc)}</span>`:''}</td><td><b>${esc(c.consignee)}</b></td><td><b>${esc(c.supplier)}</b></td><td class="num">${fmtN(c.qty)}</td><td>${act}</td><td class="due-hl"><b>${c.due||''}</b></td><td>${c.recvDate||''}</td><td>${c.ordDate||''}</td><td>${c.outDate||(c.done?'✓':'')}${isThird(c.outBy)?` <span class="chip c-wait">✋ ${esc(c.outBy)}</span>`:''}</td><td><span class="chip ${cls}">${st}</span></td><td>${btn} <button class="btn sm" onclick="editCs(${c.id})">수정</button> <button class="btn sm" style="color:var(--red)" onclick="delCs(${c.id})">${armLbl('cs'+c.id)}</button></td></tr>`;}
 function csMark(id,f){const c=findLive(S.cons,id);if(!c)return;
   if((f==='outDate'||f==='done')&&needName(()=>csMark(id,f)))return;
   // M-210: 월1회 입항분은 행선지 건별 확인 전 배차·출고·완료 금지

@@ -220,7 +220,7 @@ details.card summary .cnt{font-size:11.5px;color:var(--mut);font-weight:500}
   <span class="sub">입고 · 창고이동 · 발주 · 사급 한 화면</span>
   <!-- 화면이 최신 버전인지 바로 확인할 수 있게 표시 — 이 값이 다르면 브라우저가
        예전 파일을 캐시해 둔 것이므로 강력 새로고침(Ctrl+F5 / 아이폰은 Safari 재실행) 필요 -->
-  <span class="sub" id="buildStamp" title="화면 버전 — 최신이 아니면 Ctrl+F5로 강력 새로고침">v2026-09-07d</span>
+  <span class="sub" id="buildStamp" title="화면 버전 — 최신이 아니면 Ctrl+F5로 강력 새로고침">v2026-09-07e</span>
   <span class="sp"></span>
   <span class="date">기준일 <button class="btn sm" onclick="setDate(addDays(cur,-1))" title="하루 전 (기준일 −1)">◀</button><input type="date" id="curDate" onchange="setDate(this.value)"><button class="btn sm" onclick="setDate(addDays(cur,1))" title="하루 뒤 (기준일 +1)">▶</button></span>
   <span id="curWarn" class="tag" style="display:none;background:var(--amber-soft);color:var(--amber);border:1px solid var(--amber);padding:3px 8px;border-radius:2px;font-weight:700;cursor:pointer" title="기준일이 오늘이 아니면 등록·체크가 이 날짜로 기록됩니다" onclick="setDate(realToday())">⚠ 기준일이 오늘이 아님 — 오늘로</span>
@@ -1365,6 +1365,13 @@ function openShare(){document.getElementById('lnkAdmin').value=curUrl()+'#admin'
 function copyText(t){navigator.clipboard?.writeText(t).then(()=>toast('복사됨'),()=>toast('복사 실패 — 직접 드래그해 복사'));}
 
 /* ═════════ 탭 · 날짜 ═════════ */
+/* refreshAll()이 데이터가 바뀔 때마다(로컬 저장·20초 폴링·실시간 브로드캐스트) 지금 안 보고 있는
+   탭까지 전부 다시 그리던 걸, 실제로 보고 있는 탭만 그리도록 아래서 범위를 좁힘 — 그래서 탭을
+   전환하는 시점에는 그동안 안 그려졌을 수 있는 그 탭을 여기서 한 번 그려 최신 상태를 보장함.
+   (배지·알림류는 렌더 함수의 부수효과가 아니라 S 데이터에서 직접 계산되므로 이 범위 밖 — 탭을
+   안 보고 있어도 항상 최신으로 유지됨. 예외: 삭제기록 배지(bTrash)는 renderTrashTab()의
+   부수효과라 그 함수 자체는 refreshAll()에서 계속 무조건 호출함.) */
+const TAB_RENDER={board:()=>renderBoard(),move:()=>renderMoves(),order:()=>renderOrders(),consign:()=>renderCs(),master:()=>renderMaster(),cal:()=>renderCalendar(),stats:()=>renderStats(),fc:()=>renderFc()};
 function showTab(t){
   // 삭제기록은 자재과 전용 — 비밀번호를 통과하기 전에는 열지 않음
   if(t==='trash'&&!trashUnlocked){askTrashPin();return;}
@@ -1372,6 +1379,8 @@ function showTab(t){
   document.querySelectorAll('nav button').forEach(b=>b.classList.toggle('on',b.dataset.t===t));
   if(t==='driver')renderDriver();
   if(t==='trash')markLogSeen();   // 열어본 시점에만 경고 해제
+  if(TAB_RENDER[t])TAB_RENDER[t]();   // refreshAll()이 이 탭을 그동안 건너뛰었을 수 있어 전환 시 한 번 최신화
+  if(t==='move'){renderSpQuick();renderQm();}
 }
 /* 기준일을 바꾸면 이전 날짜에서 체크해 둔 선택(일괄 처리용)은 비움 — 안 보이는 행이 일괄 완료되는 사고 방지 */
 function setDate(d){cur=/^\d{4}-\d{2}-\d{2}$/.test(d||'')?d:realToday();selMv.clear();selOd.clear();selCs.clear();refreshAll();}   // 날짜칸을 비우거나 잘못된 값이면 오늘로
@@ -1423,11 +1432,24 @@ function toggleDriver(){
 }
 
 /* ═════════ 공통 렌더 ═════════ */
+function isTabActive(t){const s=document.getElementById('tab-'+t);return!!s&&s.style.display!=='none';}
 function refreshAll(){
   document.getElementById('curDate').value=cur;
   // 관리 화면에도 "기준일 ≠ 오늘" 경고(기사 화면엔 원래 있음) — 다른 날짜로 옮겨둔 채 등록·체크하는 사고 방지
   const cw=document.getElementById('curWarn');if(cw)cw.style.display=cur!==realToday()?'':'none';
-  renderBoard();renderMoves();renderOrders();renderCs();renderMaster(true);renderDriver();fillLists();renderSpQuick();renderQm();renderCalendar();renderStats();renderFc();
+  // 데이터가 바뀔 때마다(로컬 저장·20초 폴링·실시간 브로드캐스트) 지금 안 보고 있는 탭까지
+  // 전부 다시 그리던 걸, 실제로 보고 있는 탭만 그리도록 좁힘 — showTab()이 탭 전환 시 그
+  // 탭을 최신화하므로 안 보이는 동안 안 그려도 다음에 열 때는 항상 최신임(위 TAB_RENDER 참고).
+  if(isTabActive('board'))renderBoard();
+  if(isTabActive('move')){renderMoves();renderSpQuick();renderQm();}
+  if(isTabActive('order'))renderOrders();
+  if(isTabActive('consign'))renderCs();
+  if(isTabActive('master'))renderMaster(true);
+  if(isTabActive('cal'))renderCalendar();
+  if(isTabActive('stats'))renderStats();
+  if(isTabActive('fc'))renderFc();
+  renderDriver();   // 기사 화면은 안전이 걸려 있어 탭 활성 여부와 무관하게 항상 최신 유지
+  fillLists();   // 여러 탭의 입력칸이 공유하는 datalist라 항상 최신 유지 필요
   const odN=S.orders.filter(o=>!o.skip&&!o.inDate).length, mvN=S.moves.filter(m=>m.date===cur&&!m.done).length, csN=S.cons.filter(c=>!c.done&&!c.ordDate&&!c.outDate).length;
   badge('bMove',mvN);badge('bOrder',odN);badge('bCons',csN);
   updateDrvNotif();

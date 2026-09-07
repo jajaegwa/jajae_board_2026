@@ -220,7 +220,7 @@ details.card summary .cnt{font-size:11.5px;color:var(--mut);font-weight:500}
   <span class="sub">입고 · 창고이동 · 발주 · 사급 한 화면</span>
   <!-- 화면이 최신 버전인지 바로 확인할 수 있게 표시 — 이 값이 다르면 브라우저가
        예전 파일을 캐시해 둔 것이므로 강력 새로고침(Ctrl+F5 / 아이폰은 Safari 재실행) 필요 -->
-  <span class="sub" id="buildStamp" title="화면 버전 — 최신이 아니면 Ctrl+F5로 강력 새로고침">v2026-09-07m</span>
+  <span class="sub" id="buildStamp" title="화면 버전 — 최신이 아니면 Ctrl+F5로 강력 새로고침">v2026-09-07n</span>
   <span class="sp"></span>
   <span class="date">기준일 <button class="btn sm" onclick="setDate(addDays(cur,-1))" title="하루 전 (기준일 −1)">◀</button><input type="date" id="curDate" onchange="setDate(this.value)"><button class="btn sm" onclick="setDate(addDays(cur,1))" title="하루 뒤 (기준일 +1)">▶</button></span>
   <span id="curWarn" class="tag" style="display:none;background:var(--amber-soft);color:var(--amber);border:1px solid var(--amber);padding:3px 8px;border-radius:2px;font-weight:700;cursor:pointer" title="기준일이 오늘이 아니면 등록·체크가 이 날짜로 기록됩니다" onclick="setDate(realToday())">⚠ 기준일이 오늘이 아님 — 오늘로</span>
@@ -2716,18 +2716,26 @@ function csSalesMatch(rows,src,skipped){
   // 잡아주므로(norm은 공백을 지움) 첫 단어 기준으로만 바꾸지 않음.
   // 안전장치: "삼성"↔"삼성전자"처럼 공백 없이 붙은 서로 다른 회사명은 첫 단어 자체가 달라 합쳐지지
   // 않고, 같은 회사명 첫 단어인데 파일 안 사업자번호가 서로 다르면(남남 회사가 섞인 증거) 2단계로
-  // 넓히지 않으며, 후보 안에서 품목이 2건 이상 걸리면 아래에서 확인 필요로 남김. 자동 처리 결과는
+  // 넓히지 않으며, 후보 안에서 품목이 2건 이상 걸리면 아래 규칙(더 구체적인 표기 우선·같은 품목 합계
+  // 일괄)으로 확정되지 않는 한 확인 필요로 남김. 자동 처리 결과는
   // 비고에 매각내역 쪽 사급처 표기를 남기고 추적 목록의 "입고 취소"로 되돌릴 수 있음.
   // 잔여 위험(파일에 사업자번호가 없고 첫 단어만 같은 남남 회사, 예: "대성"↔"대성 물류센터")은
   // 담당자가 인지하고 수용함.
-  // 품목명은 포장·규격 표기 차이가 흔하고 회사 단위 위험이 없어 계속 포함 관계로 느슨하게 매칭.
+  // 품목명은 포장·규격 표기 차이가 흔하고 회사 단위 위험이 없어 포함 관계·조각·오타 1글자까지 느슨하게
+  // 매칭(아래 pickItem 참고).
   const byConsignee={},byConsigneeBase={};
-  outstanding.forEach(c=>{
+  const indexCon=(c,byFull,byBase)=>{
     const full=csSalesConNorm(c.consignee);
-    (byConsignee[full]=byConsignee[full]||[]).push(c);
+    (byFull[full]=byFull[full]||[]).push(c);
     const base=csSalesConBase(c.consignee);
-    if(base.length>=2)(byConsigneeBase[base]=byConsigneeBase[base]||[]).push(c);
-  });
+    if(base.length>=2)(byBase[base]=byBase[base]||[]).push(c);
+  };
+  outstanding.forEach(c=>indexCon(c,byConsignee,byConsigneeBase));
+  // 이미 입고완료된 발주도 따로 색인 — 매칭이 안 될 때 "이전 업로드에서 이미 처리된 건"인지
+  // "발주 자체가 없는 건"인지 사유에서 구분해 주기 위함(같은 파일을 다시 올리면 지난번에 처리된
+  // 행이 전부 확인 필요로 나와 헷갈림)
+  const doneByCon={},doneByBase={};
+  S.cons.filter(c=>c.action==='발주'&&c.done).forEach(c=>indexCon(c,doneByCon,doneByBase));
   // 파일 쪽: 회사명 첫 단어별로 등장한 사업자번호를 모아둠 — "대성(111…)"과 "대성 물류센터(222…)"가
   // 한 파일에 같이 있으면 첫 단어만 같은 서로 다른 회사라는 증거이므로 2단계 매칭을 막는 데 씀
   const baseRegNos={};
@@ -2741,46 +2749,94 @@ function csSalesMatch(rows,src,skipped){
     if(sg.regNos.size>1){unresolved.push({...sg,reason:'이름은 같지만 사업자번호가 서로 다른 매각 행이 섞여 있어 확인 필요(서로 다른 회사일 수 있음)'});return;}
     const nConBase=csSalesConBase(sg.consignee);
     const exactCand=byConsignee[nCon]||[],baseCand=nConBase.length>=2?(byConsigneeBase[nConBase]||[]):[];
-    if(!exactCand.length&&!baseCand.length){unresolved.push({...sg,reason:'같은 사급처의 미완료 발주 건 없음'});return;}
     // 앱에 등록된 사급발주 품목은 품목명 전체 문구가 아니라 그 안에 포함된 짧은 제품 코드로
     // 적혀 있는 경우가 흔함(실제 업로드로 확인됨) — 품목명과 품목코드 칸 둘 다에 대해 정확
-    // 일치 → 포함 관계 순서로 확인(둘 중 하나라도 맞으면 후보로 봄).
+    // 일치 → 포함 관계 → 토큰 역포함 → 오타 1글자 순서로 확인(앞 단계에서 하나라도 걸리면 거기서 끝).
+    // 3·4단계 재료: 파일 품목명은 "장식공통_내자국산_…_293F-1 (…)_Drum(170kg)_장연고분자"처럼 "_"와
+    // 공백·괄호로 나뉜 조각들이라, 제품 코드처럼 생긴 조각(숫자 2자 이상 포함, 4자 이상, 순수 숫자와
+    // "200KG"·"1000L"·"20EA" 같은 포장·단위 조각 제외)만 뽑아 씀 — "UV"·"기타"·"003"·"DRUM200KG"·"TIO2"
+    // 같은 조각이 엉뚱한 발주에 걸리지 않게(코드리뷰로 보강). "1,000kg"의 천단위 쉼표는 쪼개기 전에 붙여둠.
+    const tokens=[...new Set(String(sg.item).replace(/(\d),(\d)/g,'$1$2').split(/[_\s()\[\]\/,]+/).map(norm)
+      .filter(t=>t.length>=4&&(t.match(/\d/g)||[]).length>=2&&!/^\d+$/.test(t)&&!/\d(KG|G|L|ML|EA|BOX|PCS|TON|DRUM|BAG|SET|PAIL|CAN|PALLET|ROLL)$/.test(t)))];
+    // 조각이 등록 품목 안에 "단어처럼" 들어 있는지 — 앞뒤가 숫자면 안 됨: "293F1"이 "J293F10"에 걸리면
+    // 293F-1 매각으로 293F-10 발주를 처리해 버림(코드리뷰로 발견)
+    const hasTok=(it,t)=>{let i=-1;while((i=it.indexOf(t,i+1))>=0){if(!/\d/.test(it[i-1]||'')&&!/\d/.test(it[i+t.length]||''))return true;}return false;};
+    // 오타 1글자 허용(실제 업로드: 파일 "Richbin329" ↔ 등록 "RICHVIN-329"): 길이가 같고 8자 이상이며,
+    // 딱 한 자리만 다르고 그 자리가 양쪽 다 영문자이며 맨 앞·맨 끝이 아닐 때만 — 숫자가 다르거나
+    // 끝 글자가 다른 건("329A"↔"329B") 등급·규격이 다른 제품일 수 있어 제외(코드리뷰로 보강)
+    const near1=(a,b)=>{if(a.length!==b.length||a.length<8)return false;let d=-1;for(let i=0;i<a.length;i++){if(a[i]!==b[i]){if(d>=0)return false;d=i;}}return d>0&&d<a.length-1&&/[A-Z]/.test(a[d])&&/[A-Z]/.test(b[d]);};
     const pickItem=list=>{
-      let cand=list.filter(c=>{const it=norm(c.item);return it===nItem||(nItemCode&&nItemCode.length>=2&&it===nItemCode);});
-      if(!cand.length)cand=list.filter(c=>{const it=norm(c.item);if(it.length<2)return false;return it.includes(nItem)||nItem.includes(it)||(nItemCode&&nItemCode.length>=2&&(it.includes(nItemCode)||nItemCode.includes(it)));});
-      return cand;
+      const L=list.map(c=>({c,it:norm(c.item)}));
+      const tiers=[
+        x=>x.it===nItem||(nItemCode&&nItemCode.length>=2&&x.it===nItemCode),
+        x=>x.it.length>=2&&(x.it.includes(nItem)||nItem.includes(x.it)||(nItemCode&&nItemCode.length>=2&&(x.it.includes(nItemCode)||nItemCode.includes(x.it)))),
+        x=>tokens.some(t=>hasTok(x.it,t)),   // 등록 품목이 파일 조각보다 긴 경우(실제 업로드: 파일 "293F-1" ↔ 등록 "J293F-1")
+        x=>tokens.some(t=>near1(x.it,t)),
+      ];
+      for(const f of tiers){const hit=L.filter(f);if(hit.length)return hit.map(x=>x.c);}
+      return [];
     };
+    // 왜 안 잡혔는지 바로 볼 수 있게, 그 사급처에 실제로 등록된 미완료 발주 품목을 같이 알려줌
+    // (품목 표기 차이인지, 발주 자체가 없는 건지 팝업만 보고 판단 가능). 이번 실행에서 방금 처리된 건은 뺌.
+    const outstandingList=()=>{
+      const regItems=[...new Set([...exactCand,...baseCand].filter(c=>!c.done).map(c=>c.item))];
+      return regItems.length?` — 등록된 미완료 발주 품목: ${regItems.slice(0,8).join(', ')}${regItems.length>8?` 외 ${regItems.length-8}개`:''}`:'';
+    };
+    // 이미 입고완료된 발주와 맞으면 그렇게 알려줌(같은 파일 재업로드·중복 행을 "발주 없음"과 구분)
+    const doneMatchReason=()=>{
+      const dm=pickItem([...(doneByCon[nCon]||[]),...(nConBase.length>=2?(doneByBase[nConBase]||[]):[])]);
+      if(!dm.length)return null;
+      const d=dm[0],who=csSalesConNorm(d.consignee)!==nCon?` · 등록 사급처 "${d.consignee}"`:'';
+      return `이미 입고완료 처리된 발주(${d.item}${d.inDate?`, 입고일 ${d.inDate}`:''}${who})와 일치 — 이전 업로드에서 처리됐거나 매각 행이 중복일 수 있음${outstandingList()}`;
+    };
+    if(!exactCand.length&&!baseCand.length){unresolved.push({...sg,reason:doneMatchReason()||'같은 사급처의 미완료 발주 건 없음'});return;}
     let cand=pickItem(exactCand);
     if(!cand.length&&baseCand.length){
       if((baseRegNos[nConBase]||new Set()).size>1){unresolved.push({...sg,reason:'회사명 첫 단어는 같지만 사업자번호가 서로 다른 매각처가 파일에 섞여 있어 확인 필요(서로 다른 회사일 수 있음)'});return;}
       cand=pickItem(baseCand);
     }
-    if(!cand.length){
-      // 왜 안 잡혔는지 바로 볼 수 있게, 그 사급처에 실제로 등록된 미완료 발주 품목을 같이 알려줌
-      // (품목 표기 차이인지, 발주 자체가 없는 건지 팝업만 보고 판단 가능)
-      const regItems=[...new Set([...exactCand,...baseCand].filter(c=>!c.done).map(c=>c.item))];   // 이번 실행에서 방금 처리된 건은 뺌
-      const shown=regItems.slice(0,8).join(', ')+(regItems.length>8?` 외 ${regItems.length-8}개`:'');
-      unresolved.push({...sg,reason:`같은 사급처에 대응하는 품목의 미완료 발주 없음 — 등록된 미완료 발주 품목: ${shown}`});return;
+    if(!cand.length){unresolved.push({...sg,reason:doneMatchReason()||`같은 사급처에 대응하는 품목의 미완료 발주 없음${outstandingList()}`});return;}
+    // 이번 매칭 실행 중 앞선 매각 행이 이미 처리한 발주는 후보에서 뺌(느슨한 매칭이 서로 다른 표기의
+    // 매각 행을 같은 발주에 중복 연결하는 경우) — 남은 후보가 하나면 그대로 단독 처리로 이어짐
+    cand=cand.filter(c=>!c.done);
+    if(!cand.length){unresolved.push({...sg,reason:'이번 매칭 중 다른 매각 항목과 이미 매칭된 발주 건(중복 여부 확인 필요)'});return;}
+    const complete=(c,extra,batch)=>{
+      c.done=true;
+      c.inDate=sg.dates.length?sg.dates.sort().slice(-1)[0]:cur;
+      c.outBy=whoNow();
+      // 사급처 표기가 등록명과 달랐다면(부서 표현 차이 등) 매각내역 쪽 표기를 비고에 남겨 나중에
+      // 확인·되돌리기 쉽게 함
+      const conDiff=nCon!==csSalesConNorm(c.consignee)?` · 매각내역 사급처 "${sg.consignee}"`:'';
+      c.note=(c.note?c.note+' · ':'')+`사급매각내역 자동매칭(매각 ${fmtN(sg.qty)}${c.unit||'kg'}${extra||''}${conDiff})`;
+      matched.push({consignee:c.consignee,item:c.item,ordQty:c.qty,soldQty:sg.qty,inDate:c.inDate,batch:batch||1});
+    };
+    if(cand.length>1){
+      // 가장 구체적인(긴) 등록 표기 하나가 나머지를 전부 포함하고, 파일 품목명에도 그 긴 표기가 그대로
+      // 들어 있으면 그걸로 확정 — 실제 업로드: 파일 "CR-102 NT (…)"에 등록 "CR-102NT"와 "CR-102"가 같이
+      // 걸렸는데 "CR-102 NT"(경화제)는 "CR-102"와 다른 제품이므로 더 구체적인 쪽이 맞음. 파일에 긴 표기가
+      // 없으면(예: 파일 "293F-1"에 등록 "J293F-1"·"J293F-10") 긴 쪽이 다른 제품일 수 있어 확정하지 않음.
+      const N=cand.map(c=>norm(c.item));
+      let li=0;N.forEach((n,i)=>{if(n.length>N[li].length)li=i;});
+      const ln=N[li];
+      if(nItem.includes(ln)&&N.every((n,i)=>i===li||(n!==ln&&ln.includes(n))))cand=[cand[li]];
     }
     if(cand.length>1){
+      // 같은 품목(정규화 표기가 전부 같음) 발주가 여러 건이고(실제 업로드: "IF-850"·"IF850" 2건) 매각수량이
+      // 그 발주들의 수량 합계를 다 덮으면 한 번에 매각된 것으로 보고 전부 처리. 표기가 서로 다른 후보가
+      // 섞여 있으면 다른 제품일 수 있어 일괄 처리하지 않고, 일부만 덮으면 어느 건인지 모르므로 보류.
+      const sameItem=cand.every(c=>norm(c.item)===norm(cand[0].item));
+      const total=cand.reduce((s,c)=>s+(+c.qty||0),0);
+      const m210=cand.some(c=>isM210(c.item)&&!c.m210by);
+      if(sameItem&&!m210&&sg.qty+0.5>=total){cand.forEach(c=>complete(c,` — 같은 품목 발주 ${cand.length}건 합계 ${fmtN(total)}${cand[0].unit||'kg'} 일괄`,cand.length));return;}
       // 서로 다른 등록 표기(예: "두하"와 "두하 생산관리")에 걸쳐 겹치면 어느 쪽인지 바로 찾을 수 있게 표기를 같이 알려줌
       const names=[...new Set(cand.map(c=>c.consignee))];
-      unresolved.push({...sg,reason:`같은 사급처·품목 미완료 발주가 ${cand.length}건 겹쳐 확인 필요${names.length>1?`(등록 사급처: ${names.join(', ')})`:''}`});return;
+      const why=m210?' — M-210(행선지 확인 필요 품목) 포함':(!sameItem?' — 표기가 서로 다른 발주라 일괄 처리 안 함':`(매각 ${fmtN(sg.qty)} < 발주 합계 ${fmtN(total)})`);
+      unresolved.push({...sg,reason:`같은 사급처·품목 미완료 발주가 ${cand.length}건 겹쳐 확인 필요${names.length>1?`(등록 사급처: ${names.join(', ')})`:''}${why}`});return;
     }
     const c=cand[0];
-    // 이번 매칭 실행 중 다른 매각 항목이 이미 이 발주 건을 처리했으면(느슨한 매칭이 서로 다른
-    // 표기의 매각 행을 같은 발주 건에 중복으로 연결하는 경우) 두 번 처리하지 않음
-    if(c.done){unresolved.push({...sg,reason:'이번 매칭 중 다른 매각 항목과 이미 매칭된 발주 건(중복 여부 확인 필요)'});return;}
     if(isM210(c.item)&&!c.m210by){unresolved.push({...sg,reason:'M-210(행선지 확인 필요 품목)은 자동 처리하지 않음 — 추적 목록에서 직접 확인'});return;}
     if(sg.qty+0.5<c.qty){unresolved.push({...sg,reason:`발주수량 ${fmtN(c.qty)} 중 ${fmtN(sg.qty)}만 확인됨(수량 부족)`});return;}
-    c.done=true;
-    c.inDate=sg.dates.length?sg.dates.sort().slice(-1)[0]:cur;
-    c.outBy=whoNow();
-    // 사급처 표기가 등록명과 달랐다면(부서 표현 차이 등) 매각내역 쪽 표기를 비고에 남겨 나중에
-    // 확인·되돌리기 쉽게 함
-    const conDiff=nCon!==csSalesConNorm(c.consignee)?` · 매각내역 사급처 "${sg.consignee}"`:'';
-    c.note=(c.note?c.note+' · ':'')+`사급매각내역 자동매칭(매각 ${fmtN(sg.qty)}${c.unit||'kg'}${conDiff})`;
-    matched.push({consignee:c.consignee,item:c.item,ordQty:c.qty,soldQty:sg.qty,inDate:c.inDate});
+    complete(c);
   });
   if(matched.length)saveDB();
   refreshAll();
@@ -2789,13 +2845,15 @@ function csSalesMatch(rows,src,skipped){
 let CS_SALES_LAST_REPORT='';
 function csSalesShowResult(src,matched,unresolved,skipped){
   dlgTitle.textContent=`사급 매각내역 매칭 결과 — ${esc(src)}`;
-  const mRows=matched.length?matched.map(m=>`<tr><td><b>${esc(m.consignee)}</b></td><td>${esc(m.item)}</td><td class="num">발주 ${fmtN(m.ordQty)} / 매각 ${fmtN(m.soldQty)}</td><td>${esc(m.inDate)}</td></tr>`).join(''):'<tr><td colspan="4" class="empty">없음</td></tr>';
+  // 같은 품목 발주 여러 건을 한 매각 행으로 일괄 처리한 경우, 매각수량은 그 건들의 합계이므로 "N건 일괄"을 붙여 중복처럼 안 보이게 함
+  const soldTxt=m=>`매각 ${fmtN(m.soldQty)}${m.batch>1?` (${m.batch}건 일괄)`:''}`;
+  const mRows=matched.length?matched.map(m=>`<tr><td><b>${esc(m.consignee)}</b></td><td>${esc(m.item)}</td><td class="num">발주 ${fmtN(m.ordQty)} / ${soldTxt(m)}</td><td>${esc(m.inDate)}</td></tr>`).join(''):'<tr><td colspan="4" class="empty">없음</td></tr>';
   const uRows=unresolved.length?unresolved.map(u=>`<tr><td><b>${esc(u.consignee)}</b></td><td style="word-break:break-all">${esc(u.item)}</td><td class="num">${fmtN(u.qty)}</td><td class="tag">${esc(u.reason)}</td></tr>`).join(''):'<tr><td colspan="4" class="empty">없음</td></tr>';
   // 결과를 텍스트로 복사해 카톡·메일로 공유하거나 원인 문의할 때 쓸 수 있게 함(팝업은 캡처하면 잘림)
   const cell=s=>String(s??'').replace(/\s+/g,' ');   // 셀 안 줄바꿈·탭이 보고서 줄/칸을 깨지 않게
   CS_SALES_LAST_REPORT=[`[사급 매각내역 매칭 결과] ${src}`,
     `자동 입고완료 ${matched.length}건`,
-    ...matched.map(m=>`  ${cell(m.consignee)}\t${cell(m.item)}\t발주 ${fmtN(m.ordQty)} / 매각 ${fmtN(m.soldQty)}\t${m.inDate}`),
+    ...matched.map(m=>`  ${cell(m.consignee)}\t${cell(m.item)}\t발주 ${fmtN(m.ordQty)} / ${soldTxt(m)}\t${m.inDate}`),
     `확인 필요 ${unresolved.length}건`,
     ...unresolved.map(u=>`  ${cell(u.consignee)}\t${cell(u.item)}\t${fmtN(u.qty)}\t${cell(u.reason)}`),
     ...(skipped?[`못 읽은 행 ${skipped}건`]:[])].join('\n');

@@ -92,6 +92,10 @@ tr:hover td{background:var(--row-hover)}
 .prog{width:70px;height:9px;border-radius:2px;background:var(--line2);border:1px solid var(--line);overflow:hidden;display:inline-block;vertical-align:middle}
 .prog i{display:block;height:100%;background:var(--acc)}
 .prog.done i{background:var(--green)}
+/* 구매팀 처리 예정(toBuyer)은 자재과 완료(done)와 진행 막대가 시각적으로 똑같이 초록 100%로
+   차서 헷갈리기 쉬웠음 — 그냥 accent 색만 쓰면 진행 중(부분 완료) 막대와도 구분이 안 되므로,
+   사선 줄무늬로 눈에 띄게 구분해 "완료"도 "진행 중"도 아닌 별도 상태임을 표시 */
+.prog.buyer i{background:repeating-linear-gradient(45deg,var(--acc),var(--acc) 4px,var(--card) 4px,var(--card) 8px)}
 .pct{font-size:11px;color:var(--mut);margin-left:5px}
 input[type=checkbox].ck{width:16px;height:16px;accent-color:var(--acc);cursor:pointer}
 td input[type=date],td select{background:var(--card);border:1px solid var(--line);border-radius:2px;color:var(--ink);padding:1px 3px;font:inherit;font-size:11.5px;max-width:116px}
@@ -131,6 +135,7 @@ pre.sql{background:var(--head);border:1px solid var(--line);border-radius:2px;pa
 <header>
   <h1>자재과 마감관리</h1>
   <span class="sub">사급(매각) 매출 · 매입 월마감 + 발주-입고 대사</span>
+  <a class="btn sm" href="index.html" style="text-decoration:none;display:inline-block" title="자재과 작업판 화면으로 이동">← 작업판</a>
   <span class="sp"></span>
   <label class="sub" for="monPick">마감월</label>
   <input type="month" id="monPick">
@@ -679,9 +684,12 @@ function sideStat(side){
   const vs=dashVendors(side);
   const es=vs.map(v=>entryRO(side,v.id));
   const done=es.filter(e=>pct(side,e)===1).length;
+  // toBuyer(구매팀 처리 예정)는 pct()상 완료(1)로 잡히지만 자재과 자체 마감 완료와는 다른 상태라,
+  // 대시보드에서 "마감 완료 업체" 숫자에 몇 곳이 섞여 있는지 따로 알 수 있게 별도로 셈
+  const toBuyer=side==='purchase'?es.filter(e=>e.toBuyer).length:0;
   const avg=vs.length?es.reduce((a,e)=>a+pct(side,e),0)/vs.length:0;
   const dist={};es.forEach(e=>{const d=delayStep(side,e);if(d)dist[d]=(dist[d]||0)+1;});
-  return{total:vs.length,done,avg,dist};
+  return{total:vs.length,done,toBuyer,avg,dist};
 }
 function setDashWho(w){dashWho=w;flt.sales.who=w;flt.purchase.who=w;renderView();}
 function dashHTML(){
@@ -697,7 +705,7 @@ function dashHTML(){
   const statCard=(side,st)=>`<div class="card"><h2>${SIDE_LB[side]} <span class="cnt">${mon}</span></h2>
     <div class="stat">
       <div class="it"><div class="v num">${Math.round(st.avg*100)}<small>%</small></div><div class="k">평균 진행률</div></div>
-      <div class="it"><div class="v num">${st.done}<small> / ${st.total}</small></div><div class="k">마감 완료 업체</div></div>
+      <div class="it"><div class="v num">${st.done}<small> / ${st.total}</small></div><div class="k">마감 완료 업체${st.toBuyer?`<div class="mut" style="font-size:11px;margin-top:1px">(구매팀 처리 ${st.toBuyer}곳 포함)</div>`:''}</div></div>
       <div class="it"><div class="v num">${st.total-st.done}</div><div class="k">미완</div></div>
     </div>
     <div style="margin-top:12px"><div class="k mut" style="font-size:12px;margin-bottom:2px">지연단계 분포 (미완 업체)</div>${distBar(side,st)}</div>
@@ -862,7 +870,7 @@ function rowHTML(side,v,isLast){
     ${STEPS[side].map((name,i)=>{const c=e.st&&e.st[name]===true;return`<td style="text-align:center;${stepBorder(side,i,isLast)}"><input type="checkbox" class="ck" data-fk="${side}|${esc(v.id)}|${esc(name)}"${c?' checked':''} onchange="setStep('${side}','${v.id}','${name}',this.checked)"></td>`;}).join('')}
     <td><input type="text" value="${esc(e.note)}" placeholder="비고" style="width:130px" onchange="setSent('${side}','${v.id}','note',this.value)"></td>
     ${side==='purchase'?`<td style="text-align:center" title="금액 불일치 — 구매팀이 월말에 직접 마감 처리(자재과 미완료 집계에서 제외)"><input type="checkbox" class="ck" data-fk="${side}|${esc(v.id)}|buyer"${e.toBuyer?' checked':''} onchange="setToBuyer('${side}','${v.id}',this.checked)"></td>`:''}
-    <td><span class="prog${p===1?' done':''}"><i style="width:${p*100}%"></i></span><span class="pct num">${Math.round(p*100)}%</span></td>
+    <td><span class="prog${side==='purchase'&&e.toBuyer?' buyer':p===1?' done':''}"><i style="width:${p*100}%"></i></span><span class="pct num">${Math.round(p*100)}%</span></td>
     <td>${side==='purchase'&&e.toBuyer?'<span class="pill b">구매팀 처리</span>':p===1?'<span class="pill g">완료</span>':`<span class="pill ${p>0?'a':'r'}">${dl||'미완'}</span>`}</td>
     <td><button class="btn sm ghost" onclick="editVendor('${side}','${v.id}')">✎</button></td>
   </tr>`;

@@ -56,6 +56,9 @@ nav{background:var(--head);border-bottom:1px solid var(--line);padding:0 16px 0;
 nav button{background:var(--line2);border:1px solid var(--line);border-bottom:none;color:var(--mut);padding:8px 14px;font:inherit;font-size:12.5px;font-weight:500;cursor:pointer;white-space:nowrap;border-radius:2px 2px 0 0;margin-top:4px}
 nav button.on{color:#fff;background:var(--acc);border-color:var(--acc)}
 nav button .b{display:inline-block;min-width:16px;padding:0 4px;border-radius:2px;background:var(--amber);color:#fff;font-size:10.5px;margin-left:5px;text-align:center;font-weight:700}
+/* 자주 쓰는 업무 탭(현황·캘린더·배합실요청·발주입고·사급발주)과 기준정보·통계 등 관리용 탭 사이에
+   구분선만 넣어 우선순위를 구분 — 기능을 숨기거나 순서를 크게 바꾸지 않음(요청사항 준수) */
+nav button[data-t="master"]{margin-left:10px;border-left:1px solid var(--line);padding-left:16px}
 main{max-width:1280px;margin:14px auto;padding:0 16px 60px}
 .grid{display:grid;gap:12px}
 .g2{grid-template-columns:repeat(auto-fit,minmax(340px,1fr));align-items:start}
@@ -217,7 +220,7 @@ details.card summary .cnt{font-size:11.5px;color:var(--mut);font-weight:500}
   <span class="sub">입고 · 창고이동 · 발주 · 사급 한 화면</span>
   <!-- 화면이 최신 버전인지 바로 확인할 수 있게 표시 — 이 값이 다르면 브라우저가
        예전 파일을 캐시해 둔 것이므로 강력 새로고침(Ctrl+F5 / 아이폰은 Safari 재실행) 필요 -->
-  <span class="sub" id="buildStamp" title="화면 버전 — 최신이 아니면 Ctrl+F5로 강력 새로고침">v2026-09-07c</span>
+  <span class="sub" id="buildStamp" title="화면 버전 — 최신이 아니면 Ctrl+F5로 강력 새로고침">v2026-09-07d</span>
   <span class="sp"></span>
   <span class="date">기준일 <button class="btn sm" onclick="setDate(addDays(cur,-1))" title="하루 전 (기준일 −1)">◀</button><input type="date" id="curDate" onchange="setDate(this.value)"><button class="btn sm" onclick="setDate(addDays(cur,1))" title="하루 뒤 (기준일 +1)">▶</button></span>
   <span id="curWarn" class="tag" style="display:none;background:var(--amber-soft);color:var(--amber);border:1px solid var(--amber);padding:3px 8px;border-radius:2px;font-weight:700;cursor:pointer" title="기준일이 오늘이 아니면 등록·체크가 이 날짜로 기록됩니다" onclick="setDate(realToday())">⚠ 기준일이 오늘이 아님 — 오늘로</span>
@@ -232,6 +235,10 @@ details.card summary .cnt{font-size:11.5px;color:var(--mut);font-weight:500}
   <span class="chip c-wait" id="drvNotif" style="display:none;cursor:pointer" onclick="clearDrvNotif()" title="눌러서 확인"></span>
   <span class="chip c-late" id="delAlert" style="display:none;cursor:pointer" onclick="ackDeletes()" title="눌러서 삭제 기록 보기"></span>
   <button class="btn sm" onclick="toggleDriver()" id="btnDrv">지게차 화면</button>
+  <!-- a가 아니라 button으로 만듦 — 지게차 화면 잠금(body.driver)이 header button만 숨기므로
+       a 링크였다면 기사 화면에서도 그대로 눌려 비밀번호 없이 월마감 관리 화면으로 새어나갈 수
+       있었음(코드리뷰로 발견) -->
+  <button class="btn sm" onclick="location.href='magam.html'" title="자재과 마감관리 화면으로 이동">월마감 →</button>
   <button class="btn sm" onclick="openShare()">공유·바로가기</button>
   <button class="btn sm" onclick="exportJSON()">백업</button>
   <button class="btn sm" onclick="impFile.click()">복원</button>
@@ -259,7 +266,7 @@ details.card summary .cnt{font-size:11.5px;color:var(--mut);font-weight:500}
     <div class="hint">기준일이 지났는데 전산이동완료 처리가 안 된 건이 있습니다 — 탭하면 배합실요청 화면에서 바로 처리할 수 있어요.</div>
   </div>
   <div class="grid g2" id="boardCards">
-    <div class="card">
+    <div class="card" id="inCard">
       <h2>오늘 입고 예정 <span class="cnt" id="cntIn"></span></h2>
       <div class="tbl scroll"><table><thead><tr><th>품목</th><th>업체</th><th>창고</th><th class="num">수량</th><th>부서</th><th>비고</th><th></th></tr></thead><tbody id="boardIn"></tbody></table></div>
     </div>
@@ -284,7 +291,7 @@ details.card summary .cnt{font-size:11.5px;color:var(--mut);font-weight:500}
       <div class="grp-lbl" id="cycSugLbl" style="display:none">발주 주기 제안 <span class="tag" style="font-weight:400">2026-08-26부터 실제 발주 간격 기준 · 적용은 직접 눌러야 반영됨</span></div>
       <div class="tbl scroll" id="cycSugWrap" style="display:none"><table><thead><tr><th>품목</th><th>현재 주기</th><th class="num">실제 평균 간격</th><th>제안 주기</th><th></th></tr></thead><tbody id="boardCycSug"></tbody></table></div>
     </div>
-    <div class="card">
+    <div class="card" id="csCard">
       <h2>사급 출고 · 사급 발주 대기 <span class="cnt" id="cntCs"></span></h2>
       <div class="tbl scroll"><table><thead><tr><th>품목</th><th>사급처</th><th class="num">수량</th><th>처리</th><th>요청납기</th><th>상태</th><th></th></tr></thead><tbody id="boardCs"></tbody></table></div>
     </div>
@@ -404,7 +411,7 @@ details.card summary .cnt{font-size:11.5px;color:var(--mut);font-weight:500}
       <input id="odSearch" placeholder="품목·업체 검색" oninput="renderOrders()" style="flex:1;min-width:140px">
       <div><label>착일 날짜</label><input type="date" id="odEtaDateFlt" onchange="renderOrders()"></div>
       <div><label>착일 월</label><input type="month" id="odEtaMonthFlt" onchange="renderOrders()"></div>
-      <button class="btn sm ghost" onclick="odEtaDateFlt.value='';odEtaMonthFlt.value='';renderOrders()">착일 필터 지우기</button>
+      <button class="btn sm ghost" onclick="odFlt.value='';odSearch.value='';odEtaDateFlt.value='';odEtaMonthFlt.value='';odHide.checked=true;renderOrders()">필터 전체 초기화</button>
       <label style="display:flex;align-items:center;gap:5px;margin:0"><input type="checkbox" id="odHide" checked onchange="renderOrders()">입고완료 7일 지난 건 숨김</label>
       <button class="btn sm pri" onclick="bulkMarkIn()">입고처리</button>
       <button class="btn sm" id="odBulkDelBtn" style="color:var(--red)" onclick="bulkDelOrder()">삭제</button>
@@ -454,7 +461,7 @@ details.card summary .cnt{font-size:11.5px;color:var(--mut);font-weight:500}
       <input id="csSearch" placeholder="사급처·품목 검색" oninput="renderCs()" style="flex:1;min-width:140px">
       <div><label>납기 날짜</label><input type="date" id="csDueDateFlt" onchange="renderCs()"></div>
       <div><label>납기 월</label><input type="month" id="csDueMonthFlt" onchange="renderCs()"></div>
-      <button class="btn sm ghost" onclick="csDueDateFlt.value='';csDueMonthFlt.value='';renderCs()">납기 필터 지우기</button>
+      <button class="btn sm ghost" onclick="csFlt.value='';csActionFlt.value='';csSearch.value='';csDueDateFlt.value='';csDueMonthFlt.value='';renderCs()">필터 전체 초기화</button>
       <button class="btn sm" onclick="mailForSelected()">선택 건 메일 다시 만들기</button>
       <button class="btn sm pri" onclick="csBulkMark()">선택 입고완료 처리</button>
       <span class="tag" id="csSelCnt"></span>
@@ -1631,12 +1638,16 @@ function renderBoard(){
   renderNotes();
   // 통계
   const lateN=S.orders.filter(o=>orderStatus(o)==='입고지연').length;
+  // 요약 카드를 누르면 그 숫자를 센 것과 정확히 같은 목록으로 이동해야 함. "오늘 입고 예정"·
+  // "오늘 발주할 것"·"사급 대기"는 발주·입고 추적/사급발주 탭에 정확히 같은 기준의 필터가 없어서
+  // (예: "오늘 발주할 것"의 재고·주기 기준 목록은 그 탭에 아예 없음) 탭을 옮기는 대신 지금 보고
+  // 있는 이 현황 화면 안의 해당 카드로 스크롤 이동 — 숫자와 보이는 목록이 항상 정확히 일치함.
   document.getElementById('stats').innerHTML=`
-    <div class="s acc" onclick="showTab('order')"><div class="v">${rows.filter(o=>!o.inDate).length}</div><div class="l">오늘 입고 예정</div></div>
+    <div class="s acc" onclick="document.getElementById('inCard').scrollIntoView({behavior:'smooth',block:'start'})"><div class="v">${rows.filter(o=>!o.inDate).length}</div><div class="l">오늘 입고 예정</div></div>
     <div class="s" onclick="showTab('move')"><div class="v">${mv.filter(m=>!m.done).length}</div><div class="l">창고이동 남은 건</div></div>
-    <div class="s amber" onclick="showTab('order')"><div class="v">${dueN}</div><div class="l">오늘 발주할 것</div></div>
-    <div class="s red" onclick="odFlt.value='입고지연';showTab('order');renderOrders()"><div class="v">${lateN}</div><div class="l">입고 지연</div></div>
-    <div class="s" onclick="showTab('consign')"><div class="v">${cs.length}</div><div class="l">사급 대기</div></div>`;
+    <div class="s amber" onclick="document.getElementById('dueCard').scrollIntoView({behavior:'smooth',block:'start'})"><div class="v">${dueN}</div><div class="l">오늘 발주할 것</div></div>
+    <div class="s red" onclick="odFlt.value='입고지연';showTab('order');renderOrders()"><div class="v">${lateN}</div><div class="l">입고 지연(전체)</div></div>
+    <div class="s" onclick="document.getElementById('csCard').scrollIntoView({behavior:'smooth',block:'start'})"><div class="v">${cs.length}</div><div class="l">사급 대기</div></div>`;
 }
 function quickOrder(type,i){
   const p=type==='self'?M.presetSelf[i]:M.presetConsign[i];

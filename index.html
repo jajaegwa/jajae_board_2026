@@ -2772,11 +2772,14 @@ function csSalesRenderColumnMap(det){
   const h=det?det.h:0;
   const header=grid[h]||[];
   const opts=(sel)=>{let o='<option value="-1">— 없음 —</option>';for(let i=0;i<ncol;i++)o+=`<option value="${i}" ${sel===i?'selected':''}>${i+1}열: ${esc(String(header[i]??'').slice(0,16))}</option>`;return o;};
-  const sample=grid.slice(h+1,h+6).map((row,ri)=>`<tr><td class="tag">${h+2+ri}행</td>${Array.from({length:ncol},(_,i)=>`<td>${esc(String(row[i]??'').slice(0,24))}</td>`).join('')}</tr>`).join('');
+  // 열이 많고 주소 등 긴 텍스트가 섞여 있으면 줄바꿈 때문에 한 행이 화면을 다 채울 만큼
+  // 늘어나 알아보기 어려웠음(사용자 스크린샷으로 확인) — 셀은 한 줄로 고정하고 넘치는 내용은
+  // 말줄임표로 자른 뒤(가로 스크롤로 전체 확인 가능) 세로로는 5행이 한눈에 들어오게 함.
+  const sample=grid.slice(h+1,h+6).map((row,ri)=>`<tr><td class="tag">${h+2+ri}행</td>${Array.from({length:ncol},(_,i)=>`<td style="max-width:160px;overflow:hidden;text-overflow:ellipsis" title="${esc(String(row[i]??''))}">${esc(String(row[i]??'').slice(0,40))}</td>`).join('')}</tr>`).join('');
   const headRow=`<tr><th></th>${Array.from({length:ncol},(_,i)=>`<th>${i+1}열</th>`).join('')}</tr>`;
   document.getElementById('csSalesMap').innerHTML=`
-    <div class="hint">자동 인식 결과입니다 — 틀렸으면 아래에서 직접 고치고 [열 확정]을 누르세요. 첫 5행 샘플로 확인하세요.</div>
-    <div class="tbl scroll" style="max-height:160px;margin:6px 0"><table><thead>${headRow}</thead><tbody>${sample}</tbody></table></div>
+    <div class="hint">자동 인식 결과입니다 — 틀렸으면 아래에서 직접 고치고 [열 확정]을 누르세요. 첫 5행 샘플로 확인하세요(칸에 마우스를 올리면 전체 내용이 보입니다).</div>
+    <div class="tbl scroll" style="max-height:260px;margin:6px 0"><table style="white-space:nowrap"><thead>${headRow}</thead><tbody>${sample}</tbody></table></div>
     <div class="row" style="align-items:center;flex-wrap:wrap;gap:6px 12px">
       <label>헤더행(1부터, 헤더 없으면 0)</label><input id="csmH" type="number" value="${h+1}" min="0" style="width:60px">
       <label>사급처열*</label><select id="csmV">${opts(det?det.vi:-1)}</select>

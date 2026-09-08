@@ -220,7 +220,7 @@ details.card summary .cnt{font-size:11.5px;color:var(--mut);font-weight:500}
   <span class="sub">입고 · 창고이동 · 발주 · 사급 한 화면</span>
   <!-- 화면이 최신 버전인지 바로 확인할 수 있게 표시 — 이 값이 다르면 브라우저가
        예전 파일을 캐시해 둔 것이므로 강력 새로고침(Ctrl+F5 / 아이폰은 Safari 재실행) 필요 -->
-  <span class="sub" id="buildStamp" title="화면 버전 — 최신이 아니면 Ctrl+F5로 강력 새로고침">v2026-09-07n</span>
+  <span class="sub" id="buildStamp" title="화면 버전 — 최신이 아니면 Ctrl+F5로 강력 새로고침">v2026-09-08a</span>
   <span class="sp"></span>
   <span class="date">기준일 <button class="btn sm" onclick="setDate(addDays(cur,-1))" title="하루 전 (기준일 −1)">◀</button><input type="date" id="curDate" onchange="setDate(this.value)"><button class="btn sm" onclick="setDate(addDays(cur,1))" title="하루 뒤 (기준일 +1)">▶</button></span>
   <span id="curWarn" class="tag" style="display:none;background:var(--amber-soft);color:var(--amber);border:1px solid var(--amber);padding:3px 8px;border-radius:2px;font-weight:700;cursor:pointer" title="기준일이 오늘이 아니면 등록·체크가 이 날짜로 기록됩니다" onclick="setDate(realToday())">⚠ 기준일이 오늘이 아님 — 오늘로</span>
@@ -1632,7 +1632,7 @@ function renderBoard(){
   const order={'경질':0,'창호':1,'타일':2,'DBP':3};
   mv.sort((a,b)=>(order[a.dept]??9)-(order[b.dept]??9));
   document.getElementById('boardMv').innerHTML=mv.length?mv.map(m=>{const cv=convInfo(m.item,m.qty,m.unit);
-    return`<tr class="${m.done&&m.erp?'done':''}"><td><b>${esc(m.item)}</b>${r696Badge(m)}${isThird(m.addedBy)?` <span class="chip c-ord">✋ ${esc(m.addedBy)} 등록</span>`:''}${m.done?byBadge(m.doneBy):''}</td><td>${deptChip(m.dept)}</td><td><span class="loc">${esc(m.loc||'?')}</span></td><td class="num">${fmtN(m.qty)} ${esc(m.unit)}${cv?`<div class="tag">${esc(cv)}</div>`:''}</td><td class="tag">${esc(m.note)}</td><td>${!m.done?`<button class="btn sm" onclick="toggleMove(${m.id})">실물완료</button>`:(!m.erp?`<span class="chip c-wait">전산 대기</span> <button class="btn sm pri" onclick="toggleErp(${m.id})">전산완료</button> <button class="btn sm ghost" onclick="toggleMove(${m.id})" title="실물 완료 취소">↩</button>`:`<span class="chip c-done">전산완료</span> <button class="btn sm ghost" onclick="toggleErp(${m.id})" title="전산 완료 취소">↩</button>`)}</td></tr>`;}).join(''):'<tr><td colspan="6" class="empty">요청 없음 — [배합실요청] 탭에서 입력</td></tr>';
+    return`<tr class="${m.done&&m.erp?'done':''}"><td><b>${esc(m.item)}</b>${r696Badge(m,true)}${isThird(m.addedBy)?` <span class="chip c-ord">✋ ${esc(m.addedBy)} 등록</span>`:''}${m.done?byBadge(m.doneBy):''}</td><td>${deptChip(m.dept)}</td><td><span class="loc">${esc(m.loc||'?')}</span></td><td class="num">${fmtN(m.qty)} ${esc(m.unit)}${cv?`<div class="tag">${esc(cv)}</div>`:''}</td><td class="tag">${esc(m.note)}</td><td>${!m.done?`<button class="btn sm" onclick="toggleMove(${m.id})">실물완료</button>`:(!m.erp?`<span class="chip c-wait">전산 대기</span> <button class="btn sm pri" onclick="toggleErp(${m.id})">전산완료</button> <button class="btn sm ghost" onclick="toggleMove(${m.id})" title="실물 완료 취소">↩</button>`:`<span class="chip c-done">전산완료</span> <button class="btn sm ghost" onclick="toggleErp(${m.id})" title="전산 완료 취소">↩</button>`)}</td></tr>`;}).join(''):'<tr><td colspan="6" class="empty">요청 없음 — [배합실요청] 탭에서 입력</td></tr>';
   document.getElementById('cntMv').textContent=mv.length?`실물 ${mv.filter(m=>!m.done).length} · 전산 ${mv.filter(m=>m.done&&!m.erp).length}건 남음`:'';
   // 발주할 것 — 재고(ROP) 기준 + 주기 기준
   const rop=ropDue();
@@ -2042,7 +2042,6 @@ function notifyGone(){toast('이미 삭제된 건입니다 (다른 기기에서 
 function findLive(list,id){const x=list.find(o=>o.id===id);if(!x)notifyGone();return x;}
 function toggleMove(id){const m=findLive(S.moves,id);if(!m)return;
   if(!m.done&&needName(()=>toggleMove(id)))return;
-  if(!m.done&&isR696(m.item)&&!m.r696){openR696(m);return;}
   m.done=!m.done;
   if(m.done){m.doneBy=whoNow();m.doneAt=realToday()+' '+new Date().toTimeString().slice(0,5);}
   else{delete m.doneBy;delete m.doneAt;}
@@ -2053,7 +2052,9 @@ function toggleErp(id){const m=S.moves.find(x=>x.id===id);
   else{m.erp=realToday()+' '+new Date().toTimeString().slice(0,5);m.erpBy=whoNow();}
   saveDB();refreshAll();}
 
-/* ═════════ R696 규칙 — 창고이동 = 실사용 신호, 당월 추가 사용량 확인 전 완료 금지 ═════════ */
+/* ═════════ R696 규칙 — 창고이동 = 실사용 신호. 실물이동완료(체크박스)와 생산팀 사용량 확인은
+   서로 독립적으로, 순서·시점 상관없이 각자 처리됨(예전엔 확인 전엔 완료 체크 자체가 막혀 있었으나
+   현장 실물이동 기록이 늦어지는 문제로 분리함) ═════════ */
 const isR696=it=>norm(it).includes('696')&&!norm(it).includes('KRONOS');
 /* TIONA-696 계열(백/지대) 여부 — ropOf()에서 쓰는 좁은 판정. isR696은 '696'이 들어간 아무 품목이나
    다 잡아서(예: R-696처럼 실제로는 다른 품목) 백/지대 전용 로직으로 잘못 보낼 수 있어 따로 둠. */
@@ -2062,21 +2063,26 @@ const isM210=it=>norm(it).includes('M210');
 /* '666'은 지대(JD) 포장을 가리키는 코드로도 쓰임(TIONA-666(696)) — '지대'라는 글자가 없어도
    '666'이 들어간 이름이면 지대로 인식해야 "666(696)이랑 TIONA-696 같은 거 아니냐"는 혼동이 안 생김 */
 function r696Variant(it){return /666|지대|PB25/.test(norm(it))?'TIONA-666(696)':'TIONA-696';}
+// 실물이동완료(체크박스)와 R696 사용량 확인은 서로 독립적으로 처리됨 — 기사는 이동 즉시 체크,
+// 자재과는 이 확인창을 따로 아무 때나(전·후 상관없이) 채움. 예전엔 확인 전엔 기사가 완료 체크
+// 자체를 못 하게 막았는데, 현장에서 실물이동 기록이 늦어지는 문제가 있어 분리함(신고로 발견).
 function openR696(m){
   const variant=r696Variant(m.item);
   const rp=ropOf(m.item);   // 백/지대 발주점 조회는 ropOf()로 통일 — 여기서 따로 다시 구현하면 나중에 매칭 로직이 바뀔 때 한쪽만 갱신되는 사고가 남
   const stk=S.inv&&S.inv.stock?(S.inv.stock[variant]??S.inv.stock['TIONA-696']??null):null;
   const openPo=S.orders.filter(o=>!o.skip&&!o.inDate&&o.unit==='kg'&&isR696(o.item)).reduce((a,o)=>a+(+o.qty||0),0);
   const mvKg=m.unit==='kg'?+m.qty||0:null;
-  dlgTitle.textContent='R696 — 당월 추가 사용량 확인 (완료 전 필수)';
+  const r=m.r696||{};   // 이미 확인된 기록이 있으면(재확인·정정) 그 값을 그대로 채워둠
+  dlgTitle.textContent='R696 — 당월 추가 사용량 확인';
   dlgBody.innerHTML=`
-    <div style="grid-column:1/-1" class="hint">R696(TIONA-696) 창고이동은 <b>실사용 신호</b>임. 생산팀에 이번 달 추가 사용 예정량을 확인해야 완료 처리됨.<br>
+    <div style="grid-column:1/-1" class="hint">R696(TIONA-696) 창고이동은 <b>실사용 신호</b>임. 생산팀에 이번 달 추가 사용 예정량을 확인해 기록함(실물이동완료 체크와는 별개).<br>
     ${stk!=null?`재고파일 기준 현재고 <b>${fmtN(stk)}kg</b> · 미입고 발주 ${fmtN(openPo)}kg · 발주점 ${rp?fmtN(rp.rop)+'kg':'기준 미등록'}`:'DW 재고 파일 미반영 — 수치는 직접 판단'} · 이번 이동 ${fmtN(m.qty)} ${esc(m.unit)}</div>
-    <div><label>당월 추가 사용 예정량(kg) — 없으면 0</label><input data-k="usage" type="number" step="any"></div>
-    <div><label>확인자(생산팀)</label><input data-k="by" placeholder="예: 경질 ○○○"></div>
-    <div style="grid-column:1/-1"><label>확인 근거 메모(생산계획·통화 내용)</label><input data-k="note"></div>
+    <div><label>당월 추가 사용 예정량(kg) — 없으면 0</label><input data-k="usage" type="number" step="any" value="${r.usage??''}"></div>
+    <div><label>확인자(생산팀)</label><input data-k="by" placeholder="예: 경질 ○○○" value="${esc(r.by||'')}"></div>
+    <div style="grid-column:1/-1"><label>확인 근거 메모(생산계획·통화 내용)</label><input data-k="note" value="${esc(r.note||'')}"></div>
     <div><label>발주 판정 (추가 사용량 있으면 필수)</label><select data-k="dec"><option value="">— 선택 —</option><option>발주</option><option>미발주</option><option>보류</option></select></div>
-    <div><label>미발주 사유 (미발주 선택 시 필수)</label><input data-k="reason"></div>`;
+    <div><label>미발주 사유 (미발주 선택 시 필수)</label><input data-k="reason" value="${esc(r.reason||'')}"></div>`;
+  if(r.dec)dlgBody.querySelector('[data-k="dec"]').value=r.dec==='해당없음'?'':r.dec;
   document.getElementById('dlgDelBtn').style.display='none';
   dlgCtx={obj:{},fields:[],onDel:()=>{},onSave:o=>{
     const usage=o.usage;
@@ -2087,22 +2093,25 @@ function openR696(m){
     const needDec=(+usage>0)||(projected!=null&&rp&&projected<rp.rop);
     if(needDec&&!o.dec){toast('발주 판정(발주/미발주/보류)을 선택하세요'+(projected!=null&&rp?` — 예상재고 ${fmtN(Math.round(projected))}kg / 발주점 ${fmtN(rp.rop)}kg`:''));return false;}
     if(o.dec==='미발주'&&!o.reason){toast('미발주 사유를 입력하세요 (저장 차단)');return false;}
+    const prevDec=m.r696?m.r696.dec:null;   // 이미 발주로 확인해둔 기록을 재저장(정정)할 때 발주안이 또 등록되지 않게
     m.r696={usage:+usage,by:o.by,note:o.note||'',dec:o.dec||'해당없음',reason:o.reason||'',projected:projected!=null?Math.round(projected):null,at:realToday()+' '+new Date().toTimeString().slice(0,5)};
-    m.done=true;m.doneBy=whoNow();m.doneAt=m.r696.at;
-    if(o.dec==='발주'){
+    if(o.dec==='발주'&&prevDec!=='발주'){
       const short2=rp&&projected!=null?Math.max(0,rp.rop-projected):0;
       const qty=rp?Math.max(rp.qty,Math.ceil(short2/(rp.qty||1))*(rp.qty||1)):4000;
       S.orders.push({id:S.seq++,type:'self',ordDate:cur,vendor:rp?rp.vendor:(SENSITIVE.tionaFallbackVendor||'(확인 필요)'),item:variant==='TIONA-666(696)'?'TIONA-696(지대)':'TIONA-696(백)',dest:'자가(세종·부강)',qty,unit:'kg',eta:addDays(cur,rp?Math.ceil(rp.lt):2),inDate:'',loc:m.loc,dept:m.dept,note:`R696 창고이동 연계 발주 (확인:${o.by})`});
-      toast(`R696 확인 완료 · ${fmtN(qty)}kg 발주안 등록됨`);
-    }else toast('R696 확인 기록 저장 — 이동 완료 처리됨');
+      toast(`R696 확인 저장됨 · ${fmtN(qty)}kg 발주안 등록됨`);
+    }else if(o.dec==='발주')toast('R696 확인 저장됨 — 이미 발주 등록된 건이라 중복 등록하지 않음');
+    else toast('R696 확인 기록 저장됨');
     saveDB();refreshAll();
   }};
+  dlgBody.querySelectorAll('input,select').forEach(i=>{const k=i.dataset.k;if(k)dlgCtx.obj[k]=dlgVal(i);});   // dlgDirty()가 방금 채운 기존 값을 "수정됨"으로 오판하지 않게 기준값을 맞춰둠
   dlg.showModal();
 }
-function r696Badge(m){
+function openR696ById(id){const m=findLive(S.moves,id);if(m)openR696(m);}
+function r696Badge(m,clickable){
   if(!isR696(m.item))return'';
-  if(m.r696)return` <span class="chip c-done" title="확인 ${esc(m.r696.by)} · 추가사용 ${fmtN(m.r696.usage)}kg · 판정 ${esc(m.r696.dec)}">R696 확인됨</span>`;
-  return' <span class="chip c-late">R696 사용량 확인 필요</span>';
+  if(m.r696)return` <span class="chip c-done"${clickable?` style="cursor:pointer" onclick="openR696ById(${m.id})" title="확인 ${esc(m.r696.by)} · 추가사용 ${fmtN(m.r696.usage)}kg · 판정 ${esc(m.r696.dec)} — 눌러서 수정"`:` title="확인 ${esc(m.r696.by)} · 추가사용 ${fmtN(m.r696.usage)}kg · 판정 ${esc(m.r696.dec)}"`}>R696 확인됨</span>`;
+  return clickable?` <span class="chip c-late" style="cursor:pointer" onclick="openR696ById(${m.id})" title="눌러서 당월 추가 사용량 확인 입력">R696 사용량 확인 필요 ▸</span>`:' <span class="chip c-late">R696 사용량 확인 필요</span>';
 }
 /* 삭제는 두 번 탭 방식 — 아티팩트 뷰어에서 confirm() 팝업이 막혀 있음 */
 let _arm='',_armT=null;
@@ -2126,15 +2135,15 @@ function updateMvSelCnt(){const el=document.getElementById('mvSelCnt');if(el)el.
 function bulkDoneMv(){
   if(!selMv.size){toast('선택된 항목이 없습니다');return;}
   if(needName(()=>bulkDoneMv()))return;
-  let done=0,skipped=0;
+  let done=0;
   selMv.forEach(id=>{
     const m=S.moves.find(x=>x.id===id);
     if(!m||m.done)return;
-    if(isR696(m.item)&&!m.r696){skipped++;return;}
+    // 실물이동완료는 R696 사용량 확인과 별개로 바로 처리(확인은 자재과가 배지 클릭으로 나중에도 가능)
     m.done=true;m.doneBy=whoNow();m.doneAt=realToday()+' '+new Date().toTimeString().slice(0,5);done++;
   });
   selMv.clear();saveDB();refreshAll();
-  toast(skipped?`${done}건 처리됨 (R696 ${skipped}건은 개별 확인 필요)`:`${done}건 실물이동완료 처리됨`);
+  toast(`${done}건 실물이동완료 처리됨`);
 }
 /* 전산이동 일괄 처리 — toggleErp와 마찬가지로 실물이동 여부와 무관하게 독립적으로 처리 가능 */
 function bulkErpMv(){
@@ -2166,7 +2175,7 @@ function renderMoves(){
   const allSel=mv.length>0&&mv.every(m=>selMv.has(m.id));
   const selAllEl=document.getElementById('mvSelAll');if(selAllEl)selAllEl.checked=allSel;
   document.getElementById('mvBody').innerHTML=mv.length?mv.map(m=>{const cv=convInfo(m.item,m.qty,m.unit);
-    return`<tr class="${m.done&&m.erp?'done':''}"><td><input type="checkbox" ${selMv.has(m.id)?'checked':''} onchange="toggleSelMv(${m.id},this.checked)" title="선택"></td><td><b>${esc(m.item)}</b>${r696Badge(m)}${isThird(m.addedBy)?` <span class="chip c-ord">✋ ${esc(m.addedBy)} 등록</span>`:''}${m.done?byBadge(m.doneBy,'실물이동완료'):''}</td><td>${deptChip(m.dept)}</td><td><span class="loc">${esc(m.loc||'?')}</span></td><td class="num">${fmtN(m.qty)} ${esc(m.unit)}${m.actKg?`<div class="tag" style="color:var(--acc)">전산 ${fmtN(m.actKg)}kg (실출고 보정)${isThird(m.actKgBy)?` <span class="chip c-ord">✋ ${esc(m.actKgBy)} 보정</span>`:''}</div>`:(cv?`<div class="tag">${esc(cv)}</div>`:'')}</td><td class="tag">${esc(m.note)}</td><td><input type="checkbox" ${m.done?'checked':''} onchange="toggleMove(${m.id})" title="실물이동"></td><td>${m.erp?`<span class="chip c-done">전산완료</span> <button class="btn sm ghost" onclick="toggleErp(${m.id})" title="전산 완료 취소">↩</button>`:`<span class="chip c-wait">전산 대기</span> <button class="btn sm pri" onclick="toggleErp(${m.id})">전산완료</button>`} <button class="btn sm" onclick="editMove(${m.id})">수정</button> <button class="btn sm" style="color:var(--red)" onclick="delMove(${m.id})">${armLbl('mv'+m.id)}</button></td></tr>`;}).join(''):'<tr><td colspan="8" class="empty">기준일 요청 없음</td></tr>';
+    return`<tr class="${m.done&&m.erp?'done':''}"><td><input type="checkbox" ${selMv.has(m.id)?'checked':''} onchange="toggleSelMv(${m.id},this.checked)" title="선택"></td><td><b>${esc(m.item)}</b>${r696Badge(m,true)}${isThird(m.addedBy)?` <span class="chip c-ord">✋ ${esc(m.addedBy)} 등록</span>`:''}${m.done?byBadge(m.doneBy,'실물이동완료'):''}</td><td>${deptChip(m.dept)}</td><td><span class="loc">${esc(m.loc||'?')}</span></td><td class="num">${fmtN(m.qty)} ${esc(m.unit)}${m.actKg?`<div class="tag" style="color:var(--acc)">전산 ${fmtN(m.actKg)}kg (실출고 보정)${isThird(m.actKgBy)?` <span class="chip c-ord">✋ ${esc(m.actKgBy)} 보정</span>`:''}</div>`:(cv?`<div class="tag">${esc(cv)}</div>`:'')}</td><td class="tag">${esc(m.note)}</td><td><input type="checkbox" ${m.done?'checked':''} onchange="toggleMove(${m.id})" title="실물이동"></td><td>${m.erp?`<span class="chip c-done">전산완료</span> <button class="btn sm ghost" onclick="toggleErp(${m.id})" title="전산 완료 취소">↩</button>`:`<span class="chip c-wait">전산 대기</span> <button class="btn sm pri" onclick="toggleErp(${m.id})">전산완료</button>`} <button class="btn sm" onclick="editMove(${m.id})">수정</button> <button class="btn sm" style="color:var(--red)" onclick="delMove(${m.id})">${armLbl('mv'+m.id)}</button></td></tr>`;}).join(''):'<tr><td colspan="8" class="empty">기준일 요청 없음</td></tr>';
   document.getElementById('cntMv2').textContent=mv.length?`${mv.length}건`:'';
   updateMvSelCnt();
 }
@@ -3545,9 +3554,10 @@ function renderDriver(){
   h+=mv.length?mv.map(m=>{let g='';if(m.dept!==lastD){g=`<div class="grp">${esc(m.dept)} 라인으로</div>`;lastD=m.dept;}
     const pn=packNote(m.item);
     const cv=convInfo(m.item,m.qty,m.unit);
-    const hold=isR696(m.item)&&!m.r696;
     const canDel=m.addedBy&&m.addedBy===meName;
-    return g+`<div class="item ${m.done?'done':''}"><div><div class="name">${esc(m.item)} <span class="loc">${esc(m.loc||'창고 확인')}</span></div><div class="meta">${deptChip(m.dept)} ${m.note?' · '+esc(m.note):''}${isThird(m.addedBy)?' · ✋ '+esc(m.addedBy)+' 등록':''}${m.done&&m.doneBy?' · 완료: '+esc(m.doneBy):''}${cv?' · '+esc(cv):''}${pn?' · ⚠ '+esc(pn):''}${m.actKg?' · 실출고 '+fmtN(m.actKg)+'kg':''}</div></div><div><div class="qty">${fmtN(m.qty)} ${esc(m.unit)}</div>${hold?'<span class="chip c-wait">이동 OK · 완료체크는 자재과 확인 후</span>':cb(`toggleMove(${m.id})`,m.done,`mv${m.id}`)}<button class="btn sm ghost" style="margin-top:4px" onclick="editActKg(${m.id})">${m.actKg?'실출고 수정':'실출고 보정 입력'}</button>${canDel?`<button class="btn sm ghost" style="margin-top:4px;color:var(--red)" onclick="delMove(${m.id})">${armLbl('mv'+m.id)}</button>`:''}</div></div>`;}).join(''):'<div class="empty">이동 요청 없음</div>';
+    // R696은 사용량 확인 배지만 안내로 보여주고(눌러도 반응 없음 — 확인은 자재과 담당), 실물이동
+    // 체크는 다른 품목과 똑같이 바로 가능함(실물이동완료·R696 확인은 서로 독립적으로 처리)
+    return g+`<div class="item ${m.done?'done':''}"><div><div class="name">${esc(m.item)}${r696Badge(m)} <span class="loc">${esc(m.loc||'창고 확인')}</span></div><div class="meta">${deptChip(m.dept)} ${m.note?' · '+esc(m.note):''}${isThird(m.addedBy)?' · ✋ '+esc(m.addedBy)+' 등록':''}${m.done&&m.doneBy?' · 완료: '+esc(m.doneBy):''}${cv?' · '+esc(cv):''}${pn?' · ⚠ '+esc(pn):''}${m.actKg?' · 실출고 '+fmtN(m.actKg)+'kg':''}</div></div><div><div class="qty">${fmtN(m.qty)} ${esc(m.unit)}</div>${cb(`toggleMove(${m.id})`,m.done,`mv${m.id}`)}<button class="btn sm ghost" style="margin-top:4px" onclick="editActKg(${m.id})">${m.actKg?'실출고 수정':'실출고 보정 입력'}</button>${canDel?`<button class="btn sm ghost" style="margin-top:4px;color:var(--red)" onclick="delMove(${m.id})">${armLbl('mv'+m.id)}</button>`:''}</div></div>`;}).join(''):'<div class="empty">이동 요청 없음</div>';
   // 기사 직접 등록 (ASA 등 1,000kg 단위)
   h+=`<h2>➕ 이동 요청 직접 등록 <span class="cnt">품목 탭 → 톤수 탭 = 등록</span></h2>`;
   h+=`<div class="card" style="font-size:15px">

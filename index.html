@@ -2889,7 +2889,8 @@ function csSalesRenderReview(){
     <div class="hint" style="color:var(--amber)">근거 배지는 검증된 확률이 아닙니다 — 표시된 근거와 사유를 직접 확인하세요.</div>`;
   if(excluded.length)html+=`<div class="tbl scroll" style="max-height:100px;margin:6px 0"><table><thead><tr><th>행</th><th>제외 사유</th></tr></thead><tbody>${excluded.map(e=>`<tr><td>${e.row}행</td><td>${esc(e.reason)}</td></tr>`).join('')}</tbody></table></div>`;
   html+=`<div class="tbl scroll" style="max-height:56vh;margin-top:8px"><table><thead><tr>
-    <th></th><th>사급처</th><th>품목</th><th>처리유형</th><th>날짜</th><th class="num">매각수량</th>
+    <th><input type="checkbox" id="csSalesSelectAll" onchange="csSalesToggleAll(this.checked)" title="전체 선택/해제"></th>
+    <th>사급처</th><th>품목</th><th>처리유형</th><th>날짜</th><th class="num">매각수량</th>
     <th>상태</th><th>근거/사유</th><th style="min-width:260px">배분(대상 발주·직접출고 → 수량)</th><th>검토</th></tr></thead>
     <tbody id="csSalesReviewBody">`;
   CS_SALES_PREVIEW.forEach((p,idx)=>{html+=csSalesRenderRow(p,idx);});
@@ -2897,6 +2898,25 @@ function csSalesRenderReview(){
   const dlgEl=document.getElementById('dlgSalesReviewBody');
   dlgEl.innerHTML=html;
   dlgSalesReview.showModal();
+  csSalesSyncSelectAll();
+}
+// 헤더 체크박스로 화면에 보이는 모든 행을 한 번에 선택/해제 — 배분·검토 사유 등 다른 입력은
+// 건드리지 않고 include(반영 대상 여부)만 바꿈. 실제 반영 가능 여부(배분 비어있음 등)는 기존대로
+// [선택 항목 반영] 시점에 행별로 검증됨.
+function csSalesToggleAll(v){
+  Object.keys(CS_SALES_ROW_STATE).forEach(k=>{CS_SALES_ROW_STATE[k].include=v;});
+  document.querySelectorAll('#csSalesReviewBody tr').forEach(tr=>{
+    const cb=tr.querySelector('td:first-child input[type=checkbox]');
+    if(cb)cb.checked=v;
+  });
+  csSalesSyncSelectAll();
+}
+// 개별 행 체크박스와 헤더 체크박스 상태를 맞춤 — 일부만 선택돼 있으면 헤더를 부분선택(가로줄)으로 표시.
+function csSalesSyncSelectAll(){
+  const cb=document.getElementById('csSalesSelectAll');if(!cb)return;
+  const vals=Object.values(CS_SALES_ROW_STATE).map(s=>s.include);
+  const all=vals.length>0&&vals.every(Boolean),none=vals.every(v=>!v);
+  cb.checked=all;cb.indeterminate=!all&&!none;
 }
 // 한 행을 그 행의 최신 preview.proposal 기준 기본값으로(되)채움 — 새로 채우는 값이므로 그 행의
 // 기존 선택/배분/검토 사유는 여기서 의도적으로 버려짐(호출하는 쪽에서 "이 행은 다시 채워도 됨"을
@@ -2954,7 +2974,7 @@ function csSalesRerenderRow(idx){
   const trs=tb.querySelectorAll('tr');
   if(trs[idx])trs[idx].outerHTML=csSalesRenderRow(CS_SALES_PREVIEW[idx],idx);
 }
-function csSalesSetInclude(idx,v){CS_SALES_ROW_STATE[idx].include=v;}
+function csSalesSetInclude(idx,v){CS_SALES_ROW_STATE[idx].include=v;csSalesSyncSelectAll();}
 function csSalesSetReason(idx,v){CS_SALES_ROW_STATE[idx].reviewReason=v;}
 function csSalesSetConfirmed(idx,v){CS_SALES_ROW_STATE[idx].reviewConfirmed=v;}
 function csSalesSetCompleteToo(idx,v){CS_SALES_ROW_STATE[idx].completeToo=v;}

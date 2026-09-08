@@ -180,7 +180,10 @@ const SIDE_LB={sales:'사급(매각) 매출마감',purchase:'매입 마감'};
 const VIAS=['','이메일','카카오톡','팩스','전화','기타'];
 const today=new Date(),pad=n=>String(n).padStart(2,'0');
 const curDate=`${today.getFullYear()}-${pad(today.getMonth()+1)}-${pad(today.getDate())}`;
-let mon=curDate.slice(0,7);
+/* 마감월 기본값 = 지난달. AR/AP 마감은 이번달 초에 지난달 것을 처리하는 작업이라
+   (예: 9월 초에 8월 마감) 기본을 이번달로 두면 매달 초마다 엉뚱한 달에 체크하게 됨 */
+const prevMonD=new Date(today.getFullYear(),today.getMonth()-1,1);
+let mon=`${prevMonD.getFullYear()}-${pad(prevMonD.getMonth()+1)}`;
 
 /* ===== 상태 ===== */
 function emptyState(){return{ver:1,vendors:{sales:[],purchase:[]},months:{}};}
@@ -902,10 +905,32 @@ on conflict (id) do nothing;`;
     </div>
   </div>
   <div class="card"><h2>월 관리</h2>
-    <div class="hint">상단의 <b>마감월</b>을 바꾸면 해당 월 체크리스트로 전환됩니다. 새 달은 빈 체크리스트로 자동 시작되고, 지난 달 기록은 그대로 보존됩니다.</div>
+    <div class="hint">상단의 <b>마감월</b>을 바꾸면 해당 월 체크리스트로 전환됩니다. 새 달은 빈 체크리스트로 자동 시작되고, 지난 달 기록은 그대로 보존됩니다.<br>마감월 기본값은 <b>지난달</b>입니다(예: 9월엔 8월 마감이 기본으로 뜸) — 엉뚱한 달에 체크했다면 아래에서 옮길 수 있습니다.</div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px">
+      <button class="btn" onclick="moveMonthData()">월 데이터 이동…</button>
+    </div>
     <button class="btn danger" onclick="resetMonth()">현재 월(${mon}) 체크 초기화</button>
   </div>
   </div>`;
+}
+function moveMonthData(){
+  const from=prompt('어느 달의 마감 데이터를 옮길까요? (YYYY-MM, 예: 2026-09)',mon);
+  if(from==null)return;
+  if(!/^\d{4}-\d{2}$/.test(from)||!S.months[from]){toast(`"${from}" 마감 데이터가 없습니다`);return;}
+  const to=prompt(`"${from}" 데이터를 어느 달로 옮길까요? (YYYY-MM)`);
+  if(to==null)return;
+  if(!/^\d{4}-\d{2}$/.test(to)){toast('YYYY-MM 형식으로 입력해주세요 (예: 2026-08)');return;}
+  if(to===from){toast('같은 달입니다');return;}
+  const hasData=m=>m&&(Object.keys(m.sales||{}).length||Object.keys(m.purchase||{}).length);
+  if(hasData(S.months[to])){
+    if(!confirm(`"${to}"에 이미 마감 데이터가 있습니다. "${from}" 데이터로 덮어쓸까요? (되돌릴 수 없습니다)`))return;
+  }else if(!confirm(`"${from}" 마감 데이터를 "${to}"로 옮길까요? (${from}은 비워집니다)`))return;
+  S.months[to]=S.months[from];
+  delete S.months[from];
+  if(mon===from)mon=to;
+  document.getElementById('monPick').value=mon;
+  saveDB();refreshAll();
+  toast(`${from} → ${to}로 옮겼습니다`);
 }
 function importJSON(inp){
   const f=inp.files[0];if(!f)return;

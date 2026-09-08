@@ -2727,6 +2727,7 @@ const CS_SALES_RE_VENDOR=/사급처|매입처|거래처|업체명|공급받는�
   CS_SALES_RE_ITEM=/품목|품명|자재명|규격/,CS_SALES_RE_QTY=/수량|매각수량|판매수량/,CS_SALES_RE_UNIT=/^단위$/,
   CS_SALES_RE_DATE=/날짜|일자|매각일|거래일/,CS_SALES_RE_DATE_PRI=/매각.*일/,
   CS_SALES_RE_ITEM_PRI=/품목명|품명/,CS_SALES_RE_ITEM_CODE=/품목코드|자재코드|제품코드/,
+  CS_SALES_RE_VENDOR_PRI=/사급처명|매입처명|거래처명|업체명|공급받는자명|납품처명|요청업체명/,
   CS_SALES_RE_DOCNO=/전표번호|전표NO|문서번호|매각번호|판매번호/i,CS_SALES_RE_DOCLINE=/전표행|행번호|LINE\s*NO|라인번호/i,
   CS_SALES_RE_REGNO=/사업자|사업자번호|사업자등록번호/;
 const csSalesFindPri=(cells,re)=>{for(let i=0;i<cells.length;i++)if(re.test(cells[i]))return i;return -1;};
@@ -2737,6 +2738,9 @@ function csSalesDetect(grid){
     di=csSalesFindPri(cells,CS_SALES_RE_DATE_PRI);
     ii=csSalesFindPri(cells,CS_SALES_RE_ITEM_PRI);
     ci=csSalesFindPri(cells,CS_SALES_RE_ITEM_CODE);
+    // "요청업체"(코드)와 "요청업체명"(실제 상호)처럼 코드·이름 열이 함께 있으면
+    // 매칭에는 실제 상호 열이 필요하므로 "...명" 열을 코드 열보다 먼저 선택되게 함.
+    vi=csSalesFindPri(cells,CS_SALES_RE_VENDOR_PRI);
     for(let i=0;i<cells.length;i++){const s=cells[i];
       if(vi<0&&CS_SALES_RE_VENDOR.test(s))vi=i;
       else if(si<0&&CS_SALES_RE_SUPPLIER.test(s))si=i;

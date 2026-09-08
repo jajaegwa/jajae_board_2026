@@ -212,6 +212,6 @@
     if (!ledger.some(e=>e.id===eventId&&!e.reversedAt)) throw Error('취소할 활성 배분 없음');
     return ledger.map(e=>e.id===eventId?{...e,reversedAt:now,reversedBy:actor,reversalReason:reason}:e);
   }
-  return {VERSION,compact,vendorName,cleanItem,itemForms,unit,amount,isoDate,regNo,vendorMatch,itemMatch,
+  return {VERSION,compact,vendorName,cleanItem,itemForms,hasBounded,unit,amount,isoDate,regNo,vendorMatch,itemMatch,
     sourceKey,sourceSnapshot,orderSnapshot,remainingOrder,uniqueSubset,preview,commit,reverse};
 });

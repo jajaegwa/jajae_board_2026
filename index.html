@@ -474,6 +474,7 @@ details.card summary .cnt{font-size:11.5px;color:var(--mut);font-weight:500}
       <div><label>납기 월</label><input type="month" id="csDueMonthFlt" onchange="renderCs()"></div>
       <button class="btn sm ghost" onclick="csFlt.value='';csActionFlt.value='';csSearch.value='';csDueDateFlt.value='';csDueMonthFlt.value='';renderCs()">필터 전체 초기화</button>
       <button class="btn sm" onclick="mailForSelected()">선택 건 메일 다시 만들기</button>
+      <button class="btn sm" onclick="csBulkSetUnit()" title="단위가 비어 있는 건만 kg로 채움 — 매각대조에서 '단위 보완 필요'로 막힐 때 사용">선택 항목 단위(kg) 일괄 지정</button>
       <button class="btn sm pri" onclick="csBulkMark()">선택 입고완료 처리</button>
       <span class="tag" id="csSelCnt"></span>
     </div>
@@ -2490,10 +2491,15 @@ function commitCs(){
       dup.note=(dup.note?dup.note+' · ':'')+`기존 ${fmtN(before)}kg + 추가 ${fmtN(d.qty)}kg = ${fmtN(dup.qty)}kg (${fmtK(recv)} 추가발주)`;
       if(due&&(!dup.due||due<dup.due))dup.due=due;
       if(!dup.loc&&d.loc)dup.loc=d.loc;
+      if(!dup.unit)dup.unit='kg';   // 새 항목은 등록 시 자동으로 채워지는데, 기존(합산 대상) 건은 이 경로를 안 거쳐 계속 비어 있었음(코드리뷰로 발견)
       if(isM210(dup.item))delete dup.m210by;   // 수량이 바뀌었으니 M-210 행선지 확인을 다시 받게 함
       ids.push(dup.id);mergedCount++;
     }else{
-      const id=S.seq++;ids.push(id);S.cons.push({id,recvDate:recv,consignee:v,item:d.item,pack:d.pack,qty:d.qty,due,action:d.action,supplier:d.supplier,loc:d.loc||'',ordDate:'',outDate:'',done:false,note:isM210(d.item)?`⚠ 월1회 입항분 여부 확인 — 입항분이면 ${SENSITIVE.m210Contact||'담당자'} 행선지 확인 전 배차·출고 금지`:''});
+      // unit:'kg' — 이 화면·비고 문구(위 "기존 XXXkg + 추가 XXXkg")가 이미 사급 수량을 항상 kg로
+      // 다루고 있어서 추측이 아니라 이 앱의 기존 규약을 필드로 그대로 남기는 것뿐임. 매각대조
+      // 엔진이 이 값을 못 찾아 "발주/출고 단위 보완 필요"로 계속 막히던 문제(실사용 문의로 확인)의
+      // 근본 원인 — 지금까지 사급 등록에 단위 필드 자체가 없어서 새로 만드는 건도 계속 비어 있었음.
+      const id=S.seq++;ids.push(id);S.cons.push({id,recvDate:recv,consignee:v,item:d.item,pack:d.pack,qty:d.qty,unit:'kg',due,action:d.action,supplier:d.supplier,loc:d.loc||'',ordDate:'',outDate:'',done:false,note:isM210(d.item)?`⚠ 월1회 입항분 여부 확인 — 입항분이면 ${SENSITIVE.m210Contact||'담당자'} 행선지 확인 전 배차·출고 금지`:''});
     }
   });
   if(newItemCount){fillLists();if(sb&&sbOK)sbSaveMasterMaterials();}
@@ -2591,6 +2597,29 @@ function csBulkMark(){
   selCs.clear();saveDB();refreshAll();
   const parts=[`${done}건 입고완료 처리됨`];
   if(skipped)parts.push(`M-210 ${skipped}건은 개별 확인 필요`);
+  if(hidden)parts.push(`필터에 가려 안 보이던 ${hidden}건은 제외`);
+  toast(parts.length>1?`${parts[0]} (${parts.slice(1).join(' · ')})`:parts[0]);
+}
+// 사급 등록에는 원래 단위 칸이 없었고 화면·비고 문구가 항상 kg로 다뤄왔음(수량(kg) 표기,
+// "기존 XXXkg + 추가 XXXkg" 비고 등) — 그래서 기존에 등록된 사급 건은 전부 단위가 비어 있고,
+// 매각대조에서 그 발주와 짝지으려 할 때마다 "발주/출고 단위 보완 필요"로 막혔음(실사용 문의로
+// 확인). 새 항목은 등록 시점에 자동으로 kg가 채워지도록 이미 고쳤지만, 기존 건은 한 번에 손봐야
+// 해서 선택한 건의 단위 없는 것만 kg로 채우는 일괄 지정을 추가함(이미 다른 단위가 지정된 건은
+// 건드리지 않음).
+function csBulkSetUnit(){
+  if(!selCs.size){toast('선택된 항목이 없습니다');return;}
+  const{visibleIds,hidden}=visibleSelection(selCs,csFilteredRows());
+  let set=0,already=0;
+  selCs.forEach(id=>{
+    if(!visibleIds.has(id))return;
+    const c=S.cons.find(x=>x.id===id);
+    if(!c)return;
+    if(c.unit){already++;return;}
+    c.unit='kg';set++;
+  });
+  selCs.clear();saveDB();refreshAll();
+  const parts=[`${set}건 단위를 kg로 지정함`];
+  if(already)parts.push(`이미 단위가 있던 ${already}건은 그대로 둠`);
   if(hidden)parts.push(`필터에 가려 안 보이던 ${hidden}건은 제외`);
   toast(parts.length>1?`${parts[0]} (${parts.slice(1).join(' · ')})`:parts[0]);
 }

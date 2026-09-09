@@ -688,7 +688,11 @@ details.card summary .cnt{font-size:11.5px;color:var(--mut);font-weight:500}
 <div class="dlg-foot"><button class="btn pri" onclick="dlgShare.close()">닫기</button></div></dialog>
 
 <dialog id="dlgSalesReview" style="max-width:1240px;width:97vw"><div class="dlg" id="dlgSalesReviewBody"></div>
-<div class="dlg-foot"><button class="btn" onclick="dlgSalesReview.close()">닫기</button><button class="btn pri" id="csSalesApplyBtn" onclick="csSalesApplySelected()">선택 항목 반영</button></div></dialog>
+<div class="dlg-foot" style="flex-wrap:wrap">
+  <input id="csSalesBulkReason" placeholder="선택된 행에 한 번에 적용할 검토 사유(예: 실제 엑셀 대사 완료)" style="flex:1;min-width:220px">
+  <button class="btn sm" onclick="csSalesApplyBulkReason()" title="지금 체크된 행에만 이 사유를 채우고 검토 확인을 켬 — 반영 전 마지막에 눌러도 됨">선택 행에 사유 일괄 적용</button>
+  <button class="btn" onclick="dlgSalesReview.close()">닫기</button><button class="btn pri" id="csSalesApplyBtn" onclick="csSalesApplySelected()">선택 항목 반영</button>
+</div></dialog>
 
 <dialog id="dlgSalesAlias" style="max-width:820px"><div class="dlg" id="dlgSalesAliasBody"></div>
 <div class="dlg-foot"><button class="btn pri" onclick="dlgSalesAlias.close()">닫기</button></div></dialog>
@@ -2859,6 +2863,12 @@ function csSalesPreviewAndShow(rows,excluded){
   });
   CS_SALES_EXCLUDED=excluded||[];
   csSalesRowInit();   // 새로 올린 파일이므로 모든 행을 엔진의 기본 제안값으로 처음부터 채움
+  // 일괄 사유 입력칸은 다이얼로그 본문(dlgSalesReviewBody) 밖에 있어 재렌더링돼도 안 지워짐 —
+  // 새 파일을 올렸는데 이전 파일에서 쓰던 사유가 남아 있으면, 그걸 모른 채 다시 눌러 다른
+  // 파일의 행에 엉뚱한 사유가 붙을 수 있어(코드리뷰로 발견) 새 파일 업로드 시점에만 비움(같은
+  // 파일 안에서 별칭 승인·부분 반영으로 다시 그릴 때는 방금 쓴 사유를 유지해야 편하므로 건드리지 않음).
+  const bulkReasonEl=document.getElementById('csSalesBulkReason');
+  if(bulkReasonEl)bulkReasonEl.value='';
   csSalesRenderReview();
 }
 function csSalesStatusLabel(st){
@@ -2888,16 +2898,27 @@ function csSalesRenderReview(){
     <div class="hint">원본 행 <b>${rawRows}</b>건 · 업체·품목 요약 <b>${groupCount}</b>그룹 · 상태별: ${summary||'없음'}${excluded.length?` · 제외 ${excluded.length}건(합계/소계·필수값 누락)`:''}</div>
     <div class="hint" style="color:var(--amber)">근거 배지는 검증된 확률이 아닙니다 — 표시된 근거와 사유를 직접 확인하세요.</div>`;
   if(excluded.length)html+=`<div class="tbl scroll" style="max-height:100px;margin:6px 0"><table><thead><tr><th>행</th><th>제외 사유</th></tr></thead><tbody>${excluded.map(e=>`<tr><td>${e.row}행</td><td>${esc(e.reason)}</td></tr>`).join('')}</tbody></table></div>`;
-  html+=`<div class="tbl scroll" style="max-height:56vh;margin-top:8px"><table><thead><tr>
+  html+=`<div class="tbl scroll" id="csSalesReviewScroll" style="max-height:56vh;margin-top:8px"><table><thead><tr>
     <th><input type="checkbox" id="csSalesSelectAll" onchange="csSalesToggleAll()" title="전체 선택/해제"></th>
     <th>사급처</th><th>품목</th><th>처리유형</th><th>날짜</th><th class="num">매각수량</th>
     <th>상태</th><th>근거/사유</th><th style="min-width:260px">배분(대상 발주·직접출고 → 수량)</th><th>검토</th></tr></thead>
     <tbody id="csSalesReviewBody">`;
   CS_SALES_PREVIEW.forEach((p,idx)=>{html+=csSalesRenderRow(p,idx);});
   html+='</tbody></table></div>';
+  // 별칭 승인·일괄 사유 적용·반영처럼 이미 스크롤해 내려간 상태에서 다시 그리는 경우가 많음 —
+  // 표를 통째로 새로 만들면(innerHTML) 스크롤이 맨 위로 튀어 방금 체크한 하단 행들이 실제로
+  // 반영됐는지 다시 스크롤해서 확인해야 했음(코드리뷰로 발견). 이전 스크롤 위치를 기억했다가
+  // 다시 그린 뒤 그대로 복원함(처음 여는 경우는 기존 요소가 없어 0으로 자연스럽게 시작).
+  const prevScroll=document.getElementById('csSalesReviewScroll');
+  const scrollTop=prevScroll?prevScroll.scrollTop:0;
   const dlgEl=document.getElementById('dlgSalesReviewBody');
   dlgEl.innerHTML=html;
-  dlgSalesReview.showModal();
+  const newScroll=document.getElementById('csSalesReviewScroll');
+  if(newScroll)newScroll.scrollTop=scrollTop;
+  // 이미 열려 있는 모달에 showModal()을 또 부르면(별칭 승인·일괄 사유 적용처럼 열린 채로
+  // 다시 그리는 경우) 스펙상 아무 일도 안 해야 하지만 브라우저마다 처리가 갈릴 수 있어(코드리뷰
+  // 발견 — 이 앱이 실제로 지원하는 iOS Safari 포함) 열려 있으면 다시 부르지 않음.
+  if(!dlgSalesReview.open)dlgSalesReview.showModal();
   csSalesSyncSelectAll();
 }
 // 헤더 체크박스로 화면에 보이는 모든 행을 한 번에 선택/해제 — 배분·검토 사유 등 다른 입력은
@@ -2959,10 +2980,14 @@ function csSalesCandOrder(preview,orderId){return (preview.candidates||[]).find(
 // 쓰면, 한쪽만 기준이 바뀌었을 때 전체선택이 다시 반영 불가능한 행을 골라버리는 문제가
 // 재발할 수 있어(코드리뷰로 발견) 하나로 합침.
 function csSalesValidAllocs(alloc){return (alloc||[]).filter(a=>a.orderId&&a.baseQty>0);}
+// 검토 사유·확인이 실제로 필요한 행인지 — 화면 표시와 일괄 사유 적용(csSalesApplyBulkReason)이
+// 서로 다른 기준을 쓰면, 자동으로 깨끗하게 매칭된(READY, 이슈 없음) 행에까지 "검토 사유"가
+// 남아 나중에 감사 기록만 보고 "사람이 검토했다"고 오해하게 됨(코드리뷰로 발견) — 하나로 합침.
+function csSalesNeedsReview(prev){return prev.status!=='READY'||prev.candidates.some(c=>c.issues&&c.issues.length);}
 function csSalesRenderRow(p,idx){
   const st=CS_SALES_ROW_STATE[idx];
   const sale=p.sale,prev=p.preview;
-  const needsReview=prev.status!=='READY'||prev.candidates.some(c=>c.issues&&c.issues.length);
+  const needsReview=csSalesNeedsReview(prev);
   const candOpts=`<option value="">— 선택 —</option>`+prev.candidates.map(c=>
     `<option value="${c.orderId}">${esc(c.action)} ${esc(c.item)} / ${esc(c.vendor)} — 잔량 ${fmtN(c.remaining)}${c.done?' (완료이력)':''}</option>`).join('');
   const allocRows=st.alloc.map((a,ai)=>{
@@ -3010,6 +3035,31 @@ function csSalesSetAllocOrder(idx,ai,v){CS_SALES_ROW_STATE[idx].alloc[ai].orderI
 function csSalesSetAllocQty(idx,ai,v){CS_SALES_ROW_STATE[idx].alloc[ai].baseQty=+v||0;csSalesClearLastError(idx);csSalesRerenderRow(idx);}
 function csSalesAddAlloc(idx){CS_SALES_ROW_STATE[idx].alloc.push({orderId:'',baseQty:''});csSalesClearLastError(idx);csSalesRerenderRow(idx);}
 function csSalesRemoveAlloc(idx,ai){CS_SALES_ROW_STATE[idx].alloc.splice(ai,1);if(!CS_SALES_ROW_STATE[idx].alloc.length)CS_SALES_ROW_STATE[idx].alloc.push({orderId:'',baseQty:''});csSalesClearLastError(idx);csSalesRerenderRow(idx);}
+// 전표번호가 없는 파일은 행마다 검토 사유·확인이 필수라(중복 반영·오연결 방지용 안전장치 —
+// 임의로 없앨 수 없음), 선택한 행이 많으면 매 행 똑같은 사유를 타이핑해야 해 번거로움. 한 번만
+// 써서 지금 체크된(반영 대상) 행 전체에 그대로 채우는 지름길만 제공 — "검토를 안 해도 되게"
+// 만드는 게 아니라 "직접 쓴 사유를 반복 타이핑하지 않게" 해주는 것뿐이며, 여전히 사람이 사유를
+// 직접 쓰고 반영은 [선택 항목 반영]에서 행별로 다시 검증됨.
+function csSalesApplyBulkReason(){
+  const v=(document.getElementById('csSalesBulkReason').value||'').trim();
+  if(!v){toast('먼저 검토 사유를 입력하세요');return;}
+  const idxs=Object.keys(CS_SALES_ROW_STATE).filter(k=>CS_SALES_ROW_STATE[k].include);
+  if(!idxs.length){toast('먼저 반영할 행을 선택하세요(왼쪽 체크박스)');return;}
+  // 자동으로 깨끗하게 붙은(READY, 이슈 없음) 행에는 사유를 남기지 않음 — 실제로 사람이 검토한
+  // 적 없는데도 나중에 이력에서 "검토 사유"가 보이면 감사 기록이 오히려 왜곡됨(코드리뷰로 발견).
+  const reviewIdxs=idxs.filter(idx=>csSalesNeedsReview(CS_SALES_PREVIEW[idx].preview));
+  if(!reviewIdxs.length){toast('선택된 행은 모두 검토가 필요 없는(자동 확정) 상태입니다');return;}
+  reviewIdxs.forEach(idx=>{
+    CS_SALES_ROW_STATE[idx].reviewReason=v;
+    CS_SALES_ROW_STATE[idx].reviewConfirmed=true;
+    csSalesClearLastError(idx);
+  });
+  // 선택된 행마다 csSalesRerenderRow를 부르면 매번 표 전체를 다시 훑어(querySelectorAll) 행 하나만
+  // 바꾸는 식이라 선택 건수가 많을수록 느려짐(코드리뷰로 발견) — 한 번에 표 전체를 다시 그림.
+  csSalesRenderReview();
+  const skipped=idxs.length-reviewIdxs.length;
+  toast(`검토 필요한 ${reviewIdxs.length}건에 사유를 적용했습니다${skipped?` · 검토 불필요 ${skipped}건은 건너뜀`:''}`);
+}
 /* 별칭 승인 — 이 특정 후보가 걸린 별칭 그룹(업체 또는 품목)을 찾아 approved=true로 저장.
    승인 즉시 이 미리보기도 다시 계산해 화면에 반영(재업로드 없이 바로 "연결 가능"으로 바뀔 수 있음). */
 function csSalesApproveAlias(idx,orderId){

@@ -1095,7 +1095,12 @@ function sbNormalize(d){
     salesAliases:isObj(d.salesAliases)?{vendors:arrOfObj(d.salesAliases.vendors),items:arrOfObj(d.salesAliases.items)}:{vendors:[],items:[]},
     salesImportBatches:arrOfObj(d.salesImportBatches),
     salesMatchSchemaVersion:Number.isFinite(d.salesMatchSchemaVersion)?d.salesMatchSchemaVersion:1,
-    salesAliasSeeded:!!d.salesAliasSeeded};
+    salesAliasSeeded:!!d.salesAliasSeeded,
+    // 아래 csEngineState()의 1회성 별칭 확정 패치 플래그도 salesAliasSeeded와 똑같이 화이트리스트에
+    // 넣어야 함 — 빠뜨리면 다른 기기 동기화(sbApply)가 올 때마다 이 플래그가 지워져(서버엔 저장돼
+    // 있어도 이 필터에서 사라짐) 패치가 매번 다시 돌면서, 그 사이 사람이 직접 되돌려놓은 승인
+    // 취소까지 계속 덮어써 버림(코드리뷰로 발견).
+    _dooseongAliasConfirmed:!!d._dooseongAliasConfirmed};
 }
 /* 20초 폴링/브로드캐스트로 받은 서버 데이터가 지금 화면과 같으면 다시 그리지 않음 —
    매번 innerHTML을 갈아엎으면 보고 있던 스크롤·입력 중 포커스가 날아가기 때문 */
@@ -2701,6 +2706,25 @@ function csEngineState(){
     const haveI=new Set(S.salesAliases.items.map(g=>(g.vendor||'')+'|'+key(g)));
     CS_SALES_ALIAS_SEED.items.forEach(g=>{const k=(g.vendor||'')+'|'+key(g);if(!haveI.has(k))S.salesAliases.items.push(JSON.parse(JSON.stringify(g)));});
     S.salesAliasSeeded=true;
+  }
+  // "두성인더스트리/두성산업" 별칭 후보 — 이전엔 사업자번호 미확인이라 검토 대기였는데, 담당자가
+  // 직접 같은 업체로 확인해줌(2026-09-09) — 이미 salesAliasSeeded가 true라 시드가 다시 안 도는
+  // 예전 설치본에도 이 건 하나만 강제로 승인 반영. 딱 한 번만 실행(다음부터 사람이 이 별칭을
+  // 다시 손봐도(승인 취소 등) 되돌리지 않음).
+  if(!S._dooseongAliasConfirmed){
+    const vN=s=>CsSalesEngine.vendorName(s);
+    const g=S.salesAliases.vendors.find(g=>{const n=(g.names||[]).map(vN);return n.includes(vN('두성인더스트리'))&&n.includes(vN('두성산업'));});
+    // 이 승인은 화면 버튼이 아니라 채팅으로 받은 확인이라 whoNow()(그 순간 이 탭을 연 사람)를
+    // 쓰면 엉뚱한 사람 이름이 승인자로 남을 수 있어(코드리뷰로 발견) 고정 문구로 남김 — 다른
+    // 승인 경로(csSalesApproveAlias 등)와 같은 approvedBy/approvedAt 필드는 채워 이력 표시가 빠지지 않게 함.
+    if(g&&!g.approved){
+      g.approved=true;g.approvedBy='자재과(채팅으로 확인)';g.approvedAt=realToday()+' '+new Date().toTimeString().slice(0,5);
+      g.note='담당자 확인 완료 — 동일 업체(2026-09-09)';
+      saveDB();   // csEngineState() 자체는 원래 아무것도 저장하지 않지만(별칭 시드도 마찬가지),
+                  // 이 건은 딱 한 번만 실행되는 승인 반영이라 다음 행동까지 기다리지 않고 바로
+                  // 저장해 둠 — 세션이 저장 없이 끝나도 유실되지 않게(코드리뷰로 발견).
+    }
+    S._dooseongAliasConfirmed=true;
   }
   if(!Array.isArray(S.salesImportBatches))S.salesImportBatches=[];
   if(!Number.isFinite(S.salesMatchSchemaVersion))S.salesMatchSchemaVersion=CS_SALES_SCHEMA_VERSION;

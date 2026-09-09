@@ -3150,6 +3150,14 @@ function csSalesApplyBulkReason(){
 // 반영(commit)은 하지 않고 화면에 선택·배분·사유만 채워둠 — 최종 확인·반영은 사람이 표를 보고
 // [선택 항목 반영]을 눌러야 함(요청: "확인시키고 반영하게 해줘").
 const CS_SALES_QUICK_REASON='빠른 매칭 — 업로드한 매각내역 파일 기준 단일 후보 자동 대응(수량 확인 후 반영)';
+// commit()이 검토 확인·사유와 무관하게 항상 막아버리는(하드 블록) 사유들 — sales-match-engine.js의
+// unit()·isoDate() 무조건 검사(sale.unit/sale.date/o.unit/o.orderDate 등)에서 나오며, preview()가
+// 이 중 두 개("매각 단위 확인 필요"/"매각일 누락 또는 오류")는 후보별(candidates[i].issues)이 아니라
+// 미리보기 전체(prev.issues, "매각" 자체의 문제라 후보와 무관)에 담는다는 점을 놓쳐서 처음엔 quick-
+// apply 제외 목록이 candidates[i].issues만 봐서 이 두 사유를 실제로 걸러내지 못했음(코드리뷰로 발견
+// — "선택했다고 표시된 행이 반영 때 오류로 뜬다"는 실사용 문의의 원인). 반드시 prev.issues와
+// candidates[i].issues를 합쳐서 검사해야 함 — csSalesQuickApply() 참고.
+const CS_SALES_HARD_BLOCKED_ISSUES=['M-210 행선지 확인 필요','매각 단위 확인 필요','매각일 누락 또는 오류','단위 확인 필요','발주/접수일 확인 필요'];
 function csSalesQuickApply(){
   csEngineState();
   // 후보가 하나뿐이면(candidates.length===1) 엔진 상태 계산 규칙상 status는 항상
@@ -3202,15 +3210,17 @@ function csSalesQuickApply(){
       return;
     }
     const cand=prev.candidates[0];
-    // 이 두 사유는 검토 확인·사유만으로는 안전하지 않아 자동으로 손대지 않음:
-    // - "기존 완료 이력과 이번 거래의 대응 확인 필요": M-210과 달리 commit()이 무조건 막아주지
-    //   않고 검토 확인·사유만 있으면 그냥 통과됨 — 이미 완료 처리된 발주/출고에 새 매각을
-    //   잇는(이중 완료·중복 처리로 이어질 수 있는) 진짜 위험한 경우인데, 다른 사유와 똑같은
-    //   판박이 문구로 자동 승인하면 안 됨(코드리뷰로 발견).
-    // - "M-210 행선지 확인 필요": 반대로 commit()이 검토 확인과 무관하게 항상 막아버려서(하드
-    //   블록), 여기서 선택해 봤자 반영 때 반드시 실패함 — 성공한 것처럼 세었다가 헛수고로
-    //   끝나는 왕복을 없앰(코드리뷰로 발견).
-    if(cand.issues.includes('기존 완료 이력과 이번 거래의 대응 확인 필요')||cand.issues.includes('M-210 행선지 확인 필요'))return;
+    // "기존 완료 이력과 이번 거래의 대응 확인 필요"는 검토 확인·사유만으로는 안전하지 않아 자동으로
+    // 손대지 않음 — M-210과 달리 commit()이 무조건 막아주지 않고 검토 확인·사유만 있으면 그냥
+    // 통과됨. 이미 완료 처리된 발주/출고에 새 매각을 잇는(이중 완료·중복 처리로 이어질 수 있는)
+    // 진짜 위험한 경우인데, 다른 사유와 똑같은 판박이 문구로 자동 승인하면 안 됨(코드리뷰로 발견).
+    //
+    // CS_SALES_HARD_BLOCKED_ISSUES(위 정의 참고)는 반대로 commit()이 검토 확인과 무관하게 항상
+    // 막아버리는 경우라 여기서 선택해 봤자 반영 때 반드시 실패함 — 후보별 사유(cand.issues)뿐
+    // 아니라 미리보기 전체 사유(prev.issues, 매각 자체의 단위·날짜 문제)에도 걸릴 수 있어 반드시
+    // 둘 다 합쳐서 검사(코드리뷰로 발견 — cand.issues만 보면 매각일 누락은 못 걸러 그대로 통과됨).
+    const allIssues=[...(prev.issues||[]),...cand.issues];
+    if(allIssues.includes('기존 완료 이력과 이번 거래의 대응 확인 필요')||CS_SALES_HARD_BLOCKED_ISSUES.some(x=>allIssues.includes(x)))return;
     CS_SALES_ROW_STATE[idx]={alloc:prev.proposal.length?csSalesProposalAlloc(prev):[{orderId:String(cand.orderId),baseQty:Math.min(prev.remaining,cand.remaining)}],
       include:true,reviewReason:CS_SALES_QUICK_REASON,reviewConfirmed:true,completeToo:false,userEdited:false};
     // 이미 이번 빠른 매칭(또는 직전 클릭)으로 똑같이 채워져 있던 행을 다시 세지 않음 — 안 그러면

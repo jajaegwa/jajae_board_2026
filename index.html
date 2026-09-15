@@ -1430,6 +1430,29 @@ function showTab(t){
 }
 /* 기준일을 바꾸면 이전 날짜에서 체크해 둔 선택(일괄 처리용)은 비움 — 안 보이는 행이 일괄 완료되는 사고 방지 */
 function setDate(d){cur=/^\d{4}-\d{2}-\d{2}$/.test(d||'')?d:realToday();selMv.clear();selOd.clear();selCs.clear();refreshAll();}   // 날짜칸을 비우거나 잘못된 값이면 오늘로
+/* 자정 자동 이월 — cur는 페이지 로드 시점에 딱 한 번만 realToday()로 초기화되고 이후엔 그대로라,
+   지게차 화면처럼 하루 종일(자정 넘어서까지) 새로고침 없이 켜 두는 기기에서는 날짜가 안 넘어가
+   그대로 어제에 멈춰 있음 — 창고이동·입고 목록이 모두 date===cur/eta<=cur로 걸러지는데, 전날에
+   등록한 항목은 다음 날 date가 오늘로 찍혀 들어오니 cur가 어제에 머문 그 기기에서는 통째로 안
+   보이게 됨(실사용 문의로 확인 — "창고이동 요청한 게 전부 안 보인다"는 바로 이 증상).
+   curAutoDate로 "사람이 마지막으로 직접 옮긴 날짜"가 아니라 "자동으로 오늘을 따라가고 있었는지"를
+   구분해서, 기기를 그대로 켜 둔 채(cur를 안 건드린 채) 자정을 넘긴 경우에만 자동으로 오늘로
+   따라가고, 사람이 일부러 다른 날짜를 보고 있던 경우(예: 어제 기록 확인 중)는 그대로 둠. */
+let curAutoDate=cur;
+function curMidnightCheck(){
+  const today=realToday();
+  if(today===curAutoDate)return;
+  // setDate()를 그대로 재사용(선택 초기화 포함) — 자동 이월이라고 예외를 두면 안 됨. selMv(창고이동)는
+  // bulkDoneMv/bulkErpMv가 화면에 안 보이는 ID까지 걸러내지 않고 곧바로 처리해서, 안 비우면 어제
+  // 날짜에 체크해 둔(이젠 안 보이는) 행이 그대로 일괄 처리돼 버림 — setDate() 위 주석이 막으려는
+  // 사고와 완전히 같은 경우. selOd/selCs 쪽 일괄 처리는 visibleSelection()으로 안 보이는 ID를 이미
+  // 걸러내긴 하지만, 그래도 안 비우면 "N건 선택됨" 표시(updateOdSelCnt 등)가 실제로는 화면에 체크된
+  // 게 하나도 없는데 어제 선택 개수를 그대로 보여줘 사람을 헷갈리게 함 — 세 개 다 비우는 게 맞음
+  // (코드리뷰에서 "선택 유지" 대안이 나왔으나 위 이유로 기각).
+  if(cur===curAutoDate)setDate(today);
+  curAutoDate=today;
+}
+setInterval(curMidnightCheck,60000);
 /* 기사 모드 잠금 — #driver 링크로 연 기기는 기사 모드 고정, 관리 화면 진입은 비밀번호 필요 */
 const ADMIN_PIN='6623';
 /* 삭제기록 탭 잠금 — 지운 이력과 되살리기는 자재과만 볼 수 있어야 함.

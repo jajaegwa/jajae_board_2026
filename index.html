@@ -963,7 +963,12 @@ function matchItem(q){ // 마스터에서 가장 비슷한 품목
   }
   return bs>=6?best:null;
 }
-function locOf(q){const m=matchItem(q);return m?m.loc.replace('(경질창고)',''):'';}
+// 표기(백/지대)별 로케이터는 qmLocOverride() 우선(아래 QM_OVR 정의부 참고) — locOf()를 쓰는 모든
+// 호출부(addMove 등)가 한 번에 혜택을 보도록 여기서 한 곳만 고침(코드리뷰로 발견 — quickOrder·
+// applyPreset처럼 matchItem() 결과를 직접 쓰는 곳마다 따로따로 놓쳐서 여러 라운드에 걸쳐 계속
+// 새로 발견됐음. locOf()를 쓰지 않고 matchItem() 결과를 직접 쓰는 나머지 호출부는 각자 개별
+// qmLocOverride() 호출로 고쳐져 있음).
+function locOf(q){const m=matchItem(q);return qmLocOverride(q)||(m?m.loc.replace('(경질창고)',''):'');}
 /* 발주점 기준표(M.rop)에서 품목에 맞는 행을 찾음 — TIONA-696은 백(FB)·지대(JD)가 매입처·로케이터가
    서로 다른 별개 발주 대상이라, 이름만 보고 느슨하게 매칭하면(포함 관계) 항상 먼저 등록된 백(FB)
    쪽으로 잘못 붙어버림. r696Variant로 백/지대를 먼저 가려서 정확한 쪽을 찾음. */
@@ -1617,7 +1622,7 @@ function fillLists(){
   }
   if(!document.getElementById('odDate').value)document.getElementById('odDate').value=cur;
 }
-function autoLoc(p){const v=document.getElementById(p+'Item').value;const m=matchItem(v);document.getElementById(p+'Loc').value=m?m.loc.replace('(경질창고)',''):'';
+function autoLoc(p){const v=document.getElementById(p+'Item').value;const m=matchItem(v);document.getElementById(p+'Loc').value=qmLocOverride(v)||(m?m.loc.replace('(경질창고)',''):'');
   if(p==='od'&&m){document.getElementById('odVendor').value=document.getElementById('odVendor').value||m.vendor;const d=deptOf(m);if(d)document.getElementById('odDept').value=d;odEtaAuto();}}
 function deptChip(d){return `<span class="dept d-${['경질','창호','타일','DBP'].includes(d)?d:'기타'}">${esc(d)}</span>`;}
 
@@ -1762,7 +1767,13 @@ function quickOrder(type,i){
   const m=matchItem(p.item);
   const vendor=p.vendor||(m?m.vendor:'')||(M.supplierMap.find(s=>norm(s.items).includes(norm(short(p.item)))&&norm(s.consignee)===norm(p.consignee))||{}).supplier||'';
   const dest=type==='self'?'자가(세종·부강)':p.consignee;
-  S.orders.push({id:S.seq++,type,ordDate:cur,vendor,item:p.item,dest,qty:p.qty,unit:p.unit,kg:p.kg,eta:addDays(cur,leadOf(p.item)),inDate:'',loc:m?m.loc.replace('(경질창고)',''):(type==='consign'?'직납':''),dept:type==='consign'?'사급':deptOf(m)||'전사',note:''});
+  // 표기(백/지대)별 로케이터는 qmLocOverride() 우선 — TIONA-696(백)/(지대)처럼 M.presetSelf가
+  // mergeTionaFound()로 쪼개둔 표기별 이름이 바로 이 함수(주기 기준 "오늘 발주할 것" 버튼)를 거쳐
+  // 등록되는데, matchItem(p.item)만 보면 원료 마스터에 표기별 항목이 없어 늘 빈 로케이터로
+  // 등록됐음(코드리뷰로 발견 — 처음엔 spRegisterOrder만 고쳤는데, 실제로 이 이름들이 지나가는
+  // 경로는 quickOrder였음).
+  const loc=qmLocOverride(p.item)||(m?m.loc.replace('(경질창고)',''):(type==='consign'?'직납':''));
+  S.orders.push({id:S.seq++,type,ordDate:cur,vendor,item:p.item,dest,qty:p.qty,unit:p.unit,kg:p.kg,eta:addDays(cur,leadOf(p.item)),inDate:'',loc,dept:type==='consign'?'사급':deptOf(m)||'전사',note:''});
   saveDB();refreshAll();toast(`${short(p.item)} 발주 등록 — 착일 ${fmtK(addDays(cur,leadOf(p.item)))}`);
 }
 function skipOrder(type,i){const p=type==='self'?M.presetSelf[i]:M.presetConsign[i];
@@ -1942,7 +1953,8 @@ function spUndo(){
 function spRegisterOrder(name,n,dept,isDae,etaOv,note){
   const base=name.replace(/\((백|지대|재생|유니드글로벌|벌크|드럼)\)/g,'').trim();
   const m=matchItem(base);
-  const loc=m?m.loc.replace('(경질창고)',''):'';
+  // 표기(백/지대)별 로케이터는 qmLocOverride() 우선 — 아래 정의 참고.
+  const loc=qmLocOverride(name)||(m?m.loc.replace('(경질창고)',''):'');
   const ropKey=SP_ROPKEY[name]||base;
   let rp=M.rop.find(x=>norm(x.item)===norm(ropKey))||M.rop.find(x=>norm(x.item).includes(norm(ropKey))||norm(ropKey).includes(norm(x.item)));
   if(/유니드/.test(name)){const alt=M.rop.find(x=>norm(x.item).includes(norm('125EB'))&&/유니드/.test(x.vendor||''));if(alt)rp=alt;}
@@ -1971,10 +1983,10 @@ const QM_ITEMS={
  '타일':['DS-356','DS-356T','GPPS(재생)','GPPS(유니드글로벌)','DHA-100','ROSIN C-9','ACR-401','WAX(폴리-210)'],
  'DBP':['DS356S1','HCZ-995_B']};
 const QM_OVR={
- 'TIONA-696(백)':{unit:'Bag',pack:'F/B 500kg(백)'},
+ 'TIONA-696(백)':{unit:'Bag',pack:'F/B 500kg(백)',loc:'14동 2열'},
  'TIONA-696(지대)':{unit:'PLT',pack:'P/B 25kg(지대)',loc:'14동 1열'},
- 'K-2450(백)':{unit:'Bag',pack:'F/B 500kg(백)'},
- 'K-2450(지대)':{unit:'PLT',pack:'P/B 25kg(지대)'},
+ 'K-2450(백)':{unit:'Bag',pack:'F/B 500kg(백)',loc:'14동 2열'},
+ 'K-2450(지대)':{unit:'PLT',pack:'P/B 25kg(지대)',loc:'14동 1열'},
  'GPPS(재생)':{unit:'PLT',pack:'지대(P/B 25kg)'},
  'GPPS(유니드글로벌)':{unit:'PLT',pack:'지대(P/B 25kg)'},
  'DHA-100':{unit:'PLT',pack:'지대(P/B)'},
@@ -1982,6 +1994,14 @@ const QM_OVR={
  'NR-950':{unit:'Bag',pack:'F/B 500kg'},
  'CPE H-135':{unit:'Bag',pack:'F/B 600kg'},
  'DWC4Z':{unit:'Bag'},'DWC6Z':{unit:'Bag'}};
+/* K-2450·TIONA-696처럼 표기(백/지대)에 따라 로케이터가 다른 품목은 원료 마스터(M.materials)에
+   해당 표기별 항목이 없어 matchItem()으로는 절대 정확한 로케이터를 못 찾음(둘 다 매번 빈 값이거나,
+   운 좋게 fuzzy 매칭이 맞아도 우연일 뿐) — 이미 전화모드 표(QM_OVR)에 표기별 로케이터가 정리돼
+   있으니 발주 등록 경로(quickOrder·spRegisterOrder 등)에서도 이름으로 먼저 여기를 찾아보고,
+   없으면 기존처럼 matchItem() 결과로 넘어감(실사용 문의로 확인 — 코드리뷰로 원래 고치려던 함수가
+   아니라 실제로 이 이름들이 지나가는 다른 함수(quickOrder)였다는 것까지 발견돼 이 공용 함수로
+   정리). */
+function qmLocOverride(name){return(QM_OVR[name]&&QM_OVR[name].loc)||'';}
 const qmBase=it=>it.replace(/\((백|지대|재생|유니드글로벌)\)/g,'').trim();
 /* 포장단위·취급 예외 노트 (아침콜·구매입고 SOP 기준) */
 const PACK_NOTES=[
@@ -2281,7 +2301,7 @@ function applyPreset(){
   const m=matchItem(p.item);
   odType.value=v[0]==='s'?'self':'consign';
   odVendor.value=p.vendor||(m?m.vendor:'');odItem.value=p.item;odDest.value=v[0]==='s'?'자가(세종·부강)':p.consignee;
-  odQty.value=p.qty;odUnit.value=p.unit;odLoc.value=m?m.loc.replace('(경질창고)',''):(v[0]==='c'?'직납':'');
+  odQty.value=p.qty;odUnit.value=p.unit;odLoc.value=qmLocOverride(p.item)||(m?m.loc.replace('(경질창고)',''):(v[0]==='c'?'직납':''));
   odDept.value=v[0]==='c'?'사급':(deptOf(m)||'전사');odEtaTouched=false;odEtaAuto();
 }
 /* 품목·발주일을 고르면 착일을 발주일+리드타임으로 자동 채움(기준표 없으면 2일). 사용자가 착일을 직접 고친 뒤에는 건드리지 않음 */
@@ -2523,7 +2543,7 @@ function judge(consignee,item){
   if(orderResp(item))action='발주';
   // M-210: 정기 거래처 건 / 월1회 입항분 구분 필요 — 행선지 건별 확인 전 자동 판정 금지
   if(isM210(item)){action='확인';supplier=supplier||SENSITIVE.m210Supplier||'(공급사 확인)';}
-  return {action,supplier,loc:m?m.loc.replace('(경질창고)',''):''};
+  return {action,supplier,loc:qmLocOverride(item)||(m?m.loc.replace('(경질창고)',''):'')};
 }
 function judgeAll(){const v=csVendor.value.trim();draft.forEach(d=>{const j=judge(v,d.item);if(!d._manual){d.action=j.action;d.supplier=j.supplier;}d.loc=j.loc;});renderDraft();}
 function renderDraft(){
@@ -4315,7 +4335,7 @@ function drvAddCustomDo(it,q,d){
   const who=whoNow();
   const m=matchItem(it);
   const isNew=!m&&ensureMaterial(it,{});   // 비슷한 기존 품목이 있으면 새로 만들지 않음(오타·줄임말 방지)
-  S.moves.push({id:S.seq++,date:cur,dept:d,item:it,qty:q,unit:'kg',loc:m?m.loc.replace('(경질창고)',''):'',note:'기사 등록',addedBy:who,done:false});
+  S.moves.push({id:S.seq++,date:cur,dept:d,item:it,qty:q,unit:'kg',loc:qmLocOverride(it)||(m?m.loc.replace('(경질창고)',''):''),note:'기사 등록',addedBy:who,done:false});
   saveDB();refreshAll();toast(`${it} ${fmtN(q)}kg 등록됨 (${who})${isNew?' · 기준정보에 신규 등록':''}`);
 }
 

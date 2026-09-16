@@ -4,6 +4,19 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>자재과 작업판</title>
+<!-- 내부 업무용 화면이라 검색엔진에 노출될 필요가 없음(보안 점검 지적사항 반영) -->
+<meta name="robots" content="noindex, nofollow">
+<!-- GitHub Pages는 응답 헤더를 직접 설정할 수 없어(Strict-Transport-Security·X-Frame-Options·
+     X-Content-Type-Options·Permissions-Policy 등은 메타 태그로 대체 불가) meta로 적용 가능한
+     것만 여기서 설정 — 나머지는 Cloudflare 등 앞단 프록시를 두는 인프라 변경이 필요함(보안
+     점검 지적사항 반영, 자세한 내용은 커밋 메시지 참고).
+     script-src/style-src에 'unsafe-inline'이 남아있는 이유: 이 앱 전체가 onclick="..." 같은
+     인라인 이벤트 핸들러와 인라인 <script>로 짜여 있어서(수백 곳), 이걸 없애려면 전체 렌더링
+     방식을 addEventListener 기반으로 새로 짜야 함 — 지금 쓰는 방식을 크게 바꾸지 않는 선에서는
+     손댈 수 없어 남겨둠. 그래도 connect-src·object-src·base-uri·form-action은 좁혀서, 페이지가
+     허용 안 된 도메인으로 데이터를 보내거나 <base>/<object> 태그로 하이재킹되는 것은 막음. -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://cdn.jsdelivr.net 'unsafe-inline'; style-src 'self' 'unsafe-inline'; connect-src 'self' https://druppuarqowdmskgldlw.supabase.co wss://druppuarqowdmskgldlw.supabase.co; object-src 'none'; base-uri 'self'; form-action 'self'">
+<meta name="referrer" content="strict-origin-when-cross-origin">
 <!-- 홈 화면 바로가기를 진짜 앱(PWA)으로 만들기 — 아이폰은 홈 화면에 추가된 앱에서만 알림이 동작함 -->
 <link rel="manifest" href="manifest.webmanifest">
 <meta name="theme-color" content="#1b3047">
@@ -15,8 +28,12 @@
 <body>
 
 <title>자재과 작업판</title>
-<!-- 실시간 공유 동기화(Supabase) — 클로드 아티팩트 등 외부망 차단 환경에서는 로드 실패 → 자동으로 로컬 저장 모드 유지 -->
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<!-- 실시간 공유 동기화(Supabase) — 클로드 아티팩트 등 외부망 차단 환경에서는 로드 실패 → 자동으로 로컬 저장 모드 유지.
+     버전을 @2(항상 최신 2.x)가 아니라 정확한 버전으로 고정 — CDN이 예고 없이 다른 버전을 내려주는
+     공급망 위험을 줄임(보안 점검 지적사항 반영). SRI(integrity)는 이 환경에서 jsdelivr.net 접속이
+     막혀 있어 정확한 해시를 직접 확인·검증할 수 없어서 넣지 않음 — jsdelivr.com 사이트에서 이
+     버전의 SRI 태그를 복사해 붙여주시면 반영하겠음. -->
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.116.0/dist/umd/supabase.js"></script>
 <style>
 @font-face{font-family:'KoPub Dotum';src:url('fonts/KoPubDotumLight.woff2') format('woff2');font-weight:300;font-style:normal;font-display:swap}
 @font-face{font-family:'KoPub Dotum';src:url('fonts/KoPubDotumMedium.woff2') format('woff2');font-weight:500;font-style:normal;font-display:swap}
@@ -642,7 +659,7 @@ details.card summary .cnt{font-size:11.5px;color:var(--mut);font-weight:500}
     <div class="row">
       <button class="btn sm pri" onclick="mergeFile.click()">백업 파일 고르기</button>
       <input type="file" id="mergeFile" accept=".json" style="display:none" onchange="mergeRestore(event)">
-      <a class="btn sm" href="recover.html" target="_blank" style="text-decoration:none;display:inline-block">복구 도구 열기</a>
+      <a class="btn sm" href="recover.html" target="_blank" rel="noopener noreferrer" style="text-decoration:none;display:inline-block">복구 도구 열기</a>
     </div>
     <div id="mergeResult" class="hint" style="margin-top:8px"></div>
   </div>

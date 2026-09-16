@@ -4,9 +4,18 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>자재과 마감관리</title>
-<!-- 실시간 공유 동기화(Supabase) — 외부망 차단 환경에서는 로드 실패 → 자동 로컬 저장 모드 -->
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
-<!-- 이번달 마감대상 업로드(더존 엑셀 리포트 파싱)용 — 로드 실패 시 업로드 버튼에서 안내 -->
+<!-- 내부 업무용 화면이라 검색엔진에 노출될 필요가 없음(보안 점검 지적사항 반영) -->
+<meta name="robots" content="noindex, nofollow">
+<!-- GitHub Pages는 응답 헤더를 직접 설정할 수 없어 meta로 적용 가능한 것만 설정 — index.html
+     상단 주석에 자세한 설명 참고. -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://cdn.jsdelivr.net 'unsafe-inline'; style-src 'self' 'unsafe-inline'; connect-src 'self' https://druppuarqowdmskgldlw.supabase.co wss://druppuarqowdmskgldlw.supabase.co; object-src 'none'; base-uri 'self'; form-action 'self'">
+<meta name="referrer" content="strict-origin-when-cross-origin">
+<!-- 실시간 공유 동기화(Supabase) — 외부망 차단 환경에서는 로드 실패 → 자동 로컬 저장 모드.
+     버전을 @2(항상 최신 2.x)가 아니라 정확한 버전으로 고정(보안 점검 지적사항 반영) — index.html과
+     같은 이유. -->
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.116.0/dist/umd/supabase.js"></script>
+<!-- 이번달 마감대상 업로드(더존 엑셀 리포트 파싱)용 — 로드 실패 시 업로드 버튼에서 안내. 이미 정확한
+     버전(0.18.5)으로 고정돼 있어 그대로 둠. -->
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <style>
 /* jajae-board-erp 디자인 시스템(DESIGN.md) 준수 — 밝은 크롬, 시스템 한글 폰트, 2px 모서리,

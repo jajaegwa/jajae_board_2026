@@ -973,11 +973,12 @@ function applyMasterPatches(){
 /* DWC4S·DWC6S → DWC4Z·DWC6Z 품명 변경 — 기존에 S로 등록된 발주·이동 이력도
    새 Z 품목과 같은 품목으로 인식되게(위치 조회·발주 주기 이력 등) */
 const ITEM_ALIAS={'GPPS(재생)':'PSGNT1TPZ','GPPS(유니드글로벌)':'PSGNT1TPZ','GPPS':'PSGNT1TPZ','DWC4S':'DWC4Z','DWC6S':'DWC6Z'};
-/* 통계 탭(재고 추이) 드롭다운 표시용 — S.invHist/M.rop의 실제 키는 readInv() 매칭(백/지대
-   구분용 특수 처리 포함, ropOf() 부근 참고) 때문에 'Kronos2450'·'TIONA-696'(백)/'K-2450(지대)'·
-   'TIONA-666(696)'(지대)처럼 비대칭·암호 같은 이름을 그대로 씀 — 화면에는 이 라벨로만
-   바꿔 보여주고 내부 키(option value)는 그대로 둬서 매칭 로직은 하나도 안 건드림. */
-const STAT_LABEL={'Kronos2450':'K-2450(백)','TIONA-696':'TIONA-696(백)','TIONA-666(696)':'TIONA-696(지대)'};
+/* 통계 탭(재고 추이) 드롭다운·현황 탭 부족재고(ropDue()) 목록 표시용 — S.invHist/M.rop의
+   실제 키는 readInv() 매칭(백/지대 구분용 특수 처리 포함, ropOf() 부근 참고) 때문에
+   'Kronos2450'·'TIONA-696'(백)/'K-2450(지대)'·'TIONA-666(696)'(지대)처럼 비대칭·암호 같은
+   이름을 그대로 씀 — 화면에는 이 라벨로만 바꿔 보여주고 내부 키(option value·M.rop.item)는
+   그대로 둬서 매칭 로직은 하나도 안 건드림. */
+const ITEM_DISPLAY_LABEL={'Kronos2450':'K-2450(백)','TIONA-696':'TIONA-696(백)','TIONA-666(696)':'TIONA-696(지대)'};
 const itemKey=s=>norm(ITEM_ALIAS[String(s||'').trim()]||s);
 function matchItem(q){ // 마스터에서 가장 비슷한 품목
   q=ITEM_ALIAS[String(q).trim()]||q;
@@ -1760,7 +1761,7 @@ function renderBoard(){
     const ordered=it=>S.orders.some(o=>!o.skip&&!o.inDate&&norm(o.item)===norm(it));
     document.getElementById('boardRop').innerHTML=rop.length?rop.map(r=>{
       const shortStk=r.stk<=r.rop;
-      return `<tr><td><b>${esc(r.item)}</b> ${shortStk?'<span class="chip c-late">부족 '+fmtN(Math.max(0,Math.round(r.rop-r.stk)))+'kg</span>':'<span class="chip c-wait">임박</span>'}${r.flag?' <span class="tag">'+esc(r.flag)+'</span>':''}${r.gpps?'<div class="tag">⚠ '+esc(r.gpps)+' · 발주 여부는 검토 후 확정</div>':''}</td><td><b>${esc(r.vendor)}</b></td><td class="num">${fmtN(Math.round(r.stk))}</td><td class="num">${fmtN(r.rop)}</td><td class="num">${fmtN(r.qty)} kg</td><td>${r.lt}일</td><td>${ordered(r.item)?'<span class="chip c-ord">발주됨</span>':`<button class="btn sm warn" onclick="ropOrder('${escJs(esc(r.item))}')">발주 체크</button>`}</td></tr>`;
+      return `<tr><td><b>${esc(ITEM_DISPLAY_LABEL[r.item]||r.item)}</b> ${shortStk?'<span class="chip c-late">부족 '+fmtN(Math.max(0,Math.round(r.rop-r.stk)))+'kg</span>':'<span class="chip c-wait">임박</span>'}${r.zeroGap?' <span class="chip c-late" title="바로 전 재고 파일에는 있었는데 이번 파일에는 행 자체가 없음 — 품절로 보고 0으로 처리">품절 추정</span>':''}${r.flag?' <span class="tag">'+esc(r.flag)+'</span>':''}${r.gpps?'<div class="tag">⚠ '+esc(r.gpps)+' · 발주 여부는 검토 후 확정</div>':''}</td><td><b>${esc(r.vendor)}</b></td><td class="num">${fmtN(Math.round(r.stk))}</td><td class="num">${fmtN(r.rop)}</td><td class="num">${fmtN(r.qty)} kg</td><td>${r.lt}일</td><td>${ordered(r.item)?'<span class="chip c-ord">발주됨</span>':`<button class="btn sm warn" onclick="ropOrder('${escJs(esc(r.item))}')">발주 체크</button>`}</td></tr>`;
     }).join(''):'<tr><td colspan="7" class="empty">발주점 도달 품목 없음 — 전 품목 재고 여유</td></tr>';
     document.getElementById('cntRop').textContent=rop.length?`부족 ${rop.filter(r=>r.stk<=r.rop).length} · 임박 ${rop.filter(r=>r.stk>r.rop).length}`:'';
   }
@@ -1914,10 +1915,20 @@ function restoreInvSnapshot(){
 function ropDue(){
   if(!S.inv||!S.inv.stock)return[];
   const seen=new Set();
-  return M.rop.filter(r=>S.inv.stock[r.item]!=null)
+  // DW재고 파일은 재고가 완전히 0이 되면 그 품목 행 자체가 파일에서 통째로 빠지는 경우가
+  // 있음(현장 확인) — 그대로 두면 S.inv.stock[r.item]이 undefined가 되어 바로 아래 !=null
+  // 필터에서 조용히 제외되고, 가장 급한 "완전 품절" 상태가 오히려 부족 목록에서 사라져
+  // 버림. 바로 전 스냅샷(오늘 것 제외 최신)에는 재고가 있었는데 이번 파일에는 행이 없으면
+  // 0으로 간주해 부족 목록에 포함시킴 — 원래 이 파일에 없던 품목(다른 창고 전용 등)까지
+  // 잘못 끌어오지 않게 "전에는 있었다"는 조건을 둠(zeroGap으로 화면에 표시).
+  const todayD=(S.inv.ts||'').slice(0,10);
+  const prevSnap=(S.invHist||[]).filter(h=>h.d!==todayD).sort((a,b)=>a.d<b.d?1:-1)[0];
+  const prevStock=prevSnap?prevSnap.stock:null;
+  return M.rop.filter(r=>S.inv.stock[r.item]!=null||(prevStock&&prevStock[r.item]>0))
     .filter(r=>norm(r.loc)!=='M301P2')   // M301P2(주택용·장판) — 이제 자가 입고 안 함, 발주점 산정 제외
     .map(r=>{
-      const rr={...r,stk:S.inv.stock[r.item]};
+      const inFile=S.inv.stock[r.item]!=null;
+      const rr={...r,stk:inFile?S.inv.stock[r.item]:0,zeroGap:!inFile};
       // GPPS 정책: 신재(125EB)는 상시 2,000kg 유지 기준 — 재생(PSGNT1TPZ)과 합산·대체 금지 (매입처명은 SENSITIVE 참조)
       if(norm(rr.item).includes('125EB')){rr.rop=Math.max(rr.rop,2000);if(SENSITIVE.gppsVendor)rr.vendor=SENSITIVE.gppsVendor;rr.gpps=`신재 — ${SENSITIVE.insLabel||'재생업체'} 재생과 합산·대체 금지`;}
       if(norm(rr.item).includes('PSGNT1TPZ')){rr.gpps=`재생(${SENSITIVE.insLabel||'재생업체'}) — ${SENSITIVE.gppsVendor||'신재'} 신재와 합산·대체 금지`;}
@@ -4793,7 +4804,7 @@ function renderStTrend(){
   const latest=hist[hist.length-1];
   const keys=[...new Set(hist.flatMap(h=>Object.keys(h.stock)))].sort((a,b)=>(latest.stock[b]||0)-(latest.stock[a]||0));
   if(!stItem||!keys.includes(stItem))stItem=keys[0]||'';
-  sel.innerHTML=keys.map(k=>`<option value="${esc(k)}"${k===stItem?' selected':''}>${esc(STAT_LABEL[k]||k)} — ${fmtN(Math.round(latest.stock[k]||0))}kg</option>`).join('');
+  sel.innerHTML=keys.map(k=>`<option value="${esc(k)}"${k===stItem?' selected':''}>${esc(ITEM_DISPLAY_LABEL[k]||k)} — ${fmtN(Math.round(latest.stock[k]||0))}kg</option>`).join('');
   document.getElementById('stInvInfo').textContent=`최근 스냅샷 ${latest.d}`;
   const pts=hist.filter(h=>h.stock[stItem]!=null).map(h=>({d:h.d,v:h.stock[stItem]}));
   if(!pts.length){box.innerHTML='<div class="empty">이 품목의 재고 이력이 없습니다</div>';return;}

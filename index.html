@@ -776,7 +776,7 @@ const short=s=>String(s||'').replace(/^.*?_(?=[^_]+$)/,'');  // 'TiO2_TIONA-696'
    이 함수를 다시 호출해야 패치가 사라지지 않음 — sb 연결 코드에서 재호출하는 부분 참고.
    M._patchVersion으로 딱 한 번만 실행되게 막아둠 — 기준정보 탭에서 사람이 직접 고친 값을
    다음 로그인 때 또 덮어쓰지 않기 위함. 새 패치를 추가할 땐 MASTER_PATCH_VERSION을 올릴 것. */
-const MASTER_PATCH_VERSION=10;
+const MASTER_PATCH_VERSION=11;
 function applyMasterPatches(){
   if((M._patchVersion||0)>=MASTER_PATCH_VERSION)return;
   const bag=M.rop.find(r=>r.item==='BAG'&&/단석/.test(r.vendor||''));if(bag)bag.item='DS356S1';
@@ -839,6 +839,25 @@ function applyMasterPatches(){
   let jdE=M.rop.find(r=>r.item==='TIONA-666(696)');
   if(!jdE&&bagE){jdE={...bagE,item:'TIONA-666(696)'};M.rop.push(jdE);}
   if(jdE){jdE.loc='JD';jdE.vendor='일삼시화';}
+  // v11: K-2450 백(14동 2열)/지대(14동 1열) 발주 기준 분리 + TIONA-696 1회 발주량 현장 확인치
+  // 반영(2026-09). 기존 'Kronos2450'(브랜드명, 백/지대 구분 없이 하나로 등록돼 있던 항목)을
+  // 표준 이름 'K-2450'으로 바꿔 백 전용으로 쓰고, 지대는 새 항목으로 추가함.
+  // TIONA-696과 마찬가지로 DW재고 엑셀상 품목명 텍스트가 백/지대 공통이라(readInv() 참고,
+  // 위치만 다름) 텍스트 매칭용 기본 항목명에는 '(백)' 접미사를 붙이지 않음 — 접미사를 붙이면
+  // 엑셀 텍스트와 절대 못 맞음(TIONA-696도 같은 이유로 'TIONA-696'(백)/'TIONA-666(696)'(지대)
+  // 로 비대칭 명명돼 있음). 최초 1회만 실행(이후 기준정보 탭에서 사람이 고친 값을 다음 로그인
+  // 때 또 덮어쓰지 않도록 — 위 V6 시드값과 같은 이유).
+  if(!M._v11K2450Split){
+    let k2450=M.rop.find(r=>['KRONOS2450','K2450'].includes(norm(r.item)));
+    if(k2450){k2450.item='K-2450';k2450.loc='14동 2열';k2450.lt=2;k2450.qty=5000;k2450.rop=4000;if(!k2450.cat)k2450.cat='안료';}
+    else{k2450={item:'K-2450',loc:'14동 2열',vendor:'',dept:'',lt:2,qty:5000,rop:4000,flag:'',cat:'안료'};M.rop.push(k2450);}
+    let k2450Jd=M.rop.find(r=>r.item==='K-2450(지대)');
+    if(!k2450Jd){k2450Jd={...k2450,item:'K-2450(지대)'};M.rop.push(k2450Jd);}
+    k2450Jd.loc='14동 1열';k2450Jd.lt=2;k2450Jd.qty=3000;k2450Jd.rop=2000;if(!k2450Jd.cat)k2450Jd.cat='안료';
+    if(bagE)bagE.qty=10000;   // TIONA-696(백) 1회 발주량
+    if(jdE)jdE.qty=4000;      // TIONA-696(지대) 1회 발주량 — 발주점은 기존 값(백과 공유) 유지
+    M._v11K2450Split=true;
+  }
   // v7: 주기 기준 대상(M.presetSelf)에도 TIONA-696을 백(FB·플래콘백)/지대(JD) 구분 없이 하나로
   // 등록해 둔 경우가 있어 "오늘 발주할 것"에서 두 로케이터가 같은 품목으로 섞여 보이던 문제 수정.
   // 실제 발주 이력은 R696 흐름에서 이미 'TIONA-696(백)'/'TIONA-696(지대)'로 구분해 기록되므로
@@ -950,6 +969,11 @@ function applyMasterPatches(){
 /* DWC4S·DWC6S → DWC4Z·DWC6Z 품명 변경 — 기존에 S로 등록된 발주·이동 이력도
    새 Z 품목과 같은 품목으로 인식되게(위치 조회·발주 주기 이력 등) */
 const ITEM_ALIAS={'GPPS(재생)':'PSGNT1TPZ','GPPS(유니드글로벌)':'PSGNT1TPZ','GPPS':'PSGNT1TPZ','DWC4S':'DWC4Z','DWC6S':'DWC6Z'};
+/* 통계 탭(재고 추이) 드롭다운 표시용 — S.invHist/M.rop의 실제 키는 readInv() 매칭(백/지대
+   구분용 특수 처리 포함, ropOf() 부근 참고) 때문에 'K-2450'·'TIONA-696'(백)/'K-2450(지대)'·
+   'TIONA-666(696)'(지대)처럼 비대칭·암호 같은 이름을 그대로 씀 — 화면에는 이 라벨로만
+   바꿔 보여주고 내부 키(option value)는 그대로 둬서 매칭 로직은 하나도 안 건드림. */
+const STAT_LABEL={'K-2450':'K-2450(백)','TIONA-696':'TIONA-696(백)','TIONA-666(696)':'TIONA-696(지대)'};
 const itemKey=s=>norm(ITEM_ALIAS[String(s||'').trim()]||s);
 function matchItem(q){ // 마스터에서 가장 비슷한 품목
   q=ITEM_ALIAS[String(q).trim()]||q;
@@ -974,6 +998,7 @@ function locOf(q){const m=matchItem(q);return qmLocOverride(q)||(m?m.loc.replace
    쪽으로 잘못 붙어버림. r696Variant로 백/지대를 먼저 가려서 정확한 쪽을 찾음. */
 function ropOf(q){
   if(isTionaFamily(q)){const r=M.rop.find(x=>x.item===r696Variant(q));if(r)return r;}
+  if(isK2450Family(q)){const r=M.rop.find(x=>x.item===k2450Variant(q));if(r)return r;}
   const n=norm(q);
   return M.rop.find(x=>norm(x.item)===n)||M.rop.find(x=>norm(x.item).includes(n)||n.includes(norm(x.item)));
 }
@@ -1224,7 +1249,7 @@ async function sbConnect(pass){
       // 위 세 플래그도 불리언이라 배열 전용 루프로 안 옮겨짐 — 이걸 안 옮기면 다음 버전 패치 때마다
       // applyMasterPatches()가 이미 끝난 v5/v6/v7 단계까지 처음부터 다시 돌아 그 사이 기준정보 탭에서
       // 사람이 고친 내용을 지워버림(각 단계 주석 참고). _patchVersion과 마찬가지로 서버 값을 그대로 반영.
-      ['_cycKeepApplied','_m301p2Removed','_tiona696SplitApplied','_r696AliasSplitApplied','_v6BaselineApplied','_tionaFuzzySplitApplied','_ropCatSeeded'].forEach(k=>{M[k]=md[k]===true;});
+      ['_cycKeepApplied','_m301p2Removed','_tiona696SplitApplied','_r696AliasSplitApplied','_v6BaselineApplied','_tionaFuzzySplitApplied','_ropCatSeeded','_v11K2450Split'].forEach(k=>{M[k]=md[k]===true;});
       applyMasterPatches();   // 처음(버전 미달)이면 M.rop/M.presetSelf에 발주점 패치를 적용하고 서버에 저장
       // STAT_RULES(통계탭 계획표)는 M 소속이 아닌 별도 const 배열이라 같은 방식으로 취급 못 함 —
       // 참조를 그대로 유지해야 하는 코드가 있을 수 있어 재대입 대신 내용만 교체(splice).
@@ -1820,7 +1845,16 @@ function readInv(f){
           // 95T(HYDROCARB)는 P201P2·M404P2 두 창고에 나뉘어 있고 자가 발주 대상은 M404P2뿐 —
           // 창고 컬럼 인식 여부와 무관하게 행 전체에서 P201P2가 보이면 항상 제외(이중 안전장치)
           if(/95T|HYDROCARB/.test(norm(hit.item))&&norm(row.map(c=>String(c??'')).join(' ')).includes('P201P2'))continue;
-          stock[hit.item]=(stock[hit.item]||0)+qty;hits++;
+          // K-2450·TIONA-696(R696)은 엑셀 품목명 텍스트가 백/지대 공통이고 창고 컬럼값도 둘 다
+          // M404P2로 같아서(현장 확인) 위 텍스트 매칭만으론 절대 구분이 안 됨 — 실제로는 위치
+          // (로케이터)로만 갈림: '14동 2열'=백, '14동 1열'=지대. 기본(백) 항목으로 매칭된 행만
+          // 행 전체 텍스트에서 위치 표기를 직접 찾아 지대 전용 항목으로 재배정함. 위치 표기를
+          // 못 찾으면(파일 양식이 바뀌었거나 다른 창고인 경우) 무리하게 가르지 않고 기존처럼
+          // 백 항목에 합산 — 엉뚱하게 지대로 갈라 잘못된 발주점 경고를 내는 것보다 안전함.
+          const jdVariant={'TIONA-696':'TIONA-666(696)','K-2450':'K-2450(지대)'}[hit.item];
+          let key=hit.item;
+          if(jdVariant&&/14동1열/.test(norm(row.map(c=>String(c??'')).join(' '))))key=jdVariant;
+          stock[key]=(stock[key]||0)+qty;hits++;
         }
       }
     });
@@ -2160,6 +2194,11 @@ const isM210=it=>norm(it).includes('M210');
 /* '666'은 지대(JD) 포장을 가리키는 코드로도 쓰임(TIONA-666(696)) — '지대'라는 글자가 없어도
    '666'이 들어간 이름이면 지대로 인식해야 "666(696)이랑 TIONA-696 같은 거 아니냐"는 혼동이 안 생김 */
 function r696Variant(it){return /666|지대|PB25/.test(norm(it))?'TIONA-666(696)':'TIONA-696';}
+/* K-2450 백/지대 여부 — r696Variant와 같은 이유로 필요: 'K-2450(백)'·'K-2450(지대)' 둘 다
+   정규화하면 'K2450'을 포함해서, 이 판정이 없으면 ropOf()의 일반(포함 관계) 매칭이 항상
+   먼저 등록된 백 항목(M.rop의 'K-2450')으로만 붙어버림. */
+const isK2450Family=it=>norm(it).includes('K2450');
+function k2450Variant(it){return /지대/.test(norm(it))?'K-2450(지대)':'K-2450';}
 // 실물이동완료(체크박스)와 R696 사용량 확인은 서로 독립적으로 처리됨 — 기사는 이동 즉시 체크,
 // 자재과는 이 확인창을 따로 아무 때나(전·후 상관없이) 채움. 예전엔 확인 전엔 기사가 완료 체크
 // 자체를 못 하게 막았는데, 현장에서 실물이동 기록이 늦어지는 문제가 있어 분리함(신고로 발견).
@@ -3794,7 +3833,7 @@ async function sbSaveMasterAfterPatch(){
   try{
     const{data:cur}=await sb.rpc('get_board',{p_id:'jajae-master',p_passcode:sbPass});
     const base=(cur&&typeof cur==='object'&&!Array.isArray(cur))?cur:{};
-    const payload={...base,rop:M.rop,presetSelf:M.presetSelf,_patchVersion:M._patchVersion,_cycKeepApplied:!!M._cycKeepApplied,_m301p2Removed:!!M._m301p2Removed,_tiona696SplitApplied:!!M._tiona696SplitApplied,_r696AliasSplitApplied:!!M._r696AliasSplitApplied,_v6BaselineApplied:!!M._v6BaselineApplied,_tionaFuzzySplitApplied:!!M._tionaFuzzySplitApplied,_ropCatSeeded:!!M._ropCatSeeded};
+    const payload={...base,rop:M.rop,presetSelf:M.presetSelf,_patchVersion:M._patchVersion,_cycKeepApplied:!!M._cycKeepApplied,_m301p2Removed:!!M._m301p2Removed,_tiona696SplitApplied:!!M._tiona696SplitApplied,_r696AliasSplitApplied:!!M._r696AliasSplitApplied,_v6BaselineApplied:!!M._v6BaselineApplied,_tionaFuzzySplitApplied:!!M._tionaFuzzySplitApplied,_ropCatSeeded:!!M._ropCatSeeded,_v11K2450Split:!!M._v11K2450Split};
     const res=await sb.rpc('set_board',{p_id:'jajae-master',p_passcode:sbPass,p_data:payload});
     if(res&&res.error)toast('발주 기준 자동 반영 저장 실패 — 네트워크 확인');
   }catch(e){toast('발주 기준 자동 반영 저장 실패 — 네트워크 확인');}
@@ -4710,7 +4749,7 @@ function renderStTrend(){
   const latest=hist[hist.length-1];
   const keys=[...new Set(hist.flatMap(h=>Object.keys(h.stock)))].sort((a,b)=>(latest.stock[b]||0)-(latest.stock[a]||0));
   if(!stItem||!keys.includes(stItem))stItem=keys[0]||'';
-  sel.innerHTML=keys.map(k=>`<option value="${esc(k)}"${k===stItem?' selected':''}>${esc(k)} — ${fmtN(Math.round(latest.stock[k]||0))}kg</option>`).join('');
+  sel.innerHTML=keys.map(k=>`<option value="${esc(k)}"${k===stItem?' selected':''}>${esc(STAT_LABEL[k]||k)} — ${fmtN(Math.round(latest.stock[k]||0))}kg</option>`).join('');
   document.getElementById('stInvInfo').textContent=`최근 스냅샷 ${latest.d}`;
   const pts=hist.filter(h=>h.stock[stItem]!=null).map(h=>({d:h.d,v:h.stock[stItem]}));
   if(!pts.length){box.innerHTML='<div class="empty">이 품목의 재고 이력이 없습니다</div>';return;}

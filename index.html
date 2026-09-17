@@ -776,7 +776,7 @@ const short=s=>String(s||'').replace(/^.*?_(?=[^_]+$)/,'');  // 'TiO2_TIONA-696'
    이 함수를 다시 호출해야 패치가 사라지지 않음 — sb 연결 코드에서 재호출하는 부분 참고.
    M._patchVersion으로 딱 한 번만 실행되게 막아둠 — 기준정보 탭에서 사람이 직접 고친 값을
    다음 로그인 때 또 덮어쓰지 않기 위함. 새 패치를 추가할 땐 MASTER_PATCH_VERSION을 올릴 것. */
-const MASTER_PATCH_VERSION=11;
+const MASTER_PATCH_VERSION=12;
 function applyMasterPatches(){
   if((M._patchVersion||0)>=MASTER_PATCH_VERSION)return;
   const bag=M.rop.find(r=>r.item==='BAG'&&/단석/.test(r.vendor||''));if(bag)bag.item='DS356S1';
@@ -840,17 +840,19 @@ function applyMasterPatches(){
   if(!jdE&&bagE){jdE={...bagE,item:'TIONA-666(696)'};M.rop.push(jdE);}
   if(jdE){jdE.loc='JD';jdE.vendor='일삼시화';}
   // v11: K-2450 백(14동 2열)/지대(14동 1열) 발주 기준 분리 + TIONA-696 1회 발주량 현장 확인치
-  // 반영(2026-09). 기존 'Kronos2450'(브랜드명, 백/지대 구분 없이 하나로 등록돼 있던 항목)을
-  // 표준 이름 'K-2450'으로 바꿔 백 전용으로 쓰고, 지대는 새 항목으로 추가함.
-  // TIONA-696과 마찬가지로 DW재고 엑셀상 품목명 텍스트가 백/지대 공통이라(readInv() 참고,
-  // 위치만 다름) 텍스트 매칭용 기본 항목명에는 '(백)' 접미사를 붙이지 않음 — 접미사를 붙이면
-  // 엑셀 텍스트와 절대 못 맞음(TIONA-696도 같은 이유로 'TIONA-696'(백)/'TIONA-666(696)'(지대)
-  // 로 비대칭 명명돼 있음). 최초 1회만 실행(이후 기준정보 탭에서 사람이 고친 값을 다음 로그인
-  // 때 또 덮어쓰지 않도록 — 위 V6 시드값과 같은 이유).
+  // 반영(2026-09). DW재고 엑셀의 실제 품목명(담당자 확인)은
+  // "장식공통_내자수입_TiO2_TiO2_Kronos2450_P/B(25kg)_제일케미칼티디"처럼 브랜드명
+  // 'Kronos2450'을 그대로 씀 — 백/지대 공통 텍스트라 readInv()의 텍스트 매칭용 기본
+  // 항목명은 반드시 'Kronos2450' 그대로 둬야 함('K-2450'으로 바꾸면 정규화해도 실제 엑셀
+  // 텍스트('KRONOS2450')의 연속된 부분문자열이 아니게 돼 절대 안 맞음 — 처음 이 패치를
+  // 짤 때 이 부분을 잘못 가정해서 코드리뷰 이후 담당자 확인으로 다시 고침).
+  // 지대는 별도 항목으로 추가(엑셀 텍스트와 매칭될 필요 없음 — readInv()에서 위치 표기로
+  // 직접 재배정, ropOf()에서는 k2450Variant()로 직접 조회). 최초 1회만 실행(이후 기준정보
+  // 탭에서 사람이 고친 값을 다음 로그인 때 또 덮어쓰지 않도록 — 위 V6 시드값과 같은 이유).
   if(!M._v11K2450Split){
     let k2450=M.rop.find(r=>['KRONOS2450','K2450'].includes(norm(r.item)));
-    if(k2450){k2450.item='K-2450';k2450.loc='14동 2열';k2450.lt=2;k2450.qty=5000;k2450.rop=4000;if(!k2450.cat)k2450.cat='안료';}
-    else{k2450={item:'K-2450',loc:'14동 2열',vendor:'',dept:'',lt:2,qty:5000,rop:4000,flag:'',cat:'안료'};M.rop.push(k2450);}
+    if(k2450){k2450.item='Kronos2450';k2450.loc='14동 2열';k2450.lt=2;k2450.qty=5000;k2450.rop=4000;if(!k2450.cat)k2450.cat='안료';}
+    else{k2450={item:'Kronos2450',loc:'14동 2열',vendor:'',dept:'',lt:2,qty:5000,rop:4000,flag:'',cat:'안료'};M.rop.push(k2450);}
     let k2450Jd=M.rop.find(r=>r.item==='K-2450(지대)');
     if(!k2450Jd){k2450Jd={...k2450,item:'K-2450(지대)'};M.rop.push(k2450Jd);}
     k2450Jd.loc='14동 1열';k2450Jd.lt=2;k2450Jd.qty=3000;k2450Jd.rop=2000;if(!k2450Jd.cat)k2450Jd.cat='안료';
@@ -970,10 +972,10 @@ function applyMasterPatches(){
    새 Z 품목과 같은 품목으로 인식되게(위치 조회·발주 주기 이력 등) */
 const ITEM_ALIAS={'GPPS(재생)':'PSGNT1TPZ','GPPS(유니드글로벌)':'PSGNT1TPZ','GPPS':'PSGNT1TPZ','DWC4S':'DWC4Z','DWC6S':'DWC6Z'};
 /* 통계 탭(재고 추이) 드롭다운 표시용 — S.invHist/M.rop의 실제 키는 readInv() 매칭(백/지대
-   구분용 특수 처리 포함, ropOf() 부근 참고) 때문에 'K-2450'·'TIONA-696'(백)/'K-2450(지대)'·
+   구분용 특수 처리 포함, ropOf() 부근 참고) 때문에 'Kronos2450'·'TIONA-696'(백)/'K-2450(지대)'·
    'TIONA-666(696)'(지대)처럼 비대칭·암호 같은 이름을 그대로 씀 — 화면에는 이 라벨로만
    바꿔 보여주고 내부 키(option value)는 그대로 둬서 매칭 로직은 하나도 안 건드림. */
-const STAT_LABEL={'K-2450':'K-2450(백)','TIONA-696':'TIONA-696(백)','TIONA-666(696)':'TIONA-696(지대)'};
+const STAT_LABEL={'Kronos2450':'K-2450(백)','TIONA-696':'TIONA-696(백)','TIONA-666(696)':'TIONA-696(지대)'};
 const itemKey=s=>norm(ITEM_ALIAS[String(s||'').trim()]||s);
 function matchItem(q){ // 마스터에서 가장 비슷한 품목
   q=ITEM_ALIAS[String(q).trim()]||q;
@@ -1851,7 +1853,7 @@ function readInv(f){
           // 행 전체 텍스트에서 위치 표기를 직접 찾아 지대 전용 항목으로 재배정함. 위치 표기를
           // 못 찾으면(파일 양식이 바뀌었거나 다른 창고인 경우) 무리하게 가르지 않고 기존처럼
           // 백 항목에 합산 — 엉뚱하게 지대로 갈라 잘못된 발주점 경고를 내는 것보다 안전함.
-          const jdVariant={'TIONA-696':'TIONA-666(696)','K-2450':'K-2450(지대)'}[hit.item];
+          const jdVariant={'TIONA-696':'TIONA-666(696)','Kronos2450':'K-2450(지대)'}[hit.item];
           let key=hit.item;
           if(jdVariant&&/14동1열/.test(norm(row.map(c=>String(c??'')).join(' '))))key=jdVariant;
           stock[key]=(stock[key]||0)+qty;hits++;
@@ -2196,9 +2198,12 @@ const isM210=it=>norm(it).includes('M210');
 function r696Variant(it){return /666|지대|PB25/.test(norm(it))?'TIONA-666(696)':'TIONA-696';}
 /* K-2450 백/지대 여부 — r696Variant와 같은 이유로 필요: 'K-2450(백)'·'K-2450(지대)' 둘 다
    정규화하면 'K2450'을 포함해서, 이 판정이 없으면 ropOf()의 일반(포함 관계) 매칭이 항상
-   먼저 등록된 백 항목(M.rop의 'K-2450')으로만 붙어버림. */
+   먼저 등록된 백 항목으로만 붙어버림. 여기서 판정하는 건 발주·이동 기록의 품목명('K-2450
+   (백)'/'(지대)')이고, M.rop의 백 항목 자체는 DW재고 엑셀 텍스트와 맞추려고 브랜드명
+   'Kronos2450'을 그대로 씀(readInv()·v11 패치 주석 참고) — 서로 다른 이름이라 헷갈리지
+   않게 여기 남겨둠. */
 const isK2450Family=it=>norm(it).includes('K2450');
-function k2450Variant(it){return /지대/.test(norm(it))?'K-2450(지대)':'K-2450';}
+function k2450Variant(it){return /지대/.test(norm(it))?'K-2450(지대)':'Kronos2450';}
 // 실물이동완료(체크박스)와 R696 사용량 확인은 서로 독립적으로 처리됨 — 기사는 이동 즉시 체크,
 // 자재과는 이 확인창을 따로 아무 때나(전·후 상관없이) 채움. 예전엔 확인 전엔 기사가 완료 체크
 // 자체를 못 하게 막았는데, 현장에서 실물이동 기록이 늦어지는 문제가 있어 분리함(신고로 발견).

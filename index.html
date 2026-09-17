@@ -298,6 +298,8 @@ details.card summary .cnt{font-size:11.5px;color:var(--mut);font-weight:500}
         <input type="file" id="invFile" accept=".xlsx,.xls,.csv" style="display:none" onchange="readInv(this.files[0]);this.value=''">
         <span class="tag" id="invInfo" style="flex:1;min-width:160px"></span>
         <button class="btn sm ghost" id="invClear" style="display:none" onclick="clearInv()">재고 지우기</button>
+        <select id="invRestoreSel" style="display:none" title="날짜별로 쌓인 이전 재고 스냅샷 중 하나를 골라 지금 재고로 되돌릴 수 있음 — 잘못된 파일을 올렸을 때 사용"></select>
+        <button class="btn sm ghost" id="invRestoreBtn" style="display:none" onclick="restoreInvSnapshot()">선택 날짜로 복원</button>
       </div>
       <div id="ropWrap" style="display:none">
         <div class="grp-lbl">재고 기준 — 발주점(ROP) 도달 <span class="cnt" id="cntRop"></span></div>
@@ -1751,6 +1753,7 @@ function renderBoard(){
   const dueN=due.length+rop.filter(r=>r.stk<=r.rop).length;window._dueN=dueN;
   document.getElementById('invInfo').textContent=hasInv?`재고 기준: ${S.inv.ts} · ${Object.keys(S.inv.stock).length}개 품목 반영`:'DW 재고 파일을 올리면(또는 이 카드에 끌어다 놓으면) 발주점 기준으로 자동 계산됨';
   document.getElementById('invClear').style.display=hasInv?'':'none';
+  renderInvRestoreOptions();
   document.getElementById('ropWrap').style.display=hasInv?'':'none';
   document.getElementById('cycLbl').textContent=hasInv?'주기 기준 (자가 — 벌크·직납 등 재고 파일에 없는 품목)':'주기 기준 (자가) — 권장 주기와 마지막 발주일로 계산. [발주 체크] 시 착일 자동 생성.';
   if(hasInv){
@@ -1862,16 +1865,52 @@ function readInv(f){
     });
     if(!hits){toast('재고 파일에서 발주 기준 품목을 못 찾음 — 품목명·재고 컬럼이 있는지 확인');return;}
     S.inv={ts:localISO(new Date())+' '+new Date().toTimeString().slice(0,5),stock};
-    const hd=localISO(new Date());
-    S.invHist=(S.invHist||[]).filter(h=>h.d!==hd);
-    S.invHist.push({d:hd,stock:{...stock}});
-    S.invHist.sort((a,b)=>a.d<b.d?-1:1);
-    if(S.invHist.length>90)S.invHist=S.invHist.slice(-90);
+    pushInvHistSnapshot(localISO(new Date()),stock);
     saveDB();refreshAll();toast(`재고 ${Object.keys(stock).length}개 품목 반영됨`);
   }catch(err){toast('재고 파일을 읽지 못함: '+err.message);}};
   r.readAsArrayBuffer(f);
 }
 function clearInv(){delete S.inv;saveDB();refreshAll();toast('재고 데이터 지움 — 주기 기준으로 돌아감');}
+/* readInv()·restoreInvSnapshot() 둘 다 "오늘 날짜 스냅샷을 지우고 새로 넣은 뒤 정렬·90개로
+   자르기"를 하므로 한 곳에 모음 — 따로 두면 나중에 한쪽만 고치다 캡·정렬 규칙이 어긋날 위험
+   (코드리뷰로 발견). */
+function pushInvHistSnapshot(d,stock){
+  S.invHist=(S.invHist||[]).filter(h=>h.d!==d);
+  S.invHist.push({d,stock:{...stock}});
+  S.invHist.sort((a,b)=>a.d<b.d?-1:1);
+  if(S.invHist.length>90)S.invHist=S.invHist.slice(-90);
+}
+/* DW 재고 파일을 잘못 올렸을 때 — 업로드는 매번 이전 수치를 통째로 덮어쓰는 방식이라(합치는 게
+   아님) 되돌리기 기능이 따로 없었음(실사용 문의로 확인). 매일 자동으로 쌓이는 날짜별 스냅샷
+   (S.invHist, readInv() 참고)에서 이전 날짜를 골라 지금 재고로 되돌릴 수 있게 함 — 정상 파일이
+   남아있으면 그걸 다시 올리는 게 가장 확실하지만, 없을 때를 위한 안전망. */
+const invRestoreLbl=key=>_arm===key?'정말 복원?':'선택 날짜로 복원';   // armLbl은 "삭제" 전용 문구라 복원엔 안 맞아 별도로 둠(같은 _arm/armDel 상태를 그대로 씀)
+function renderInvRestoreOptions(){
+  const sel=document.getElementById('invRestoreSel'),btn=document.getElementById('invRestoreBtn');
+  if(!sel||!btn)return;
+  const hist=(S.invHist||[]).slice().sort((a,b)=>a.d<b.d?1:-1);   // 최신 날짜가 위로
+  const show=hist.length>0;
+  sel.style.display=show?'':'none';btn.style.display=show?'':'none';
+  if(!show)return;
+  const prev=sel.value;   // 다시 그려도 고르던 날짜는 유지(아직 목록에 있으면)
+  sel.innerHTML=hist.map(h=>`<option value="${esc(h.d)}">${esc(h.d)} 스냅샷(${Object.keys(h.stock).length}개 품목)</option>`).join('');
+  if(hist.some(h=>h.d===prev))sel.value=prev;
+  // 버튼 자체 문구로 "한 번 더 누르면 진행됨" 상태를 보여줌 — 토스트만 믿으면 1.8초 지나 사라진
+  // 뒤에도 armDel의 3초 유예가 남아있어, 사람이 못 보고 또 눌렀다가 의도치 않게 확정될 수 있음
+  // (다른 삭제 버튼들은 armLbl로 이미 이렇게 함, 코드리뷰로 발견 — 이것만 빠져 있었음).
+  btn.textContent=invRestoreLbl('invRestore'+sel.value);
+}
+function restoreInvSnapshot(){
+  const d=document.getElementById('invRestoreSel').value;if(!d)return;
+  const h=(S.invHist||[]).find(x=>x.d===d);if(!h)return;
+  if(!armDel('invRestore'+d)){toast('한 번 더 누르면 이 날짜 스냅샷으로 되돌립니다');return;}
+  S.inv={ts:`${d} 스냅샷으로 복원`,stock:{...h.stock}};
+  // 오늘자 스냅샷도 이 값으로 맞춰 둠 — 실제로 오늘 이 수치의 파일을 다시 올린 것과 같은 상태로
+  // 만들어야, 재고 추이 그래프에 방금 있었던 잘못된 업로드가 오늘자로 남아 헷갈리지 않음.
+  pushInvHistSnapshot(realToday(),h.stock);
+  saveDB();refreshAll();
+  toast(`${d} 스냅샷으로 복원됨`);
+}
 function ropDue(){
   if(!S.inv||!S.inv.stock)return[];
   const seen=new Set();

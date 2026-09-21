@@ -2243,6 +2243,14 @@ const isR696=it=>norm(it).includes('696')&&!norm(it).includes('KRONOS');
    다 잡아서(예: R-696처럼 실제로는 다른 품목) 백/지대 전용 로직으로 잘못 보낼 수 있어 따로 둠. */
 const isTionaFamily=it=>{const n=norm(it);return n.includes('696')&&(n.includes('TIONA')||n.includes('666')||/^R696/.test(n));};   // 'R696'로 시작하는 이름만(예: 'PR-6960'처럼 우연히 겹치는 코드까지 잡지 않게)
 const isM210=it=>norm(it).includes('M210');
+// M-210 행선지는 두 거래처 중 하나뿐(사용자 확인, 2026-09-21) — 자유 입력 대신 고르게 해 표기가 흔들리지 않게 함.
+// 매각 대조 엔진이 이 값을 사급 건 행선지로 그대로 씀. 기존 값이 목록에 없으면 잃지 않게 그 값도 같이 보여줌.
+const M210_DESTS=['엔에이치씨','동부엔지니어링'];
+const m210DestOptions=cur=>[...new Set([...M210_DESTS,...(cur?[cur]:[])])];
+// 다이얼로그 공통 셀렉트 마크업(빈 값 선택지 포함) — openDlg와 editCs가 같은 것을 씀.
+const selectHtml=(k,opts,cur)=>`<select data-k="${k}"><option value="">— 선택 —</option>${opts.map(v=>`<option ${cur===v?'selected':''}>${esc(v)}</option>`).join('')}</select>`;
+// 사급처가 두 행선지 중 하나면 그걸 기본값으로 미리 골라 둠(표기만 다른 경우 대비해 norm 비교).
+const m210DestGuess=c=>M210_DESTS.find(d=>norm(d)===norm(c.consignee))||'';
 /* '666'은 지대(JD) 포장을 가리키는 코드로도 쓰임(TIONA-666(696)) — '지대'라는 글자가 없어도
    '666'이 들어간 이름이면 지대로 인식해야 "666(696)이랑 TIONA-696 같은 거 아니냐"는 혼동이 안 생김 */
 function r696Variant(it){return /666|지대|PB25/.test(norm(it))?'TIONA-666(696)':'TIONA-696';}
@@ -3743,7 +3751,7 @@ function csMark(id,f){const c=findLive(S.cons,id);if(!c)return;
   if(isM210(c.item)&&(f==='outDate'||f==='done')&&!c.m210by){
     // 행선지는 별도 칸(m210dest)으로 받아 매각 대조 엔진이 그대로 쓰게 함 — 한 칸 자유 메모(m210by)에만
     // 섞어 두면 파싱할 수 없어 M-210 매각이 확인을 마친 뒤에도 대조 화면에서 반영 불가로 남았음.
-    openDlg('M-210 행선지 확인 — 입력 전 처리 차단',[['by',`확인자 (예: ${SENSITIVE.m210Contact||'담당자'})`],['dest','행선지 (예: ○○행 — 매각 대조에도 쓰임)'],['basis','근거 (예: 8-22 통화)']],{by:'',dest:'',basis:''},o=>{
+    openDlg('M-210 행선지 확인 — 입력 전 처리 차단',[['by',`확인자 (예: ${SENSITIVE.m210Contact||'담당자'})`],['dest','행선지 (매각 대조에도 쓰임)',null,m210DestOptions()],['basis','근거 (예: 8-22 통화)']],{by:'',dest:m210DestGuess(c),basis:''},o=>{
       const by=(o.by||'').trim(),dest=(o.dest||'').trim(),basis=(o.basis||'').trim();
       if(!by||!dest){toast('M-210: 확인자와 행선지를 입력하기 전에는 처리할 수 없습니다');return false;}
       c.m210by=[by,dest,basis].filter(Boolean).join(' / ');c.m210dest=dest;
@@ -3851,7 +3859,7 @@ function editCs(id){
     <div><label>발주일</label><input data-k="ordDate" type="date" value="${esc(c.ordDate??'')}"></div>
     <div><label>출고일</label><input data-k="outDate" id="csEditOutDate" type="date" value="${esc(c.outDate??'')}"></div>
     ${isM210(c.item)?`<div><label>M-210 확인 (확인자 / 근거)</label><input data-k="m210by" value="${esc(c.m210by??'')}" placeholder="비우면 출고·완료 때 다시 확인받음"></div>
-    <div><label>M-210 행선지</label><input data-k="m210dest" value="${esc(c.m210dest??'')}" placeholder="매각 대조에 필요 — 기존 건은 여기서 보완"></div>`:''}
+    <div><label>M-210 행선지 (매각 대조에 필요 — 기존 건은 여기서 보완)</label>${selectHtml('m210dest',m210DestOptions(c.m210dest),c.m210dest)}</div>`:''}
     <div style="grid-column:1/-1"><label>비고</label><input data-k="note" value="${esc(c.note??'')}"></div>`;
   csEditActionSync(dlgBody.querySelector('[data-k="action"]'));
   const db2=document.getElementById('dlgDelBtn');db2.style.display='';db2.dataset.arm='';db2.textContent='삭제';
@@ -4570,7 +4578,10 @@ function drvAddCustomDo(it,q,d){
 /* ═════════ 수정 다이얼로그 ═════════ */
 let dlgCtx=null;
 function openDlg(title,fields,obj,onSave,onDel){
-  dlgTitle.textContent=title;dlgBody.innerHTML=fields.map(([k,l,t])=>`<div><label>${l}</label><input data-k="${k}" type="${t||'text'}" value="${esc(obj[k]??'')}"></div>`).join('');
+  // 4번째 요소로 선택지 배열을 주면 셀렉트로 그림(빈 값 선택지 포함) — dlgSave가 input·select를 같이 읽음.
+  dlgTitle.textContent=title;dlgBody.innerHTML=fields.map(([k,l,t,opts])=>`<div><label>${l}</label>${opts
+    ?selectHtml(k,opts,obj[k])
+    :`<input data-k="${k}" type="${t||'text'}" value="${esc(obj[k]??'')}">`}</div>`).join('');
   const db2=document.getElementById('dlgDelBtn');db2.style.display=onDel?'':'none';db2.dataset.arm='';db2.textContent='삭제';   // onDel이 없으면 [삭제] 숨김
   dlgCtx={obj,onSave,onDel,fields};dlg.showModal();
 }

@@ -24,11 +24,12 @@ test('공통 TiO2 분류와 포장중량으로 다른 품목 연결 금지',()=>
  assert.equal(E.preview(s({item:'장식_TiO2_KA-100_P/B(25kg)'}),[o({item:'장식_TiO2_K2450_P/B(25kg)'})]).status,'NO_CANDIDATE');
 });
 test('공통 ERP 품목코드 충돌은 이름이 같아도 차단',()=>assert.equal(E.preview(s({itemCode:'A1'}),[o({itemCode:'B1'})]).status,'NO_CANDIDATE'));
-test('직접출고 완료 건도 후보이며 미리보기가 원본을 변경하지 않음',()=>{
+test('직접출고 완료 건은 정상 후보(READY)이며 미리보기가 원본을 변경하지 않음',()=>{
  const orders=[o({action:'직접출고',done:true,outDate:'2026-09-02',item:'P-560J 14동 1열',qty:200})];
  const original=JSON.stringify(orders);
  const p=E.preview(s({item:'경질_가공조제_P-560J_P/B(25kg)',qty:200}),orders);
- assert.equal(p.candidates.length,1);assert.equal(p.status,'REVIEW');assert.equal(JSON.stringify(orders),original);
+ assert.equal(p.candidates.length,1);assert.equal(p.status,'READY');assert.equal(p.candidates[0].done,true);
+ assert.equal(JSON.stringify(orders),original);
 });
 test('KSC AT와 L8710은 최초 승인 후보',()=>{
  const p=E.preview(s({vendor:'주식회사 케이에스씨에이티(1318664447)',item:'장식_안료_HELIOGEN GREEN L 8710_P/B(10kg)',qty:600}),
@@ -91,11 +92,56 @@ test('확정 직전 원본 변경 검출',()=>{
  assert.throws(()=>commit(s(),[o()],[],{expectedOrders:{'1':'old'}}),/스냅샷/);
  assert.throws(()=>commit(s(),[o()],[],{expectedSourceSnapshot:'old'}),/스냅샷/);
 });
-test('완료 이력 후보 연결은 검토 필수, 기존 완료일은 보존',()=>{
+test('입고 완료된 발주는 매각의 정상 대응 — 검토 없이 연결되고 기존 완료일은 보존',()=>{
  const orders=[o({done:true,inDate:'2026-09-02'})];
- assert.throws(()=>commit(s(),orders),/검토/);
- commit(s(),orders,[],{reviewConfirmed:true,reviewReason:'전표와 발주 대조 완료'});
- assert.equal(orders[0].inDate,'2026-09-02');
+ assert.equal(E.preview(s(),orders).status,'READY');
+ const ledger=commit(s(),orders);
+ assert.equal(ledger.length,1);assert.equal(orders[0].inDate,'2026-09-02');
+ assert.equal(E.remainingOrder(orders[0],ledger),0);
+});
+test('직접 지정: 업체·품목이 안 맞는 발주도 후보가 되지만 검토 사유는 필수',()=>{
+ const other=o({id:'9',vendor:'전혀다른업체',item:'ZZZ-1'});
+ assert.equal(E.preview(s(),[other]).status,'NO_CANDIDATE');
+ const p=E.preview(s(),[other],[],aliases,{manualOrderIds:['9']});
+ assert.equal(p.status,'REVIEW');assert.equal(p.candidates.length,1);
+ assert.ok(p.candidates[0].issues.includes('담당자 직접 지정'));
+ const alloc=[{orderId:'9',baseQty:1000}];
+ assert.throws(()=>commit(s(),[other],[],{manualOrderIds:['9'],allocations:alloc}),/검토/);
+ const ledger=commit(s(),[other],[],{manualOrderIds:['9'],allocations:alloc,reviewConfirmed:true,reviewReason:'담당자 직접 지정'});
+ assert.equal(ledger[0].allocations[0].orderId,'9');
+ assert.throws(()=>commit(s(),[other],[],{allocations:alloc,reviewConfirmed:true,reviewReason:'x'}),/NO_CANDIDATE/);
+});
+test('직접 지정도 사업자번호 충돌·잔량 없음·단위 종류 불일치는 넘지 못하고 사유가 남음',()=>{
+ const p1=E.preview(s({vendorRegNo:'1111111111'}),[o({vendorRegNo:'2222222222'})],[],aliases,{manualOrderIds:['1']});
+ assert.equal(p1.status,'NO_CANDIDATE');assert.equal(p1.rejected[0].reason,'사업자번호 충돌');
+ const ledger=commit(s(),[o()]);
+ const p2=E.preview(s({documentNo:'2'}),[o()],ledger);
+ assert.equal(p2.status,'NO_CANDIDATE');assert.equal(p2.rejected[0].reason,'잔량 없음(이미 전부 배분됨)');
+ const p3=E.preview(s({unit:'m'}),[o()],[],aliases,{manualOrderIds:['1']});
+ assert.equal(p3.rejected[0].reason,'단위 종류 불일치(중량/길이/개수)');
+});
+test('commit이 무조건 거부하는 조건은 hardBlocked로 표시되고 검토 확인으로 우회 불가',()=>{
+ const p=E.preview(s({unit:'',date:'2026-02-30'}),[o({unit:'',orderDate:'',requestDate:''})]);
+ assert.deepEqual(p.hardBlocked,['매각일 누락 또는 오류','매각 단위 확인 필요']);
+ assert.deepEqual(p.candidates[0].hardBlocked,['단위 확인 필요','발주/접수일 확인 필요']);
+ assert.deepEqual(E.preview(s(),[o()]).hardBlocked,[]);assert.deepEqual(E.preview(s(),[o()]).candidates[0].hardBlocked,[]);
+ assert.ok(E.preview(s({item:'M210'}),[o({item:'M-210'})]).candidates[0].hardBlocked.includes('M-210 행선지 확인 필요'));
+});
+test('완료 후 60일 넘은 발주만 확인 요청 — 최근 입고 완료 건은 그대로 READY',()=>{
+ const fresh=E.preview(s({date:'2026-09-07'}),[o({done:true,inDate:'2026-09-02'})]);
+ assert.equal(fresh.status,'READY');assert.equal(fresh.candidates[0].staleDone,false);
+ const stale=E.preview(s({date:'2026-09-07'}),[o({done:true,inDate:'2026-06-01',orderDate:'2026-05-30'})]);
+ assert.equal(stale.status,'REVIEW');assert.equal(stale.candidates[0].staleDone,true);
+ assert.ok(stale.candidates[0].issues[0].includes('60일'));
+ assert.strictEqual(E.preview(s(),[o({done:true})]).candidates[0].staleDone,false);   // 완료일 없으면 판단 불가 → false(빈 문자열 아님)
+ assert.strictEqual(E.preview(s({date:'2026-09-07'}),[o({done:true,outDate:'2026-06-01',orderDate:'2026-05-30'})]).candidates[0].staleDone,true);   // 발주인데 출고일만 있는 경우도 완료일로 봄
+ assert.equal(E.orderStart(o()),'2026-09-01');assert.equal(E.orderStart(o({action:'직접출고'})),'2026-08-31');
+});
+test('매각일이 발주일보다 앞서면 자동은 제외(사유 기록), 직접 지정은 경고 issue로 통과',()=>{
+ const p=E.preview(s({date:'2026-08-01'}),[o()]);
+ assert.equal(p.status,'NO_CANDIDATE');assert.equal(p.rejected[0].reason,'매각일이 발주/접수일보다 앞섬');
+ const m=E.preview(s({date:'2026-08-01'}),[o()],[],aliases,{manualOrderIds:['1']});
+ assert.equal(m.candidates.length,1);assert.ok(m.candidates[0].issues.includes('매각일이 발주/접수일보다 앞섬'));
 });
 test('M210 행선지는 검토 버튼만으로 우회 불가',()=>{
  const sale=s({item:'M210'}),orders=[o({item:'M-210'})];

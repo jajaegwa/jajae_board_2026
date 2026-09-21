@@ -106,6 +106,13 @@
   function orderSnapshot(o) {
     return JSON.stringify([o.id,o.action,o.vendor,o.vendorRegNo||'',o.item,o.itemCode||'',o.qty,o.unit||'',o.requestDate||'',o.orderDate||'',o.done,o.outDate||'',o.inDate||'',o.destination||'',o.m210Confirmed||false]);
   }
+  // Date an order became a valid counterpart: order date (fallback request date) for 발주, request date for 직접출고.
+  const orderStart = o => isoDate(o.action==='발주'?o.orderDate||o.requestDate:o.requestDate);
+  const doneDate = o => isoDate(o.action==='발주'?(o.inDate||o.outDate):(o.outDate||o.inDate));
+  // A completed order this much older than the sale was most likely sold before this ledger
+  // existed (its remaining quantity is a phantom) — flagged so automatic allocation can skip it.
+  const STALE_DONE_DAYS = 60;
+  const daysBetween = (a,b) => Math.round((new Date(b+'T00:00:00Z')-new Date(a+'T00:00:00Z'))/86400000);
   const active = ledger => (ledger || []).filter(x=>!x.reversedAt);
   function usedForOrder(ledger, id) {
     return active(ledger).reduce((sum,e)=>sum+e.allocations.filter(a=>String(a.orderId)===String(id)).reduce((n,a)=>n+a.baseQty,0),0);
@@ -127,9 +134,18 @@
     visit(0,0,[]);
     return {kind:sets.length===1?'unique':sets.length>1?'ambiguous':'none',sets};
   }
-  function preview(sale, orders, ledger=[], aliases=emptyAliases()) {
+  // opts.manualOrderIds: orders the operator explicitly designated for this sale. They skip the
+  // vendor/item gate (a human already decided they correspond) but still go through quantity,
+  // unit and remaining checks, and always carry a '담당자 직접 지정' issue so commit() requires a
+  // review reason. A regNo/itemCode conflict is a hard fact and is never overridden.
+  // Returns rejected[] for orders that passed (or bypassed) the vendor/item gate but were still
+  // excluded, so the UI can say why an expected order is not a candidate.
+  function preview(sale, orders, ledger=[], aliases=emptyAliases(), opts={}) {
+    const manualIds=new Set((opts.manualOrderIds||[]).map(String));
     const qty=amount(sale.qty,sale.unit), key=sourceKey(sale);
-    const base={sourceKey:key,sourceSnapshot:sourceSnapshot(sale),candidates:[],proposal:[],issues:[]};
+    // hardBlocked (row-level and per candidate): conditions commit() rejects regardless of review
+    // confirmation — the data must be corrected, so the UI must not auto-select these.
+    const base={sourceKey:key,sourceSnapshot:sourceSnapshot(sale),candidates:[],proposal:[],issues:[],rejected:[],hardBlocked:[]};
     if (!qty) return {...base,status:'INVALID',issues:['수량은 양수여야 함; 반품/취소는 별도 정정 흐름 필요']};
     const prior=key?active(ledger).filter(e=>e.sourceKey===key):[];
     if (prior.some(e=>e.sourceSnapshot!==base.sourceSnapshot)) return {...base,status:'SOURCE_CHANGED',issues:['같은 전표행의 내용 변경; 기존 배분 정정 필요']};
@@ -139,28 +155,44 @@
     if (Math.abs(remaining)<1e-6) return {...base,status:'ALREADY_LINKED',remaining:0};
     if (!key) base.issues.push('전표번호·전표행번호 누락: 거래 중복 여부 확인 필요');
     if (key && JSON.parse(key)[0]==='file-row') base.issues.push('파일행 식별만 가능: 다른 파일의 기존 반영과 중복 여부 검토 필요');
-    if (!isoDate(sale.date)) base.issues.push('매각일 누락 또는 오류');
-    if (!qty.family) base.issues.push('매각 단위 확인 필요');
+    if (!isoDate(sale.date)) { base.issues.push('매각일 누락 또는 오류'); base.hardBlocked.push('매각일 누락 또는 오류'); }
+    if (!qty.family) { base.issues.push('매각 단위 확인 필요'); base.hardBlocked.push('매각 단위 확인 필요'); }
     for (const o of orders) {
       if (!['발주','직접출고'].includes(o.action)) continue;
+      const manual=manualIds.has(String(o.id));
+      const reject=reason=>base.rejected.push({orderId:o.id,reason});
       const vm=vendorMatch(sale,o,aliases), im=itemMatch(sale,o,aliases);
-      if (['none','blocked'].includes(vm.level)||['none','blocked'].includes(im.level)) continue;
+      if (vm.level==='blocked'||im.level==='blocked') { if (manual) reject(vm.level==='blocked'?vm.reason:im.reason); continue; }
+      if (!manual && (vm.level==='none'||im.level==='none')) continue;
       const oq=amount(o.qty,o.unit), remainingQty=remainingOrder(o,ledger);
-      if (!oq || remainingQty<=1e-6) continue;
-      const issues=[];
-      if (qty.family && oq.family && qty.family!==oq.family) continue;
+      if (!oq) { reject('발주/출고 수량 오류'); continue; }
+      if (remainingQty<=1e-6) { reject('잔량 없음(이미 전부 배분됨)'); continue; }
+      const issues=[], hardBlocked=[];
+      if (qty.family && oq.family && qty.family!==oq.family) { reject('단위 종류 불일치(중량/길이/개수)'); continue; }
       if (!qty.family||!oq.family) issues.push('단위 확인 필요');
-      const start=isoDate(o.action==='발주'?o.orderDate||o.requestDate:o.requestDate);
-      if (!start) issues.push('발주/접수일 확인 필요');
-      if (start && isoDate(sale.date) && sale.date<start) continue;
-      if (sale.destination && o.destination && sale.destination!==o.destination) continue;
+      if (!unit(o.unit)) hardBlocked.push('단위 확인 필요');
+      const start=orderStart(o);
+      if (!start) { issues.push('발주/접수일 확인 필요'); hardBlocked.push('발주/접수일 확인 필요'); }
+      if (start && isoDate(sale.date) && sale.date<start) {
+        if (!manual) { reject('매각일이 발주/접수일보다 앞섬'); continue; }
+        issues.push('매각일이 발주/접수일보다 앞섬');
+      }
+      if (sale.destination && o.destination && sale.destination!==o.destination) { reject('행선지 불일치'); continue; }
       if (/(?:^|[^A-Z0-9])M[- ]?210(?:$|[^A-Z0-9])/i.test(sale.item+' '+o.item) &&
-          (!o.m210Confirmed || !o.destination || !sale.destination)) issues.push('M-210 행선지 확인 필요');
+          (!o.m210Confirmed || !o.destination || !sale.destination)) { issues.push('M-210 행선지 확인 필요'); hardBlocked.push('M-210 행선지 확인 필요'); }
       if (vm.level==='suggested'||im.level==='suggested') issues.push('별칭 최초 확인 필요');
-      if (o.done||o.outDate||o.inDate) issues.push('기존 완료 이력과 이번 거래의 대응 확인 필요');
+      if (manual) issues.push('담당자 직접 지정');
+      // A completed (received/shipped) order is the normal counterpart of a sale — the ledger's
+      // remaining-quantity tracking, not a review prompt, is what prevents double allocation.
+      // Only a completion far older than the sale is suspicious (goods likely sold before the
+      // ledger existed, so the remaining quantity is a phantom).
+      const done=Boolean(o.done||o.outDate||o.inDate), dd=doneDate(o);
+      const staleDone=Boolean(done && dd && isoDate(sale.date) && daysBetween(dd,sale.date)>STALE_DONE_DAYS);
+      if (staleDone) issues.push(`완료 후 ${STALE_DONE_DAYS}일 넘은 건 — 이미 매각된 발주일 수 있어 확인 필요`);
+      const reasons=manual?['담당자 직접 지정']:[vm.reason,im.reason];
+      if (sale.supplier&&o.supplier&&vendorName(sale.supplier)===vendorName(o.supplier)) reasons.push('공급사 표기 일치');
       base.candidates.push({orderId:o.id,action:o.action,item:o.item,vendor:o.vendor,remaining:remainingQty,
-        done:Boolean(o.done||o.outDate||o.inDate),orderSnapshot:orderSnapshot(o),issues,
-        reasons:[vm.reason,im.reason,...(sale.supplier&&o.supplier&&vendorName(sale.supplier)===vendorName(o.supplier)?['공급사 표기 일치']:[])],
+        done,staleDone,orderSnapshot:orderSnapshot(o),issues,hardBlocked,reasons,
         quantityDifference:remaining-remainingQty});
     }
     const subset=uniqueSubset(base.candidates,remaining);
@@ -177,10 +209,10 @@
   // Returns a new ledger only. Apply and persist in one app-side transaction.
   // Does NOT alter physical receipt/shipment dates or done flags.
   function commit({sale,orders,ledger=[],aliases=emptyAliases(),allocations,actor,now,expectedOrders,
-    reviewConfirmed=false,reviewReason='',eventId,expectedSourceSnapshot}) {
+    reviewConfirmed=false,reviewReason='',eventId,expectedSourceSnapshot,manualOrderIds=[]}) {
     if (!actor||!now||!eventId) throw Error('담당자·시각·고유 이벤트 ID 필수');
     if (ledger.some(e=>e.id===eventId)) throw Error('이벤트 ID 중복');
-    const p=preview(sale,orders,ledger,aliases);
+    const p=preview(sale,orders,ledger,aliases,{manualOrderIds});
     if (expectedSourceSnapshot!==p.sourceSnapshot) throw Error('미리보기 이후 매각 원본 변경 또는 스냅샷 누락');
     if (!p.sourceKey) throw Error('안정적인 원천 전표행 식별자 필요');
     if (['INVALID','SOURCE_CHANGED','ALREADY_LINKED','NO_CANDIDATE'].includes(p.status)) throw Error(p.status);
@@ -196,7 +228,7 @@
       if (!c||!o||seen.has(id)) throw Error('잘못된/중복 배분 대상');
       seen.add(id);
       if (!unit(o.unit)) throw Error('발주/출고 단위 보완 필요');
-      if (!isoDate(o.action==='발주'?o.orderDate||o.requestDate:o.requestDate)) throw Error('발주/접수일 보완 필요');
+      if (!orderStart(o)) throw Error('발주/접수일 보완 필요');
       if (!expectedOrders || expectedOrders[id]!==orderSnapshot(o)) throw Error('미리보기 이후 대상 변경 또는 스냅샷 누락');
       if (!(Number.isFinite(a.baseQty)&&a.baseQty>0) || a.baseQty>c.remaining+1e-6) throw Error('대상 잔량 초과/잘못된 수량');
       if (c.issues.length && (!reviewConfirmed||!reviewReason.trim())) throw Error('후보 검토 사유 필수');
@@ -212,6 +244,6 @@
     if (!ledger.some(e=>e.id===eventId&&!e.reversedAt)) throw Error('취소할 활성 배분 없음');
     return ledger.map(e=>e.id===eventId?{...e,reversedAt:now,reversedBy:actor,reversalReason:reason}:e);
   }
-  return {VERSION,compact,vendorName,cleanItem,itemForms,hasBounded,unit,amount,isoDate,regNo,vendorMatch,itemMatch,
-    sourceKey,sourceSnapshot,orderSnapshot,remainingOrder,uniqueSubset,preview,commit,reverse};
+  return {VERSION,STALE_DONE_DAYS,compact,vendorName,cleanItem,itemForms,hasBounded,unit,amount,isoDate,regNo,vendorMatch,itemMatch,
+    sourceKey,sourceSnapshot,orderSnapshot,orderStart,remainingOrder,uniqueSubset,preview,commit,reverse};
 });

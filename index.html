@@ -489,11 +489,13 @@ details.card summary .cnt{font-size:11.5px;color:var(--mut);font-weight:500}
       <select id="csFlt" onchange="renderCs()"><option value="">전체</option><option value="대기">대기(발주/출고 전)</option><option value="진행">진행(입고/출고 대기)</option><option value="완료">완료</option></select>
       <select id="csActionFlt" onchange="renderCs()"><option value="">처리 전체</option><option value="발주">발주</option><option value="직접출고">직접출고</option><option value="확인">확인</option><option value="제외">제외</option></select>
       <input id="csSearch" placeholder="사급처·품목 검색" oninput="renderCs()" style="flex:1;min-width:140px">
+      <select id="csUnitFlt" onchange="renderCs()" title="매각대조는 발주·직접출고 건의 단위가 있어야 반영됨"><option value="">단위 전체</option><option value="없음">단위 미입력</option><option value="있음">단위 있음</option></select>
       <div><label>납기 날짜</label><input type="date" id="csDueDateFlt" onchange="renderCs()"></div>
       <div><label>납기 월</label><input type="month" id="csDueMonthFlt" onchange="renderCs()"></div>
-      <button class="btn sm ghost" onclick="csFlt.value='';csActionFlt.value='';csSearch.value='';csDueDateFlt.value='';csDueMonthFlt.value='';renderCs()">필터 전체 초기화</button>
+      <button class="btn sm ghost" onclick="csFlt.value='';csActionFlt.value='';csSearch.value='';csDueDateFlt.value='';csDueMonthFlt.value='';csUnitFlt.value='';renderCs()">필터 전체 초기화</button>
       <button class="btn sm" onclick="mailForSelected()">선택 건 메일 다시 만들기</button>
-      <button class="btn sm" onclick="csBulkSetUnit()" title="단위가 비어 있는 건만 kg로 채움 — 매각대조에서 '단위 보완 필요'로 막힐 때 사용">선택 항목 단위(kg) 일괄 지정</button>
+      <button class="btn sm" onclick="csBulkSetUnit()" title="선택한 건 중 단위가 비어 있는 것만 kg로 채움 — 매각대조에서 '단위 보완 필요'로 막힐 때 사용. 롤·BOX 등 kg가 아닌 건은 [수정]에서 단위를 고르세요">선택 항목 단위(kg) 일괄 지정</button>
+      <span class="tag" id="csUnitEmptyCnt" title="발주·직접출고 건 중 단위가 비어 있어 매각대조에 쓸 수 없는 건수"></span>
       <button class="btn sm pri" onclick="csBulkMark()">선택 입고완료 처리</button>
       <span class="tag" id="csSelCnt"></span>
     </div>
@@ -2930,9 +2932,23 @@ async function csSalesFileHash(buf){
      c.loc은 창고 위치일 뿐 최종 행선지가 아니라 쓰지 않음. 예전엔 행선지가 c.m210by 자유 메모에만
      섞여 있어 항상 빈 값으로 넘겼고, 그래서 M-210 매각은 확인을 마친 건도 대조 화면에서 영원히
      반영 불가였음(사용 문의로 확인). m210dest가 없는 기존 건은 수정 화면에서 행선지를 채우면 됨.
-   - unit: 실제로 대부분의 기존 사급 항목에 단위 칸 자체가 없음(화면 표시만 c.unit||'kg'로
-     기본 처리). 여기서 'kg'를 임의로 주입하지 않고 있는 그대로 넘김 — 단위 미상인 기존 항목은
-     엔진이 "단위 확인 필요"로 검토 처리하게 됨(결과 보고에 명시). */
+   - unit: 단위 칸이 없던 시절 등록된 사급 건은 비어 있음. 여기서 'kg'를 임의로 주입하지 않고
+     있는 그대로 넘김 — 단위 미상인 기존 항목은 엔진이 "단위 확인 필요"로 막고, 사급발주 탭의
+     [단위(kg) 일괄 지정] 또는 [수정]의 단위 칸으로 채워야 반영됨.
+   - 포·BOX·롤 같은 포장 단위는 엔진이 스스로 kg로 바꾸지 못함 — csPackKgOf(기준정보 unitKg)를
+     미리보기·반영 옵션으로 넘겨 환산하고, 환산값이 없는 품목은 엔진이 "환산 정보 필요"로 막음. */
+// 포장 단위 → kg 환산값(엔진이 포·BOX·롤 같은 포장 단위일 때만, 품목별로 한 번 호출).
+// - PLT/파렛트: 통계 탭 kgOf()와 같이 pltKgOf() — 두 규격(배열)이면 환산 불가로 둠
+// - 그 외(포·BOX·롤·드럼…): 기준정보(M.materials) unitKg. 통계용 bagKgOf()는 비슷한 이름까지 잡는
+//   matchItem()을 쓰지만, 원장에 남는 환산은 다른 품목 값을 빌려 오면 안 되므로 이름이 정확히
+//   같은(변형 표기 (백)/(지대) 제거 후) 품목만 인정함.
+function csPackKgOf(item,unit){
+  const u=String(unit||'').normalize('NFKC').trim().toUpperCase();
+  if(['PLT','파렛트','팔레트','PALLET'].includes(u)){const p=pltKgOf(String(item));return (p==null||Array.isArray(p))?null:p;}
+  const raw=String(item||'').trim(),keys=[norm(ITEM_ALIAS[raw]||raw),norm(qmBase(raw))].filter(k=>k.length>=2);
+  const m=M.materials.find(x=>keys.includes(norm(x.name)));
+  return m&&+m.unitKg>0?+m.unitKg:null;
+}
 function csToMatchOrder(c){
   return {
     id:c.id,
@@ -3106,9 +3122,9 @@ let CS_SALES_EXCLUDED=[];
 function csSalesPreviewAndShow(rows,excluded){
   csEngineState();
   const orders=csSalesOrders();
-  CS_SALES_PREVIEW=rows.map(r=>{
+  CS_SALES_PREVIEW=rows.map((r,idx)=>{
     const sale=csSalesToSale(r);
-    return {sale,rowMeta:r,preview:CsSalesEngine.preview(sale,orders,S.salesLedger,S.salesAliases)};
+    return {sale,rowMeta:r,preview:CsSalesEngine.preview(sale,orders,S.salesLedger,S.salesAliases,csSalesPreviewOpts(idx))};
   });
   CS_SALES_EXCLUDED=excluded||[];
   csSalesRowInit();   // 새로 올린 파일이므로 모든 행을 엔진의 기본 제안값으로 처음부터 채움
@@ -3218,7 +3234,7 @@ function csSalesProposalAlloc(preview){return (preview.proposal||[]).map(a=>({or
 // 행별 직접 지정(manualOrderIds)은 엔진 미리보기 옵션으로 넘겨야 후보로 잡힘 — 미리보기를 다시
 // 계산하는 곳(별칭 승인·빠른 매칭·반영 후·직접 지정)이 여럿이라 한 함수로 모음. 한 곳이라도
 // 옵션을 빼먹으면 직접 지정한 후보가 재계산 순간 사라져 반영 때 "잘못된 배분 대상"으로 실패함.
-function csSalesPreviewOpts(idx){const st=CS_SALES_ROW_STATE[idx];return st&&st.manualOrderIds&&st.manualOrderIds.length?{manualOrderIds:st.manualOrderIds}:undefined;}
+function csSalesPreviewOpts(idx){const st=CS_SALES_ROW_STATE[idx];return {packKgOf:csPackKgOf,...(st&&st.manualOrderIds&&st.manualOrderIds.length?{manualOrderIds:st.manualOrderIds}:{})};}
 function csSalesRecomputePreviews(){
   const orders=csSalesOrders();
   CS_SALES_PREVIEW.forEach((pp,idx)=>{pp.preview=CsSalesEngine.preview(pp.sale,orders,S.salesLedger,S.salesAliases,csSalesPreviewOpts(idx));});
@@ -3259,7 +3275,7 @@ function csSalesRenderRow(p,idx){
   const sale=p.sale,prev=p.preview;
   const needsReview=csSalesNeedsReview(prev);
   const candOpts=`<option value="">— 선택 —</option>`+prev.candidates.map(c=>
-    `<option value="${c.orderId}">${esc(c.action)} ${esc(c.item)} / ${esc(c.vendor)} — 잔량 ${fmtN(c.remaining)}${c.done?' (완료이력)':''}</option>`).join('');
+    `<option value="${c.orderId}">${esc(c.action)} ${esc(c.item)} / ${esc(c.vendor)} — 잔량 ${fmtN(c.remaining)}${c.packKg?`(×${fmtN(c.packKg)}kg 환산)`:''}${c.done?' (완료이력)':''}</option>`).join('');
   const allocRows=st.alloc.map((a,ai)=>{
     const cand=a.orderId?csSalesCandOrder(prev,a.orderId):null;
     const aliasBtn=cand&&csSalesAliasIssue(cand)?`<button class="btn sm ghost" onclick="csSalesApproveAlias(${idx},'${a.orderId}')" title="이 표기를 별칭으로 승인하면 다음부터 자동 인식됨">별칭 승인</button>`:'';
@@ -3268,6 +3284,7 @@ function csSalesRenderRow(p,idx){
       <select onchange="csSalesSetAllocOrder(${idx},${ai},this.value)" style="max-width:230px">${candOpts.replace(`value="${a.orderId}"`,`value="${a.orderId}" selected`)}</select>
       <input type="number" step="any" value="${a.baseQty}" placeholder="배분량" style="width:90px" onchange="csSalesSetAllocQty(${idx},${ai},this.value)">
       ${cand?`<span class="tag">잔량 ${fmtN(cand.remaining)}</span>`:''}
+      ${cand&&cand.crossFamily?`<input type="number" step="any" value="${a.saleQty??''}" placeholder="매각 소진량(${esc(sale.unit)})" title="kg↔L처럼 단위 계열이 달라 배분량(사급 단위)과 별도로 이 매각에서 소진하는 수량(매각 단위)을 적어야 반영됨" style="width:120px" onchange="csSalesSetAllocSaleQty(${idx},${ai},this.value)">`:''}
       ${aliasBtn}${doneChk}
       <button class="btn sm ghost" onclick="csSalesRemoveAlloc(${idx},${ai})">✕</button>
     </div>`;
@@ -3291,7 +3308,7 @@ function csSalesRenderRow(p,idx){
     <td style="word-break:break-all">${esc(sale.item)}${sale.itemCode?`<div class="tag">코드 ${esc(sale.itemCode)}</div>`:''}</td>
     <td>${[...new Set(prev.candidates.map(c=>c.action))].join('/')||'-'}</td>
     <td>${esc(sale.date||'')}</td>
-    <td class="num">${fmtN(sale.qty)}${sale.unit?' '+esc(sale.unit):' <span class="tag">단위?</span>'}</td>
+    <td class="num">${fmtN(sale.qty)}${sale.unit?' '+esc(sale.unit):' <span class="tag">단위?</span>'}${prev.salePackKg?`<div class="tag" title="기준정보 포장 kg로 환산해 비교함">×${fmtN(prev.salePackKg)}kg = ${fmtN(sale.qty*prev.salePackKg)}kg</div>`:''}</td>
     <td><span class="chip ${csSalesStatusClass(prev.status)}">${csSalesStatusLabel(prev.status)}</span></td>
     <td style="font-size:12px;max-width:220px">${esc(reasons.join(' · '))}${badgeTxt?`<div style="color:var(--amber)">${esc(badgeTxt)}</div>`:''}</td>
     <td>${allocRows}<button class="btn sm ghost" onclick="csSalesAddAlloc(${idx})">+ 배분 추가</button>${manualUi}</td>
@@ -3311,8 +3328,10 @@ function csSalesClearLastError(idx){delete CS_SALES_ROW_STATE[idx].lastError;}
 function csSalesSetReason(idx,v){CS_SALES_ROW_STATE[idx].reviewReason=v;CS_SALES_ROW_STATE[idx].userEdited=true;csSalesClearLastError(idx);csSalesRerenderRow(idx);}
 function csSalesSetConfirmed(idx,v){CS_SALES_ROW_STATE[idx].reviewConfirmed=v;CS_SALES_ROW_STATE[idx].userEdited=true;csSalesClearLastError(idx);csSalesRerenderRow(idx);}
 function csSalesSetCompleteToo(idx,v){CS_SALES_ROW_STATE[idx].completeToo=v;CS_SALES_ROW_STATE[idx].userEdited=true;}
-function csSalesSetAllocOrder(idx,ai,v){CS_SALES_ROW_STATE[idx].alloc[ai].orderId=v;CS_SALES_ROW_STATE[idx].userEdited=true;csSalesClearLastError(idx);csSalesRerenderRow(idx);}
+function csSalesSetAllocOrder(idx,ai,v){const a=CS_SALES_ROW_STATE[idx].alloc[ai];a.orderId=v;delete a.saleQty;CS_SALES_ROW_STATE[idx].userEdited=true;csSalesClearLastError(idx);csSalesRerenderRow(idx);}   // 매각 소진량은 kg↔L 후보에만 뜻이 있어 대상을 바꾸면 비움
 function csSalesSetAllocQty(idx,ai,v){CS_SALES_ROW_STATE[idx].alloc[ai].baseQty=+v||0;CS_SALES_ROW_STATE[idx].userEdited=true;csSalesClearLastError(idx);csSalesRerenderRow(idx);}
+// kg↔L 배분의 매각 쪽 소진 수량(매각 단위) — 엔진 commit()이 crossFamily 후보에 필수로 요구함.
+function csSalesSetAllocSaleQty(idx,ai,v){CS_SALES_ROW_STATE[idx].alloc[ai].saleQty=v===''?'':(+v||0);CS_SALES_ROW_STATE[idx].userEdited=true;csSalesClearLastError(idx);csSalesRerenderRow(idx);}
 function csSalesAddAlloc(idx){CS_SALES_ROW_STATE[idx].alloc.push({orderId:'',baseQty:''});CS_SALES_ROW_STATE[idx].userEdited=true;csSalesClearLastError(idx);csSalesRerenderRow(idx);}
 function csSalesRemoveAlloc(idx,ai){CS_SALES_ROW_STATE[idx].alloc.splice(ai,1);if(!CS_SALES_ROW_STATE[idx].alloc.length)CS_SALES_ROW_STATE[idx].alloc.push({orderId:'',baseQty:''});CS_SALES_ROW_STATE[idx].userEdited=true;csSalesClearLastError(idx);csSalesRerenderRow(idx);}
 // 전표번호가 없는 파일은 행마다 검토 사유·확인이 필수라(중복 반영·오연결 방지용 안전장치 —
@@ -3407,7 +3426,8 @@ function csSalesQuickApply(){
     if(prev.hardBlocked.length){deselect();return;}
     // staleDone: 완료 후 오래된 건은 이 원장이 생기기 전에 이미 매각된 발주일 수 있어(잔량이 허수)
     // 자동 배분에서 제외 — 후보 목록엔 남아 있어 사람이 직접 고를 수는 있음.
-    const usable=prev.candidates.filter(c=>!c.hardBlocked.length&&!c.staleDone&&working[String(c.orderId)]>1e-6);
+    // crossFamily(kg↔L): 수량이 매각과 같은 척도가 아니라 자동 배분 대상이 아님 — 후보 목록엔 남아 직접 지정 가능.
+    const usable=prev.candidates.filter(c=>!c.hardBlocked.length&&!c.staleDone&&!c.crossFamily&&working[String(c.orderId)]>1e-6);
     if(!usable.length){deselect();return;}
     let alloc=[],fifo=false;
     const proposalOk=prev.proposal.length&&prev.proposal.every(a=>{const c=usable.find(u=>String(u.orderId)===String(a.orderId));return c&&working[String(c.orderId)]>=a.baseQty-1e-6;});
@@ -3483,7 +3503,7 @@ function csSalesBuildManualOpts(){
   // 다시 훑으면 렌더마다 사급 건수×원장 크기만큼 느려짐(코드리뷰로 발견).
   const used={};
   (S.salesLedger||[]).filter(e=>!e.reversedAt).forEach(e=>(e.allocations||[]).forEach(a=>{const k=String(a.orderId);used[k]=(used[k]||0)+(+a.baseQty||0);}));
-  const remainingOf=c=>{const q=CsSalesEngine.amount(c.qty,c.unit);return q?Math.max(0,q.value-(used[String(c.id)]||0)):0;};
+  const remainingOf=c=>{const q=CsSalesEngine.amount(c.qty,c.unit,CsSalesEngine.unit(c.unit)?.family==='PACK'?csPackKgOf(c.item,c.unit):null);return q?Math.max(0,q.value-(used[String(c.id)]||0)):0;};
   CS_SALES_MANUAL_OPTS=S.cons.filter(c=>['발주','직접출고'].includes(c.action))
     .map(c=>({c,start:csSalesConsStart(c),remaining:remainingOf(c)}))
     .filter(x=>x.remaining>1e-6).sort((a,b)=>b.start.localeCompare(a.start))
@@ -3544,14 +3564,20 @@ function csSalesManualPick(idx,orderId){
   // 이미 배분해 둔 다른 대상은 유지하고 뒤에 덧붙임 — 후보 목록에 원하는 건이 없어 직접 지정하는
   // 경우 여러 건에 나눠 배분하는 게 보통이라 통째로 바꾸면 앞서 입력한 배분이 날아감(코드리뷰로 발견).
   const kept=csSalesValidAllocs(st.alloc).filter(a=>String(a.orderId)!==String(orderId));
-  const left=Math.max(0,p.preview.remaining-kept.reduce((n,a)=>n+(+a.baseQty),0));
-  st.alloc=[...kept,{orderId:String(orderId),baseQty:Math.min(left,cand.remaining)}];
+  // 매각 잔량(left)은 기준 척도(kg/L). 화면 배분 항목의 매각 소진량(saleQty)은 파일 단위 그대로라 기준 척도로
+  // 바꿔서 빼고, 소진량이 없는(같은 계열) 항목은 배분량이 곧 매각 소진량임.
+  const saleFactor=CsSalesEngine.baseFactor(sale.unit,p.preview.salePackKg)||1;
+  const left=Math.max(0,p.preview.remaining-kept.reduce((n,a)=>n+(a.saleQty!=null&&a.saleQty!==''?+a.saleQty*saleFactor:+a.baseQty),0));
+  // kg↔L 후보는 배분량(사급 기준 척도)과 매각 소진량(매각 파일 단위 그대로)이 다른 척도라 각각 남은 양 전부를
+  // 기본값으로 두고 사람이 고치게 함.
+  st.alloc=[...kept,cand.crossFamily?{orderId:String(orderId),baseQty:cand.remaining,saleQty:left>1e-6?+(left/saleFactor).toFixed(3):''}:{orderId:String(orderId),baseQty:Math.min(left,cand.remaining)}];
   st.include=true;st.reviewConfirmed=true;st.userEdited=true;st.showManual=false;
   if(!st.reviewReason)st.reviewReason='담당자 직접 지정 — 사급 목록에서 대응 건을 직접 골라 연결';
   csSalesClearLastError(idx);
   if(aliasChanged)saveDB();
   csSalesRenderReview();
-  toast(left<=1e-6?'직접 지정됨 — 이미 배분한 수량이 매각 수량을 다 채워 배분량 0으로 추가됐습니다. 배분량을 조정하세요'
+  toast(cand.crossFamily?`직접 지정됨 — 단위 계열이 달라(kg↔L) 배분량(사급 기준)과 매각 소진량(${sale.unit})을 각각 확인·입력한 뒤 [선택 항목 반영]`
+    :left<=1e-6?'직접 지정됨 — 이미 배분한 수량이 매각 수량을 다 채워 배분량 0으로 추가됐습니다. 배분량을 조정하세요'
     :aliasChanged?'직접 지정됨 · 별칭 저장 — 업체는 다음 파일부터 자동 인식, 품목 별칭은 다음 파일에서 [별칭 승인] 한 번 필요. 내용 확인 후 [선택 항목 반영]'
     :'직접 지정됨 — 내용 확인 후 [선택 항목 반영]을 누르세요');
 }
@@ -3610,7 +3636,7 @@ async function csSalesApplySelected(){
     selIdx.forEach(idx=>{
       const p=CS_SALES_PREVIEW[idx],st=CS_SALES_ROW_STATE[idx];
       const sale=p.sale;
-      const allocations=csSalesValidAllocs(st.alloc).map(a=>({orderId:a.orderId,baseQty:+a.baseQty}));
+      const allocations=csSalesValidAllocs(st.alloc).map(a=>({orderId:a.orderId,baseQty:+a.baseQty,...(a.saleQty!=null&&a.saleQty!==''?{saleQty:+a.saleQty}:{})}));
       if(!allocations.length){results.push({idx,ok:false,message:'배분 대상/수량이 비어 있음'});return;}
       // commit()에 넘길 orders는 이번 배분 대상에 한해 방금 서버에서 읽어온 최신 값을 씀 —
       // p.preview.candidates에 없는(즉 이 행 화면에 후보로 뜬 적 없는) orderId는 선택할 수 없으므로
@@ -3628,7 +3654,7 @@ async function csSalesApplySelected(){
           expectedSourceSnapshot:p.preview.sourceSnapshot,
           expectedOrders,
           reviewConfirmed:st.reviewConfirmed,reviewReason:st.reviewReason,
-          manualOrderIds:st.manualOrderIds||[]
+          manualOrderIds:st.manualOrderIds||[],packKgOf:csPackKgOf
         });
       }catch(err){results.push({idx,ok:false,message:csSalesErrMsg(err.message)});return;}
       ledger=newLedger;
@@ -3640,7 +3666,7 @@ async function csSalesApplySelected(){
       if(st.completeToo){
         allocations.forEach(a=>{
           const matchOrder=orders.find(o=>String(o.id)===String(a.orderId));if(!matchOrder)return;
-          const fullyAllocated=CsSalesEngine.remainingOrder(matchOrder,ledger)<=1e-6;
+          const fullyAllocated=CsSalesEngine.remainingOrder(matchOrder,ledger,CsSalesEngine.unit(matchOrder.unit)?.family==='PACK'?csPackKgOf(matchOrder.item,matchOrder.unit):null)<=1e-6;
           const order=S.cons.find(c=>String(c.id)===String(a.orderId));
           // 단위 유효성은 commit()이 이미 이 배분 전체에 대해 검증을 마쳤음(실패했다면 여기 도달하지 않음)
           if(fullyAllocated&&order&&!order.done){
@@ -3717,7 +3743,7 @@ function csSalesShowLedger(){
   const active=S.salesLedger.filter(e=>!e.reversedAt).slice().reverse();
   const rows=active.map(e=>{
     const src=(()=>{try{return JSON.parse(e.sourceKey);}catch(_){return [];}})();
-    const allocTxt=e.allocations.map(a=>{const o=S.cons.find(c=>String(c.id)===String(a.orderId));return `${o?esc(o.item):a.orderId} ${fmtN(a.baseQty)}`;}).join(', ');
+    const allocTxt=e.allocations.map(a=>{const o=S.cons.find(c=>String(c.id)===String(a.orderId));return `${o?esc(o.item):a.orderId} ${fmtN(a.baseQty)}${a.saleQty!=null?` (매각 ${fmtN(a.saleQty)})`:''}`;}).join(', ');
     return `<tr><td class="tag">${esc(src[0]||'')}</td><td>${esc(e.actor)}</td><td>${esc(e.createdAt)}</td><td>${allocTxt}</td><td>${esc(e.reviewReason||'')}</td>
       <td><button class="btn sm ghost" style="color:var(--red)" onclick="csSalesReverse('${e.id}')">취소</button></td></tr>`;
   }).join('');
@@ -3744,7 +3770,7 @@ function csRow(c,board){const st=csStatus(c);const cls={'발주대기':'c-wait',
   const act=`<span class="act-${CS_ACTION_CLASS[c.action]}">${c.action}</span>`;
   const btn=c.action==='발주'&&!c.ordDate?`<button class="btn sm warn" onclick="csMark(${c.id},'ordDate')">발주 체크</button>`:(c.action==='직접출고'&&!c.outDate?`<button class="btn sm warn" onclick="csMark(${c.id},'outDate')">출고 체크</button>`:(c.action==='직접출고'&&c.outDate?`<button class="btn sm ghost" onclick="csUndoOut(${c.id})" title="출고 처리를 취소하고 출고 대기로 되돌림">↩ 출고 취소</button>`:(c.action==='발주'&&c.done?`<button class="btn sm ghost" onclick="csUndoIn(${c.id})" title="입고 완료 처리를 취소하고 입고 대기로 되돌림">↩ 입고 취소</button>`:(!c.done?`<button class="btn sm" onclick="csMark(${c.id},'done')">${c.action==='발주'?'입고 완료':'완료'}</button>`:''))));
   if(board)return`<tr class="${c.done?'done':''}"><td><b>${esc(c.item)}</b></td><td><b>${esc(c.consignee)}</b></td><td class="num">${fmtN(c.qty)}</td><td>${act}</td><td>${c.due?fmtK(c.due):''}</td><td><span class="chip ${cls}">${st}</span></td><td>${btn}</td></tr>`;
-  return`<tr class="${c.done?'done':''}"><td><input type="checkbox" class="csSel" value="${c.id}" ${selCs.has(c.id)?'checked':''} onchange="toggleSelCs(${c.id},this.checked)"></td><td><b>${esc(c.item)}</b>${c.loc?` <span class="loc">${esc(c.loc)}</span>`:''}</td><td><b>${esc(c.consignee)}</b></td><td><b>${esc(c.supplier)}</b></td><td class="num">${fmtN(c.qty)}</td><td>${act}</td><td class="due-hl"><b>${c.due||''}</b></td><td>${c.recvDate||''}</td><td>${c.ordDate||''}</td><td>${c.outDate||(c.done?'✓':'')}${isThird(c.outBy)?` <span class="chip c-wait">✋ ${esc(c.outBy)}</span>`:''}</td><td><span class="chip ${cls}">${st}</span></td><td>${btn} <button class="btn sm" onclick="editCs(${c.id})">수정</button> <button class="btn sm" style="color:var(--red)" onclick="delCs(${c.id})">${armLbl('cs'+c.id)}</button></td></tr>`;}
+  return`<tr class="${c.done?'done':''}"><td><input type="checkbox" class="csSel" value="${c.id}" ${selCs.has(c.id)?'checked':''} onchange="toggleSelCs(${c.id},this.checked)"></td><td><b>${esc(c.item)}</b>${c.loc?` <span class="loc">${esc(c.loc)}</span>`:''}</td><td><b>${esc(c.consignee)}</b></td><td><b>${esc(c.supplier)}</b></td><td class="num">${fmtN(c.qty)}${c.unit&&c.unit!=='kg'?` <span class="tag">${esc(c.unit)}</span>`:(csUnitMissing(c)?' <span class="tag" style="color:var(--amber)" title="단위 미입력 — 매각대조에 쓰려면 [수정]에서 단위 지정 또는 kg 일괄 지정">단위?</span>':'')}</td><td>${act}</td><td class="due-hl"><b>${c.due||''}</b></td><td>${c.recvDate||''}</td><td>${c.ordDate||''}</td><td>${c.outDate||(c.done?'✓':'')}${isThird(c.outBy)?` <span class="chip c-wait">✋ ${esc(c.outBy)}</span>`:''}</td><td><span class="chip ${cls}">${st}</span></td><td>${btn} <button class="btn sm" onclick="editCs(${c.id})">수정</button> <button class="btn sm" style="color:var(--red)" onclick="delCs(${c.id})">${armLbl('cs'+c.id)}</button></td></tr>`;}
 function csMark(id,f){const c=findLive(S.cons,id);if(!c)return;
   if((f==='outDate'||f==='done')&&needName(()=>csMark(id,f)))return;
   // M-210: 월1회 입항분은 행선지 건별 확인 전 배차·출고·완료 금지
@@ -3807,7 +3833,8 @@ function csFilteredRows(){
   const actionFlt=document.getElementById('csActionFlt')?.value||'';
   const dueDate=document.getElementById('csDueDateFlt')?.value||'';
   const dueMonth=document.getElementById('csDueMonthFlt')?.value||'';
-  let rows=S.cons.filter(c=>{const st=csStatus(c);if(f==='대기'&&!/대기$|확인/.test(st))return false;if(f==='대기'&&/입고대기/.test(st))return false;if(f==='진행'&&st!=='입고대기'&&st!=='입고지연')return false;if(f==='완료'&&!c.done)return false;if(actionFlt&&c.action!==actionFlt)return false;if(q&&!(c.consignee+c.item+c.supplier).toUpperCase().includes(q))return false;if(dueDate&&c.due!==dueDate)return false;if(dueMonth&&(!c.due||!c.due.startsWith(dueMonth)))return false;return true;});
+  const unitFlt=document.getElementById('csUnitFlt')?.value||'';
+  let rows=S.cons.filter(c=>{const st=csStatus(c);if(unitFlt==='없음'&&!csUnitMissing(c))return false;if(unitFlt==='있음'&&!c.unit)return false;if(f==='대기'&&!/대기$|확인/.test(st))return false;if(f==='대기'&&/입고대기/.test(st))return false;if(f==='진행'&&st!=='입고대기'&&st!=='입고지연')return false;if(f==='완료'&&!c.done)return false;if(actionFlt&&c.action!==actionFlt)return false;if(q&&!(c.consignee+c.item+c.supplier).toUpperCase().includes(q))return false;if(dueDate&&c.due!==dueDate)return false;if(dueMonth&&(!c.due||!c.due.startsWith(dueMonth)))return false;return true;});
   if(csSort){
     const withDue=rows.filter(c=>c.due),noDue=rows.filter(c=>!c.due);
     withDue.sort((a,b)=>csSort==='asc'?a.due.localeCompare(b.due):b.due.localeCompare(a.due));
@@ -3833,6 +3860,10 @@ function renderCs(){
   Object.keys(byAction).forEach(a=>renderGroup(a,byAction[a]));   // CS_ACTION_GROUPS에 없는 처리 값이 생겨도 누락되지 않게
   document.getElementById('csBody').innerHTML=body||'<tr><td colspan="12" class="empty">사급 요청 없음</td></tr>';
   document.getElementById('cntCs2').textContent=`${rows.length}건`;
+  // 매각대조 대상(발주·직접출고)인데 단위가 비어 있는 건 — 기존 등록 건은 단위 칸이 없던 시절 것이라
+  // 대부분 비어 있음. 건수를 늘 보여줘 "단위 보완 필요"로 막히기 전에 정리하게 함.
+  const unitEmpty=S.cons.filter(csUnitMissing).length;
+  const ue=document.getElementById('csUnitEmptyCnt');if(ue){ue.textContent=unitEmpty?`단위 미입력 ${unitEmpty}건`:'';ue.style.color=unitEmpty?'var(--amber)':'';}
   const th=document.getElementById('csDueTh');if(th)th.textContent='요청납기'+(csSort==='asc'?' ▲':csSort==='desc'?' ▼':'');
   updateCsSelCnt();
 }
@@ -3844,6 +3875,15 @@ function csEditActionSync(sel){
   due.disabled=sel.value==='직접출고';
   out.disabled=sel.value==='발주';
 }
+// 매각대조 대상(발주·직접출고)인데 단위가 비어 있는 건 — 사급발주 탭의 건수 표시·필터·행 표시가 같은 기준을 씀.
+const csUnitMissing=c=>['발주','직접출고'].includes(c.action)&&!c.unit;
+// 사급 건 단위 선택지 — 매각대조 엔진(sales-match-engine.js unit())이 인식하는 표기만 둠. 빈 값은
+// "미입력"으로 남겨 두어 일괄 kg 지정 대상이 되게 함(임의로 kg를 채우지 않음).
+const CS_UNITS=['kg','톤','L','EA','포','BOX','롤','드럼','PLT','m'];
+function csUnitOptions(cur){
+  const list=CS_UNITS.includes(cur)||!cur?CS_UNITS:[cur,...CS_UNITS];   // 목록에 없는 기존 값도 그대로 보존
+  return `<option value="">— 미입력 —</option>`+list.map(u=>`<option ${u===cur?'selected':''}>${esc(u)}</option>`).join('');
+}
 function editCs(id){
   const c=S.cons.find(x=>x.id===id);
   dlgTitle.textContent='사급 요청 수정';
@@ -3851,7 +3891,8 @@ function editCs(id){
   dlgBody.innerHTML=`<div><label>접수일</label><input data-k="recvDate" type="date" value="${esc(c.recvDate??'')}"></div>
     <div><label>사급처</label><input data-k="consignee" value="${esc(c.consignee??'')}"></div>
     <div><label>품목</label><input data-k="item" value="${esc(c.item??'')}"></div>
-    <div><label>수량(kg)</label><input data-k="qty" type="number" value="${c.qty??''}"></div>
+    <div><label>수량</label><input data-k="qty" type="number" step="any" value="${c.qty??''}"></div>
+    <div><label>단위 <span class="tag">매각대조용 — 롤·BOX·포는 기준정보 포장 kg 필요</span></label><select data-k="unit">${csUnitOptions(c.unit)}</select></div>
     <div><label>처리</label><select data-k="action" onchange="csEditActionSync(this)">${actOpts}</select></div>
     <div><label>공급사</label><input data-k="supplier" value="${esc(c.supplier??'')}"></div>
     <div><label>출고창고</label><input data-k="loc" value="${esc(c.loc??'')}"></div>

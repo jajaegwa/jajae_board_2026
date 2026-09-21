@@ -147,6 +147,16 @@ test('M210 행선지는 검토 버튼만으로 우회 불가',()=>{
  const sale=s({item:'M210'}),orders=[o({item:'M-210'})];
  assert.throws(()=>commit(sale,orders,[],{reviewConfirmed:true,reviewReason:'확인'}),/행선지/);
 });
+test('M210: 사급 건에 확인·행선지가 모두 있으면 반영 가능, 매각 행선지는 있을 때만 대조',()=>{
+ const ok=o({item:'M-210',m210Confirmed:true,destination:'울산공장'});
+ assert.equal(E.preview(s({item:'M210'}),[ok]).status,'READY');   // 매각 행 행선지 없음(현재 앱) → 필수 아님
+ assert.equal(commit(s({item:'M210'}),[ok]).length,1);
+ for(const partial of [o({item:'M-210',m210Confirmed:true}),o({item:'M-210',destination:'울산공장'})])
+  assert.ok(E.preview(s({item:'M210'}),[partial]).candidates[0].hardBlocked.includes('M-210 행선지 확인 필요'));
+ assert.equal(E.preview(s({item:'M210',destination:'울산 공장'}),[ok]).status,'READY');   // 표기 차이(공백)는 같은 행선지
+ const p=E.preview(s({item:'M210',destination:'대구공장'}),[ok]);
+ assert.equal(p.status,'NO_CANDIDATE');assert.equal(p.rejected[0].reason,'행선지 불일치');
+});
 test('배분 취소는 삭제 없이 반영량 복원',()=>{
  const ledger=commit(s(),[o()]),rev=E.reverse(ledger,'e1','담당자','2026-09-09T00:00:00Z','잘못 선택');
  assert.equal(E.remainingOrder(o(),rev),1000);assert.equal(ledger[0].reversedAt,null);

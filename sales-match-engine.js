@@ -243,9 +243,12 @@
         if (!manual) { reject('매각일이 발주/접수일보다 앞섬'); continue; }
         issues.push('매각일이 발주/접수일보다 앞섬');
       }
-      if (sale.destination && o.destination && sale.destination!==o.destination) { reject('행선지 불일치'); continue; }
+      if (sale.destination && o.destination && compact(sale.destination)!==compact(o.destination)) { reject('행선지 불일치'); continue; }
+      // M-210 (monthly import lot): the order must carry its per-case confirmation and a structured
+      // destination. The sale side has no destination column today, so it is only compared when
+      // present (above), never required — otherwise every M-210 sale stayed blocked forever.
       if (/(?:^|[^A-Z0-9])M[- ]?210(?:$|[^A-Z0-9])/i.test(sale.item+' '+o.item) &&
-          (!o.m210Confirmed || !o.destination || !sale.destination)) { issues.push('M-210 행선지 확인 필요'); hardBlocked.push('M-210 행선지 확인 필요'); }
+          (!o.m210Confirmed || !o.destination)) { issues.push('M-210 행선지 확인 필요'); hardBlocked.push('M-210 행선지 확인 필요'); }
       if (vm.level==='suggested'||im.level==='suggested') issues.push('별칭 최초 확인 필요');
       if (manual) issues.push('담당자 직접 지정');
       // A completed (received/shipped) order is the normal counterpart of a sale — the ledger's

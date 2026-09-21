@@ -23,20 +23,53 @@
       .replace(/[MP]창고/gi, ' ')
       .replace(/미등록|\bSILO\b/gi, ' ').trim();
   }
+  // Unit table. NFKC folds Excel-style compatibility characters (㎏ → kg, ℓ → l, ㎖ → ml) before lookup.
+  // PACK units (포·BOX·롤·드럼…) carry no fixed factor: amount() converts them to MASS only when the
+  // caller supplies the item's per-pack kg (opts.packKgOf); otherwise they stay family PACK and are
+  // hard-blocked until the master data is filled in.
+  const UNIT_TABLE = [
+    [['KG','KGS','KG.','K/G','킬로그램','킬로'], 'MASS', 1],
+    [['T','TON','TONNE','MT','톤'], 'MASS', 1000],
+    [['G','GR','그램'], 'MASS', 0.001],
+    [['M','미터'], 'LENGTH', 1],
+    [['MM'], 'LENGTH', 0.001],
+    [['L','LT','LTR','리터'], 'VOLUME', 1],
+    [['ML','밀리리터'], 'VOLUME', 0.001],
+    [['EA','PCS','PC','개','매','장','본','SET','세트'], 'COUNT', 1],
+    [['포','포대','BAG','백','BOX','박스','롤','ROLL','드럼','DRUM','CAN','캔','통','PLT','파렛트','팔레트','PALLET'], 'PACK', null],
+  ];
   function unit(v) {
-    const u = String(v ?? '').trim().toUpperCase();
-    if (['KG','KGS','킬로그램'].includes(u)) return {family:'MASS', factor:1};
-    if (['T','TON','TONNE','MT','톤'].includes(u)) return {family:'MASS', factor:1000};
-    if (['G','그램'].includes(u)) return {family:'MASS', factor:0.001};
-    if (['M','미터'].includes(u)) return {family:'LENGTH', factor:1};
-    if (['EA','PCS','개'].includes(u)) return {family:'COUNT', factor:1};
+    const u = String(v ?? '').normalize('NFKC').replace(/\s+/g, '').toUpperCase();
+    for (const [names, family, factor] of UNIT_TABLE) if (names.includes(u)) return {family, factor};
     return null;
   }
-  function amount(q, u) {
+  // Families that may be compared after conversion. MASS↔VOLUME is the one cross-family pair the
+  // operator may reconcile by hand (kg↔L without a density on file): such candidates stay listed
+  // with an issue, are never auto-proposed, and a commit must state the sale-side quantity consumed.
+  const crossFamilyOk = (a, b) => a && b && a !== b && ['MASS','VOLUME'].includes(a) && ['MASS','VOLUME'].includes(b);
+  function amount(q, u, packKg) {
     const s = String(q ?? '').trim().replace(/,/g, '');
     if (!/^(?:\d+)(?:\.\d+)?$/.test(s) || !(Number(s)>0)) return null;
-    const info = unit(u);
-    return {value:Number(s)*(info?.factor || 1), family:info?.family || null};
+    const info = unit(u), n = Number(s);
+    if (!info) return {value:n, family:null};
+    if (info.family === 'PACK') {
+      const k = Number(packKg);
+      return Number.isFinite(k) && k > 0 ? {value:n*k, family:'MASS', packKg:k} : {value:n, family:'PACK'};
+    }
+    return {value:n*info.factor, family:info.family};
+  }
+  // kg (or L, m, EA) per one raw unit — null when the unit cannot be converted.
+  function baseFactor(u, packKg) {
+    const a = amount(1, u, packKg);
+    return a && a.family && a.family !== 'PACK' ? a.value : null;
+  }
+  const unitLabel = v => String(v ?? '').normalize('NFKC').trim();
+  // Hard-block text for a unit the ledger cannot compare: unknown (empty or unrecognised) or a pack
+  // unit with no per-pack kg on file. Returns '' when the unit is usable.
+  function unitProblem(side, rawUnit, family) {
+    if (family === 'PACK') return `${side} 포장 단위(${unitLabel(rawUnit)}) 환산 정보 필요 — 기준정보에 품목 포장 kg 입력`;
+    if (!family) return `${side} 단위 확인 필요` + (unitLabel(rawUnit) ? `(미인식 "${unitLabel(rawUnit)}")` : '');
+    return '';
   }
   function isoDate(v) {
     const s = String(v || '');
@@ -100,11 +133,15 @@
       return JSON.stringify(['file-row',s.importBatchHash.toLowerCase(),s.sheetIndex,s.sourceRowIndex]);
     return null;
   }
-  function sourceSnapshot(s) {
-    return JSON.stringify([s.vendor,s.vendorRegNo||'',s.item,s.itemCode||'',s.qty,s.unit||'',s.date||'',s.destination||'']);
+  // packKg (pack→kg factor actually used) is part of the snapshot only when a conversion applied, so
+  // a later master-data edit is detected as a change instead of silently moving remaining quantities.
+  // Records without a conversion keep the original shape, so ledgers written before this existed match.
+  const withPack = (fields, packKg) => JSON.stringify(packKg ? [...fields, packKg] : fields);
+  function sourceSnapshot(s, packKg) {
+    return withPack([s.vendor,s.vendorRegNo||'',s.item,s.itemCode||'',s.qty,s.unit||'',s.date||'',s.destination||''], packKg);
   }
-  function orderSnapshot(o) {
-    return JSON.stringify([o.id,o.action,o.vendor,o.vendorRegNo||'',o.item,o.itemCode||'',o.qty,o.unit||'',o.requestDate||'',o.orderDate||'',o.done,o.outDate||'',o.inDate||'',o.destination||'',o.m210Confirmed||false]);
+  function orderSnapshot(o, packKg) {
+    return withPack([o.id,o.action,o.vendor,o.vendorRegNo||'',o.item,o.itemCode||'',o.qty,o.unit||'',o.requestDate||'',o.orderDate||'',o.done,o.outDate||'',o.inDate||'',o.destination||'',o.m210Confirmed||false], packKg);
   }
   // Date an order became a valid counterpart: order date (fallback request date) for 발주, request date for 직접출고.
   const orderStart = o => isoDate(o.action==='발주'?o.orderDate||o.requestDate:o.requestDate);
@@ -117,9 +154,26 @@
   function usedForOrder(ledger, id) {
     return active(ledger).reduce((sum,e)=>sum+e.allocations.filter(a=>String(a.orderId)===String(id)).reduce((n,a)=>n+a.baseQty,0),0);
   }
-  function remainingOrder(o, ledger) {
-    const q=amount(o.qty,o.unit);
-    return q ? Math.max(0,q.value-usedForOrder(ledger,o.id)) : 0;
+  // Sale-side consumption of an allocation on the sale's base scale: saleBaseQty (recorded for kg↔L
+  // allocations, converted from the operator's saleQty at commit time) else baseQty.
+  const saleUsed = a => a.saleBaseQty != null ? +a.saleBaseQty : a.baseQty;
+  function remainingOrder(o, ledger, packKg) {
+    const q=amount(o.qty,o.unit,packKg);
+    if (!q) return 0;
+    // An unconverted pack count is not on the ledger's kg scale, so nothing can be subtracted from it.
+    return q.family==='PACK' ? q.value : Math.max(0,q.value-usedForOrder(ledger,o.id));
+  }
+  // opts.packKgOf(item, unit) → kg per pack from the caller's master data. Consulted only for PACK
+  // units and memoised per item|unit for the life of one preview/commit (the caller's lookup may be
+  // a scan of its whole master list).
+  function packKgResolver(opts) {
+    const f = typeof opts?.packKgOf === 'function' ? opts.packKgOf : null, memo = new Map();
+    return (item, u) => {
+      if (!f || unit(u)?.family !== 'PACK') return null;
+      const key = String(item ?? '') + '|' + String(u ?? '');
+      if (!memo.has(key)) { let k = null; try { k = +f(item, u); } catch (_) { k = null; } memo.set(key, Number.isFinite(k) && k > 0 ? k : null); }
+      return memo.get(key);
+    };
   }
   function uniqueSubset(candidates, target) {
     if (candidates.length>12) return {kind:'too_many', sets:[]};
@@ -140,23 +194,30 @@
   // review reason. A regNo/itemCode conflict is a hard fact and is never overridden.
   // Returns rejected[] for orders that passed (or bypassed) the vendor/item gate but were still
   // excluded, so the UI can say why an expected order is not a candidate.
+  // opts.packKgOf(item, unit): per-pack kg for PACK units (포·BOX·롤…), from the caller's master data.
+  // Result fields added for units: salePackKg (conversion applied to the sale, else null), unitOk (sale
+  // unit usable for commit); per candidate packKg, unitOk, crossFamily.
   function preview(sale, orders, ledger=[], aliases=emptyAliases(), opts={}) {
     const manualIds=new Set((opts.manualOrderIds||[]).map(String));
-    const qty=amount(sale.qty,sale.unit), key=sourceKey(sale);
+    const packKg=packKgResolver(opts), salePack=packKg(sale.item,sale.unit);
+    const qty=amount(sale.qty,sale.unit,salePack), key=sourceKey(sale);
     // hardBlocked (row-level and per candidate): conditions commit() rejects regardless of review
     // confirmation — the data must be corrected, so the UI must not auto-select these.
-    const base={sourceKey:key,sourceSnapshot:sourceSnapshot(sale),candidates:[],proposal:[],issues:[],rejected:[],hardBlocked:[]};
+    const base={sourceKey:key,sourceSnapshot:sourceSnapshot(sale,salePack),salePackKg:salePack,unitOk:false,candidates:[],proposal:[],issues:[],rejected:[],hardBlocked:[]};
     if (!qty) return {...base,status:'INVALID',issues:['수량은 양수여야 함; 반품/취소는 별도 정정 흐름 필요']};
     const prior=key?active(ledger).filter(e=>e.sourceKey===key):[];
     if (prior.some(e=>e.sourceSnapshot!==base.sourceSnapshot)) return {...base,status:'SOURCE_CHANGED',issues:['같은 전표행의 내용 변경; 기존 배분 정정 필요']};
-    const allocated=prior.reduce((sum,e)=>sum+e.allocations.reduce((n,a)=>n+a.baseQty,0),0);
+    const allocated=prior.reduce((sum,e)=>sum+e.allocations.reduce((n,a)=>n+saleUsed(a),0),0);
     const remaining=qty.value-allocated;
     if (remaining < -1e-6) return {...base,status:'SOURCE_CHANGED',issues:['매각수량보다 기존 배분이 큼']};
     if (Math.abs(remaining)<1e-6) return {...base,status:'ALREADY_LINKED',remaining:0};
     if (!key) base.issues.push('전표번호·전표행번호 누락: 거래 중복 여부 확인 필요');
     if (key && JSON.parse(key)[0]==='file-row') base.issues.push('파일행 식별만 가능: 다른 파일의 기존 반영과 중복 여부 검토 필요');
     if (!isoDate(sale.date)) { base.issues.push('매각일 누락 또는 오류'); base.hardBlocked.push('매각일 누락 또는 오류'); }
-    if (!qty.family) { base.issues.push('매각 단위 확인 필요'); base.hardBlocked.push('매각 단위 확인 필요'); }
+    const saleUnitProblem=unitProblem('매각',sale.unit,qty.family);
+    if (saleUnitProblem) { base.issues.push(saleUnitProblem); base.hardBlocked.push(saleUnitProblem); }
+    const saleComparable=Boolean(qty.family && qty.family!=='PACK');
+    base.unitOk=saleComparable;
     for (const o of orders) {
       if (!['발주','직접출고'].includes(o.action)) continue;
       const manual=manualIds.has(String(o.id));
@@ -164,13 +225,18 @@
       const vm=vendorMatch(sale,o,aliases), im=itemMatch(sale,o,aliases);
       if (vm.level==='blocked'||im.level==='blocked') { if (manual) reject(vm.level==='blocked'?vm.reason:im.reason); continue; }
       if (!manual && (vm.level==='none'||im.level==='none')) continue;
-      const oq=amount(o.qty,o.unit), remainingQty=remainingOrder(o,ledger);
+      const oPack=packKg(o.item,o.unit), oq=amount(o.qty,o.unit,oPack), remainingQty=remainingOrder(o,ledger,oPack);
       if (!oq) { reject('발주/출고 수량 오류'); continue; }
-      if (remainingQty<=1e-6) { reject('잔량 없음(이미 전부 배분됨)'); continue; }
+      const orderComparable=Boolean(oq.family && oq.family!=='PACK');
+      // A remaining quantity only means something on a comparable scale; otherwise the unit hard-block below explains.
+      if (orderComparable && remainingQty<=1e-6) { reject('잔량 없음(이미 전부 배분됨)'); continue; }
       const issues=[], hardBlocked=[];
-      if (qty.family && oq.family && qty.family!==oq.family) { reject('단위 종류 불일치(중량/길이/개수)'); continue; }
-      if (!qty.family||!oq.family) issues.push('단위 확인 필요');
-      if (!unit(o.unit)) hardBlocked.push('단위 확인 필요');
+      const crossFamily=Boolean(saleComparable && orderComparable && crossFamilyOk(qty.family,oq.family));
+      if (saleComparable && orderComparable && qty.family!==oq.family && !crossFamily) { reject('단위 종류 불일치(중량/길이/개수)'); continue; }
+      if (crossFamily) issues.push(`단위 계열 다름(${qty.family==='MASS'?'kg':'L'}↔${oq.family==='MASS'?'kg':'L'}) — 매각·사급 수량 직접 확인`);
+      if (!saleComparable||!orderComparable) issues.push('단위 확인 필요');
+      const orderUnitProblem=unitProblem('발주/출고',o.unit,oq.family);
+      if (orderUnitProblem) hardBlocked.push(!oq.family && !unitLabel(o.unit) ? '단위 확인 필요' : orderUnitProblem);   // 빈 단위는 종전 문구 유지(화면·테스트가 참조)
       const start=orderStart(o);
       if (!start) { issues.push('발주/접수일 확인 필요'); hardBlocked.push('발주/접수일 확인 필요'); }
       if (start && isoDate(sale.date) && sale.date<start) {
@@ -192,16 +258,17 @@
       const reasons=manual?['담당자 직접 지정']:[vm.reason,im.reason];
       if (sale.supplier&&o.supplier&&vendorName(sale.supplier)===vendorName(o.supplier)) reasons.push('공급사 표기 일치');
       base.candidates.push({orderId:o.id,action:o.action,item:o.item,vendor:o.vendor,remaining:remainingQty,
-        done,staleDone,orderSnapshot:orderSnapshot(o),issues,hardBlocked,reasons,
-        quantityDifference:remaining-remainingQty});
+        done,staleDone,crossFamily,packKg:oPack,unitOk:orderComparable,orderSnapshot:orderSnapshot(o,oPack),issues,hardBlocked,reasons,
+        quantityDifference:crossFamily?null:remaining-remainingQty});
     }
-    const subset=uniqueSubset(base.candidates,remaining);
+    // kg↔L candidates are never auto-combined: their quantities are not on the sale's scale.
+    const subset=uniqueSubset(base.candidates.filter(c=>!c.crossFamily),remaining);
     if (subset.kind==='unique') base.proposal=subset.sets[0].map(id=>{
       const c=base.candidates.find(x=>String(x.orderId)===String(id));
       return {orderId:id,baseQty:c.remaining};
     });
     const selected=base.candidates.filter(c=>base.proposal.some(p=>String(p.orderId)===String(c.orderId)));
-    const status=!base.candidates.length?'NO_CANDIDATE':subset.kind==='ambiguous'?'AMBIGUOUS':
+    const status=!base.candidates.length?'NO_CANDIDATE':base.candidates.every(c=>c.crossFamily)?'REVIEW':subset.kind==='ambiguous'?'AMBIGUOUS':
       subset.kind==='too_many'?'REVIEW':subset.kind==='none'?'QUANTITY_REVIEW':
       base.issues.length||selected.some(c=>c.issues.length)?'REVIEW':'READY';
     return {...base,status,remaining,subsetKind:subset.kind};
@@ -209,41 +276,50 @@
   // Returns a new ledger only. Apply and persist in one app-side transaction.
   // Does NOT alter physical receipt/shipment dates or done flags.
   function commit({sale,orders,ledger=[],aliases=emptyAliases(),allocations,actor,now,expectedOrders,
-    reviewConfirmed=false,reviewReason='',eventId,expectedSourceSnapshot,manualOrderIds=[]}) {
+    reviewConfirmed=false,reviewReason='',eventId,expectedSourceSnapshot,manualOrderIds=[],packKgOf}) {
     if (!actor||!now||!eventId) throw Error('담당자·시각·고유 이벤트 ID 필수');
     if (ledger.some(e=>e.id===eventId)) throw Error('이벤트 ID 중복');
-    const p=preview(sale,orders,ledger,aliases,{manualOrderIds});
+    const packKg=packKgResolver({packKgOf});
+    const p=preview(sale,orders,ledger,aliases,{manualOrderIds,packKgOf});
     if (expectedSourceSnapshot!==p.sourceSnapshot) throw Error('미리보기 이후 매각 원본 변경 또는 스냅샷 누락');
     if (!p.sourceKey) throw Error('안정적인 원천 전표행 식별자 필요');
     if (['INVALID','SOURCE_CHANGED','ALREADY_LINKED','NO_CANDIDATE'].includes(p.status)) throw Error(p.status);
     if (p.issues.length || p.status!=='READY') {
       if (!reviewConfirmed||!reviewReason.trim()) throw Error('검토 확인 및 사유 필수');
     }
-    // Missing units and dates require correction, not an unchecked confirmation.
-    if (!unit(sale.unit)||!isoDate(sale.date)) throw Error('원천 단위·날짜 보완 필요');
+    // Missing or unconvertible units and dates require correction, not an unchecked confirmation.
+    if (!p.unitOk||!isoDate(sale.date)) throw Error('원천 단위·날짜 보완 필요');
+    const saleFactor=baseFactor(sale.unit,p.salePackKg);
     if (!allocations?.length) throw Error('배분할 항목 없음');
-    const seen=new Set(); let sum=0;
+    const seen=new Set(), stored=[]; let sum=0;
     for (const a of allocations) {
       const id=String(a.orderId), c=p.candidates.find(x=>String(x.orderId)===id), o=orders.find(x=>String(x.id)===id);
       if (!c||!o||seen.has(id)) throw Error('잘못된/중복 배분 대상');
       seen.add(id);
-      if (!unit(o.unit)) throw Error('발주/출고 단위 보완 필요');
+      if (!c.unitOk) throw Error('발주/출고 단위 보완 필요');
       if (!orderStart(o)) throw Error('발주/접수일 보완 필요');
-      if (!expectedOrders || expectedOrders[id]!==orderSnapshot(o)) throw Error('미리보기 이후 대상 변경 또는 스냅샷 누락');
+      if (!expectedOrders || expectedOrders[id]!==orderSnapshot(o,packKg(o.item,o.unit))) throw Error('미리보기 이후 대상 변경 또는 스냅샷 누락');
       if (!(Number.isFinite(a.baseQty)&&a.baseQty>0) || a.baseQty>c.remaining+1e-6) throw Error('대상 잔량 초과/잘못된 수량');
       if (c.issues.length && (!reviewConfirmed||!reviewReason.trim())) throw Error('후보 검토 사유 필수');
       if (c.issues.includes('M-210 행선지 확인 필요')) throw Error('M-210 행선지 보완 필요');
-      sum+=a.baseQty;
+      // kg↔L: baseQty is on the order's scale, so the sale-side consumption must be stated separately —
+      // saleQty in the sale's own unit as typed (e.g. 1 톤), saleBaseQty on the sale's base scale (1000).
+      if (c.crossFamily) {
+        if (!(Number.isFinite(+a.saleQty)&&+a.saleQty>0)) throw Error('단위 계열이 다른 배분은 매각 소진 수량 필수');
+        const saleBaseQty=+a.saleQty*saleFactor;
+        stored.push({orderId:a.orderId,baseQty:a.baseQty,saleQty:+a.saleQty,saleBaseQty});
+        sum+=saleBaseQty;
+      } else { stored.push({orderId:a.orderId,baseQty:a.baseQty}); sum+=a.baseQty; }
     }
     if (sum>p.remaining+1e-6) throw Error('매각 잔량 초과');
     return [...ledger,{id:eventId,version:VERSION,sourceKey:p.sourceKey,sourceSnapshot:p.sourceSnapshot,
-      actor,createdAt:now,reviewReason,allocations:allocations.map(a=>({...a})),reversedAt:null}];
+      actor,createdAt:now,reviewReason,allocations:stored,reversedAt:null}];
   }
   function reverse(ledger,eventId,actor,now,reason) {
     if (!actor||!now||!reason?.trim()) throw Error('취소 담당자·시각·사유 필수');
     if (!ledger.some(e=>e.id===eventId&&!e.reversedAt)) throw Error('취소할 활성 배분 없음');
     return ledger.map(e=>e.id===eventId?{...e,reversedAt:now,reversedBy:actor,reversalReason:reason}:e);
   }
-  return {VERSION,STALE_DONE_DAYS,compact,vendorName,cleanItem,itemForms,hasBounded,unit,amount,isoDate,regNo,vendorMatch,itemMatch,
+  return {VERSION,STALE_DONE_DAYS,compact,vendorName,cleanItem,itemForms,hasBounded,unit,amount,baseFactor,unitProblem,saleUsed,isoDate,regNo,vendorMatch,itemMatch,
     sourceKey,sourceSnapshot,orderSnapshot,orderStart,remainingOrder,uniqueSubset,preview,commit,reverse};
 });

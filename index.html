@@ -3122,7 +3122,7 @@ let CS_SALES_PREVIEW=[];   // [{sale,rowMeta,preview}]
 // 이번 업로드 행들의 키 — 같은 파일 안의 다른 행이 먼저 반영됐다고 해서 "중복 의심"으로 잡지 않게 엔진에 넘김.
 // [별개 거래로 반영]으로 순번이 바뀐 행도 포함되게 업로드 시점에 고정하지 않고 현재 미리보기에서 매번 읽음
 // (아직 미리보기가 없는 행은 sale 자체의 키).
-function csSalesBatchKeys(){return CS_SALES_PREVIEW.map(p=>p.preview?p.preview.sourceKey:CsSalesEngine.sourceKey(p.sale)).filter(Boolean);}
+function csSalesBatchKeys(exceptIdx=-1){return CS_SALES_PREVIEW.map((p,i)=>i===exceptIdx?'':(p.preview?p.preview.sourceKey:CsSalesEngine.sourceKey(p.sale))).filter(Boolean);}
 let CS_SALES_EXCLUDED=[];
 function csSalesPreviewAndShow(rows,excluded){
   csEngineState();
@@ -3130,7 +3130,7 @@ function csSalesPreviewAndShow(rows,excluded){
   // 순번은 파일 전체 행을 본 뒤에야 매길 수 있어(같은 내용 n번째 행 = 순번 n) 행 단위 변환 후 한 번에 붙임.
   const sales=CsSalesEngine.withContentOrdinals(rows.map(csSalesToSale));
   CS_SALES_PREVIEW=sales.map((sale,i)=>({sale,rowMeta:rows[i],preview:null}));
-  CS_SALES_ROW_STATE={};   // 이전 파일의 직접 지정·별개 거래 상태가 새 파일의 같은 번호 행에 섞이지 않게(코드리뷰로 발견)
+  CS_SALES_ROW_STATE={};   // 미리보기 옵션이 행 상태를 읽으므로, 이전 파일의 직접 지정·별개 거래 상태가 새 파일의 같은 번호 행에 섞이지 않게 먼저 비움
   const batchKeys=csSalesBatchKeys();
   CS_SALES_PREVIEW.forEach((pp,i)=>{pp.preview=CsSalesEngine.preview(pp.sale,orders,S.salesLedger,S.salesAliases,csSalesPreviewOpts(i,batchKeys));});
   CS_SALES_EXCLUDED=excluded||[];
@@ -3251,8 +3251,7 @@ function csSalesSetSeparate(idx){
   // 새 순번은 여기서 한 번만 확정해 sale에 박아 둠 — 미리보기를 다시 그릴 때마다(별칭 승인·빠른 매칭·
   // 반영 후) 다시 계산하면 그때그때 batchKeys에 자기 키가 섞여 순번이 흔들리고, 화면과 이력이
   // 어긋남(코드리뷰로 발견). 다른 행이 이미 쓰는 순번은 제외.
-  const others=CS_SALES_PREVIEW.filter((q,i)=>i!==idx).map(q=>q.preview?q.preview.sourceKey:CsSalesEngine.sourceKey(q.sale)).filter(Boolean);
-  pp.sale={...pp.sale,contentOrdinal:CsSalesEngine.nextFreeOrdinal(pp.sale,S.salesLedger,others)};
+  pp.sale={...pp.sale,contentOrdinal:CsSalesEngine.nextFreeOrdinal(pp.sale,S.salesLedger,csSalesBatchKeys(idx))};
   st.separateSale=true;
   csSalesRecomputeRow(idx);
   const alloc=csSalesProposalAlloc(CS_SALES_PREVIEW[idx].preview);
@@ -3279,8 +3278,7 @@ function csSalesResetRowState(idx){
     reviewReason:'',reviewConfirmed:false,completeToo:false,userEdited:false,
     manualOrderIds:keep.manualOrderIds||[],showManual:false,separateSale:Boolean(keep.separateSale),...(keep.manualLearn!=null?{manualLearn:keep.manualLearn}:{})};
 }
-function csSalesRowInit(){
-  CS_SALES_ROW_STATE={};
+function csSalesRowInit(){   // 호출 전 CS_SALES_ROW_STATE는 csSalesPreviewAndShow가 비워 둠
   CS_SALES_PREVIEW.forEach((p,idx)=>{
     csSalesResetRowState(idx);
   });

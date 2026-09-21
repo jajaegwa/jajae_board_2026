@@ -447,3 +447,33 @@ test('kg↔L는 후보로 남되 자동 제안 없이 검토, 반영 시 매각 
  const same=commit(s(),[o()],[],{});
  assert.deepEqual(Object.keys(same[0].allocations[0]),['orderId','baseQty']);
 });
+test('전표행 행은 전표행 없이 반영된 같은 내용 이력이 딱 1건일 때만 잇고, 여러 건이면 확인 요청',()=>{
+ const orders=[o(),o({id:'2'}),o({id:'3'}),o({id:'4'})];
+ // 내용 기준으로 2건(순번 1·2) 반영
+ const rows=E.withContentOrdinals([s({documentNo:'',documentLine:''}),s({documentNo:'',documentLine:''})]);
+ const l=commit(rows[1],[o({id:'2'})],commit(rows[0],[o()]),{eventId:'e2'});
+ // 전표 D1(파일 순번 1): 어느 이력인지 알 수 없음 → 잇지 않고 확인 요청, 자동 배분 제외
+ const [d1]=E.withContentOrdinals([s({documentNo:'D1'})]);
+ const p=E.preview(d1,orders,l);
+ assert.equal(p.duplicateSuspect,true);assert.equal(p.linkedByContent,true);assert.ok(p.issues[0].includes('2건'));assert.notEqual(p.status,'READY');
+ // 1건만 남으면 순번과 무관하게 그 건에 이음: 전표 D9가 순번 1 이력을 가져간 뒤 D1은 남은 순번 2 이력과 연결
+ const [d9]=E.withContentOrdinals([s({documentNo:'D9'})]);
+ const lOne=[l[0],{...l[1],reversedAt:'x'}];
+ assert.equal(E.preview(d9,orders,lOne).status,'ALREADY_LINKED');
+ // 혼합 시나리오(코드리뷰): D2만 전표로 반영(순번 1) → 내용 파일 2행 재업로드(1행 기존, 2행 새로 순번 2) → 전표 파일 재업로드 시 D1·D2 모두 기존 반영
+ const [dd1,dd2]=E.withContentOrdinals([s({documentNo:'D1'}),s({documentNo:'D2'})]);
+ const m1=commit(dd2,[o()]);
+ const cr=E.withContentOrdinals([s({documentNo:'',documentLine:''}),s({documentNo:'',documentLine:''})]);
+ assert.equal(E.preview(cr[0],orders,m1).status,'ALREADY_LINKED');
+ const m2=commit(cr[1],[o({id:'2'})],m1,{eventId:'e2'});
+ assert.deepEqual([dd1,dd2].map(r=>E.preview(r,orders,m2).status),['ALREADY_LINKED','ALREADY_LINKED']);
+});
+test('별개 거래 순번이 반영 직전 다른 반영에 쓰였으면 반영 불가(SOURCE_CHANGED)',()=>{
+ const [x]=E.withContentOrdinals([s({documentNo:'',documentLine:''})]);
+ const l1=commit(x,[o()]);
+ const x2={...x,contentOrdinal:E.nextFreeOrdinal(x,l1)};
+ const l2=commit(x2,[o({id:'2'})],l1,{eventId:'e2',separateSale:true,reviewConfirmed:true,reviewReason:'별개'});   // 다른 기기가 먼저 순번 2 사용
+ const p=E.preview(x2,[o({id:'3'})],l2,aliases,{separateSale:true});
+ assert.equal(p.status,'SOURCE_CHANGED');
+ assert.throws(()=>commit(x2,[o({id:'3'})],l2,{eventId:'e3',separateSale:true,reviewConfirmed:true,reviewReason:'별개'}),/SOURCE_CHANGED/);
+});

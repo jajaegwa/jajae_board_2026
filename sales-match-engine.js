@@ -196,14 +196,23 @@
   }
   const lowestFree = (used, from=1) => { let n=from; while (used.has(n)) n++; return n; };
   // Ordinals other rows of the current upload already claim for this content (their preview keys).
+  // Parsed once per batchKeys array (the app passes the same array to every row of a recompute).
+  const batchIndexCache=new WeakMap();
   function batchOrdinals(batchKeys, tuple) {
-    const used=new Set();
-    for (const k of batchKeys||[]) {
-      if (keyKind(k)!=='content') continue;
-      let a; try { a=JSON.parse(k); } catch (_) { continue; }
-      if (a[2]===tuple && Number.isInteger(a[3])) used.add(a[3]);
+    if (!Array.isArray(batchKeys)) return new Set();
+    let byTuple=batchIndexCache.get(batchKeys);
+    if (!byTuple) {
+      byTuple=new Map();
+      for (const k of batchKeys) {
+        if (keyKind(k)!=='content') continue;
+        let a; try { a=JSON.parse(k); } catch (_) { continue; }
+        if (!Number.isInteger(a[3])) continue;
+        if (!byTuple.has(a[2])) byTuple.set(a[2],new Set());
+        byTuple.get(a[2]).add(a[3]);
+      }
+      batchIndexCache.set(batchKeys,byTuple);
     }
-    return used;
+    return new Set(byTuple.get(tuple)||[]);
   }
   // Entries written before contentOrdinal existed (the retired 'file-row' key, or transaction keys)
   // get one so a re-upload in another file or with other columns is recognised as already linked.
@@ -326,7 +335,7 @@
   // unit usable for commit); per candidate packKg, unitOk, crossFamily.
   function preview(sale, orders, ledger=[], aliases=emptyAliases(), opts={}) {
     const manualIds=new Set((opts.manualOrderIds||[]).map(String));
-    const separate=Boolean(opts.separateSale) && hasOrdinal(sale);
+    const separate=Boolean(opts.separateSale);
     // Ordinals not available to a new slip entry of this content: used in the ledger, or claimed by
     // content-keyed rows of the same upload.
     const takenOrdinals=()=>{ const t=contentTuple(sale), u=usedOrdinals(ledger,t); for (const n of batchOrdinals(opts.batchKeys,t)) u.add(n); return u; };
@@ -337,14 +346,29 @@
     const base={sourceKey:key,contentOrdinal:null,sourceSnapshot:sourceSnapshot(sale,salePack),salePackKg:salePack,unitOk:false,candidates:[],proposal:[],issues:[],rejected:[],hardBlocked:[],duplicateSuspect:false,linkedByContent:false};
     if (!qty) return {...base,status:'INVALID',issues:['수량은 양수여야 함; 반품/취소는 별도 정정 흐름 필요']};
     const kind=keyKind(key), tuple=contentTuple(sale);
-    // Prior entries. A slip-keyed sale takes its own line's entries plus entries that were never
-    // slip-identified but carry the same content and ordinal (the sale first linked from a file
-    // without the line column, possibly partially, and re-uploaded with it). It is never joined to
-    // another slip that merely shares content and ordinal. A content-keyed sale takes every entry
-    // of the same content and ordinal.
+    // A separate-sale ordinal was fixed by the caller against its own view of the ledger; if this
+    // ledger (fresh from the server) already uses it, two sales would share an identity.
+    if (separate && kind==='content' && usedOrdinals(ledger,tuple).has(sale.contentOrdinal))
+      return {...base,status:'SOURCE_CHANGED',issues:['별개 거래 순번이 그 사이 다른 반영에 쓰임; 미리보기를 다시 여세요']};
+    // Prior entries. A content-keyed sale takes every entry of the same content and ordinal. A
+    // slip-keyed sale takes its own line's entries; when it has none, it may be the slip form of a
+    // sale first linked from a file without the line column, so it joins the entries that were never
+    // slip-identified — but only when that is unambiguous: exactly one such sale (ordinal group) of
+    // this content not already claimed by another slip. Slip file ordinals say nothing about the
+    // ledger's, so they are never used to pick one of several.
     let prior=[];
+    const nonSlipSame=e=>keyKind(e.sourceKey)!=='transaction' && entryOrdinal(e) && entryTuple(e)===tuple && compatibleEntry(sale,e);
     if (kind==='transaction') {
-      prior=active(ledger).filter(e=>e.sourceKey===key || (!separate && keyKind(e.sourceKey)!=='transaction' && sameContent(sale,tuple,e)));
+      prior=active(ledger).filter(e=>e.sourceKey===key);
+      const ownOrdinal=(prior.find(hasOrdinal)||{}).contentOrdinal;
+      if (ownOrdinal) prior=prior.concat(active(ledger).filter(e=>nonSlipSame(e) && e.contentOrdinal===ownOrdinal));
+      else if (!separate) {
+        const claimed=new Set(active(ledger).filter(e=>keyKind(e.sourceKey)==='transaction' && entryOrdinal(e) && entryTuple(e)===tuple).map(e=>e.contentOrdinal));
+        const groups=new Map();
+        for (const e of active(ledger)) if (nonSlipSame(e) && !claimed.has(e.contentOrdinal)) { if (!groups.has(e.contentOrdinal)) groups.set(e.contentOrdinal,[]); groups.get(e.contentOrdinal).push(e); }
+        if (groups.size===1) prior=[...groups.values()][0];
+        else if (groups.size>1) { base.issues.push(`전표행 없이 반영된 같은 내용의 이력이 ${groups.size}건 있어 어느 건인지 확인 필요(반영 이력 참고, 새 거래면 [별개 거래로 반영])`); base.duplicateSuspect=true; base.linkedByContent=true; }
+      }
     } else prior=separate?[]:active(ledger).filter(e=>sameContent(sale,tuple,e));
     const byContent=Boolean(prior.length) && (kind!=='transaction' || !prior.some(e=>e.sourceKey===key));
     // The ordinal a ledger entry for this sale carries (commit persists it): the one its prior

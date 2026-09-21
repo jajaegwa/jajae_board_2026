@@ -76,7 +76,7 @@ test('정확한 전표행 재업로드는 기존 반영으로 분류',()=>{
 test('동일 전표행 수량 변경은 정정 필요',()=>{
  const ledger=commit(s(),[o()]);assert.equal(E.preview(s({qty:2000}),[o()],ledger).status,'SOURCE_CHANGED');
 });
-test('파일명/행번호만 있는 자료는 자동 확정 불가',()=>{
+test('전표행도 순번도 없는 자료는 식별자 없음 → 자동 확정 불가',()=>{
  const sale=s({documentNo:''});assert.equal(E.preview(sale,[o()]).status,'REVIEW');
  assert.throws(()=>commit(sale,[o()],[],{reviewConfirmed:true,reviewReason:'검토'}),/식별자/);
 });
@@ -152,16 +152,211 @@ test('배분 취소는 삭제 없이 반영량 복원',()=>{
  assert.equal(E.remainingOrder(o(),rev),1000);assert.equal(ledger[0].reversedAt,null);
  assert.equal(E.preview(s(),[o()],rev).status,'READY');
 });
-test('전표 없는 파일은 SHA256+시트+원본행으로 검토 후 연결 가능',()=>{
- const sale=s({documentNo:'',importBatchHash:'a'.repeat(64),sheetIndex:0,sourceRowIndex:4});
- assert.equal(E.preview(sale,[o()]).status,'REVIEW');
- assert.throws(()=>commit(sale,[o()]),/검토/);
- const ledger=commit(sale,[o()],[],{reviewConfirmed:true,reviewReason:'다른 파일 중복 및 원본 확인'});
- assert.equal(E.preview(sale,[o()],ledger).status,'ALREADY_LINKED');
+test('전표행 없는 파일은 내용 키(업체·품목·수량·매각일)+순번으로 식별 — 다른 파일로 재업로드해도 기존 반영',()=>{
+ const [sale]=E.withContentOrdinals([s({documentNo:'',documentLine:''})]);
+ assert.equal(sale.contentOrdinal,1);assert.equal(JSON.parse(E.sourceKey(sale))[0],'content');
+ const p=E.preview(sale,[o()]);assert.equal(p.status,'READY');assert.deepEqual(p.issues,[]);
+ const ledger=commit(sale,[o()]);
+ // 재출력·다시 저장·행 밀림은 내용이 같으므로 같은 키 → 남은 다른 발주가 있어도 재배분하지 않음
+ const [again]=E.withContentOrdinals([s({documentNo:'',documentLine:''})]);
+ assert.equal(E.preview(again,[o(),o({id:'2'})],ledger).status,'ALREADY_LINKED');
+ // 업체·품목 표기만 다른 재발행(법인 표기, 창고 위치 접미)도 같은 키
+ const [spelled]=E.withContentOrdinals([s({documentNo:'',documentLine:'',vendor:'(주)동부엔지니어링',item:'IF850 15동 3열',unit:'KG'})]);
+ assert.equal(E.sourceKey(spelled),E.sourceKey(sale));
+ assert.equal(E.preview(spelled,[o(),o({id:'2'})],ledger).status,'ALREADY_LINKED');
 });
-test('다른 파일의 동일 내용은 자동 재반영하지 않음',()=>{
- const sale=s({documentNo:'',importBatchHash:'b'.repeat(64),sheetIndex:0,sourceRowIndex:4});
- const ledger=commit(sale,[o()],[],{reviewConfirmed:true,reviewReason:'검토'});
- const p=E.preview({...sale,importBatchHash:'c'.repeat(64)},[o({id:'2'})],ledger);
- assert.equal(p.status,'REVIEW');
+test('전표번호만 있고 행번호가 없으면 내용 키로 식별 — 전표번호 열 유무·사업자번호 열 유무가 달라도 같은 키',()=>{
+ const [a]=E.withContentOrdinals([s({documentNo:'D1',documentLine:''})]);
+ const [b]=E.withContentOrdinals([s({documentNo:'',documentLine:'',vendorRegNo:'1234567890',itemCode:'A1'})]);
+ assert.equal(JSON.parse(E.sourceKey(a))[0],'content');assert.equal(E.sourceKey(a),E.sourceKey(b));
+ const ledger=commit(a,[o()]);
+ assert.equal(E.preview(b,[o(),o({id:'2'})],ledger).status,'ALREADY_LINKED');
+});
+test('전표행 키로 반영한 건을 행번호 열 없이 다시 올려도 기존 반영(모든 이력에 내용 키 병행 저장)',()=>{
+ const [withLine]=E.withContentOrdinals([s()]);
+ const ledger=commit(withLine,[o()]);
+ assert.equal(JSON.parse(ledger[0].sourceKey)[0],'transaction');assert.equal(ledger[0].contentOrdinal,1);
+ const [noLine]=E.withContentOrdinals([s({documentLine:''})]);
+ const p=E.preview(noLine,[o(),o({id:'2'})],ledger);
+ assert.equal(p.status,'ALREADY_LINKED');assert.ok(p.issues[0].includes('전표행이 아니라'));
+ assert.deepEqual(E.preview(withLine,[o(),o({id:'2'})],ledger).issues,[]);   // 전표행으로 잡히면 안내 없음
+ // 같은 전표행의 수량 정정은 여전히 정정 필요
+ assert.equal(E.preview(E.withContentOrdinals([s({qty:2000})])[0],[o(),o({id:'2'})],ledger).status,'SOURCE_CHANGED');
+});
+test('같은 파일 안의 같은 날 같은 품목 수량 다른 2행은 순서대로 반영돼도 중복 의심이 아님(batchKeys)',()=>{
+ const rows=E.withContentOrdinals([s({documentNo:'',documentLine:''}),s({documentNo:'',documentLine:'',qty:500})]);
+ const batchKeys=rows.map(E.sourceKey), orders=[o(),o({id:'2',qty:500})];
+ const l1=commit(rows[0],orders,[],{batchKeys});
+ const p=E.preview(rows[1],orders,l1,aliases,{batchKeys});
+ assert.equal(p.status,'READY');assert.equal(p.duplicateSuspect,false);
+ const l2=commit(rows[1],orders,l1,{eventId:'e2',batchKeys});
+ assert.equal(l2.length,2);
+ // batchKeys 없이 보면(다른 파일에서 온 500 행) 중복 의심
+ assert.equal(E.preview(rows[1],orders,l1).duplicateSuspect,true);
+});
+test('같은 파일 안의 동일 내용 2행은 순번으로 별개 거래',()=>{
+ const rows=E.withContentOrdinals([s({documentNo:'',documentLine:''}),s({documentNo:'',documentLine:''})]);
+ assert.deepEqual(rows.map(r=>r.contentOrdinal),[1,2]);assert.notEqual(E.sourceKey(rows[0]),E.sourceKey(rows[1]));
+ const orders=[o(),o({id:'2'})];
+ const l1=commit(rows[0],[o()]);   // 1행 → 발주 1
+ assert.equal(E.preview(rows[1],orders,l1).status,'READY');   // 2행 → 남은 발주 2
+ const l2=commit(rows[1],orders,l1,{eventId:'e2'});
+ assert.equal(E.remainingOrder(orders[0],l2)+E.remainingOrder(orders[1],l2),0);
+ // 두 행 파일 재업로드 → 둘 다 기존 반영
+ assert.deepEqual(E.withContentOrdinals([s({documentNo:'',documentLine:''}),s({documentNo:'',documentLine:''})]).map(r=>E.preview(r,orders,l2).status),['ALREADY_LINKED','ALREADY_LINKED']);
+});
+test('같은 날 같은 품목의 기존 반영과 수량이 다르면 중복 의심으로 표시하고 검토 사유 요구',()=>{
+ const ledger=commit(E.withContentOrdinals([s({documentNo:'',documentLine:''})])[0],[o()]);
+ const [changed]=E.withContentOrdinals([s({documentNo:'',documentLine:'',qty:900})]);
+ const p=E.preview(changed,[o(),o({id:'2'})],ledger);
+ assert.equal(p.duplicateSuspect,true);assert.notEqual(p.status,'READY');assert.ok(p.issues[0].includes('수량 다름'));
+ assert.throws(()=>commit(changed,[o(),o({id:'2'})],ledger,{eventId:'e2'}),/검토/);
+ // 다른 날짜면 의심 아님; 전표행 키가 있으면 전표가 진실이므로 의심 표시 없음
+ assert.equal(E.preview(E.withContentOrdinals([s({documentNo:'',documentLine:'',qty:900,date:'2026-09-08'})])[0],[o({id:'2'})],ledger).duplicateSuspect,false);
+ assert.equal(E.preview(s({documentNo:'2',qty:900}),[o({id:'2'})],ledger).duplicateSuspect,false);
+});
+test('예전 file-row 키 원장은 스냅샷으로 내용 키를 붙여 재업로드를 기존 반영으로 인식',()=>{
+ const legacy=[{id:'L1',version:1,sourceKey:JSON.stringify(['file-row','a'.repeat(64),0,4]),sourceSnapshot:E.sourceSnapshot(s()),
+  actor:'x',createdAt:'2026-09-01T00:00:00',reviewReason:'r',allocations:[{orderId:'1',baseQty:1000}],reversedAt:null},
+  {id:'L2',version:1,sourceKey:JSON.stringify(['file-row','b'.repeat(64),0,4]),sourceSnapshot:E.sourceSnapshot(s()),
+  actor:'x',createdAt:'2026-09-02T00:00:00',reviewReason:'r',allocations:[{orderId:'2',baseQty:1000}],reversedAt:null},
+  {id:'L3',version:1,sourceKey:JSON.stringify(['file-row','c'.repeat(64),0,4]),sourceSnapshot:E.sourceSnapshot(s()),
+  actor:'x',createdAt:'2026-09-03T00:00:00',reviewReason:'r',allocations:[{orderId:'3',baseQty:1000}],reversedAt:'2026-09-04T00:00:00'}];
+ const m=E.migrateLedger(legacy);
+ assert.equal(m[0].contentOrdinal,1);assert.equal(m[1].contentOrdinal,2);assert.equal(m[2].contentOrdinal,undefined);
+ assert.equal(m[0].sourceKey,legacy[0].sourceKey);assert.strictEqual(E.migrateLedger(m),m);   // 원본 키 보존, 할 일 없으면 같은 배열 반환
+ // 일부만 마이그레이션된 원장(다른 기기가 먼저 저장)도 순번이 겹치지 않음
+ const mixed=[m[0],legacy[1]];const m2=E.migrateLedger(mixed);
+ assert.equal(m2[1].contentOrdinal,2);
+ const sale=E.withContentOrdinals([s({documentNo:'',documentLine:''})])[0];
+ assert.equal(E.preview(sale,[o(),o({id:'2'}),o({id:'3'})],m).status,'ALREADY_LINKED');
+ assert.equal(E.preview(sale,[o(),o({id:'2'}),o({id:'3'})],legacy).status,'READY');   // 마이그레이션 전에는 새 건으로 보임(문제 재현)
+});
+test('전표행 키 행은 자기 전표행만 조회 — 같은 내용의 다른 전표와 순번이 겹쳐도 합산·오판 없음',()=>{
+ const rows=E.withContentOrdinals([s({documentNo:'D1'}),s({documentNo:'D2'})]);
+ const orders=[o(),o({id:'2'})];
+ const l1=commit(rows[0],[o()]);const l2=commit(rows[1],[o({id:'2'})],l1,{eventId:'e2'});
+ // 파일에 D2만 있는 재업로드(순번 1) → D1과 합산되지 않고 D2 기존 반영
+ const [onlyD2]=E.withContentOrdinals([s({documentNo:'D2'})]);
+ const p=E.preview(onlyD2,orders,l2);assert.equal(p.status,'ALREADY_LINKED');assert.equal(p.linkedByContent,false);assert.deepEqual(p.issues,[]);
+ // 내용이 같은 새 전표 D9(순번 1)는 기존 전표에 묶이지 않고 새 건
+ const [d9]=E.withContentOrdinals([s({documentNo:'D9'})]);
+ assert.equal(E.preview(d9,[...orders,o({id:'3'})],l2).status,'READY');
+});
+test('전표행 이력이 원장 순서와 파일 순서가 달라도 재업로드는 모두 기존 반영',()=>{
+ const rows=E.withContentOrdinals([s({documentNo:'D1'}),s({documentNo:'D2'})]);
+ const legacy=[rows[1],rows[0]].map((r,i)=>({id:'L'+i,version:1,sourceKey:E.sourceKey(r),sourceSnapshot:E.sourceSnapshot(r),actor:'x',createdAt:'2026-09-0'+(i+1),reviewReason:'',allocations:[{orderId:String(i+1),baseQty:1000}],reversedAt:null}));
+ const m=E.migrateLedger(legacy);
+ assert.deepEqual(rows.map(r=>E.preview(r,[o(),o({id:'2'}),o({id:'3'})],m).status),['ALREADY_LINKED','ALREADY_LINKED']);
+});
+test('별개 거래로 반영(separateSale): 내용이 같은 기존 반영이 있어도 다음 순번으로 새 건 처리, 사유 필수',()=>{
+ const orders=[o(),o({id:'2'})];
+ const [x]=E.withContentOrdinals([s({documentNo:'',documentLine:''})]);
+ const l1=commit(x,[o()]);
+ const linked=E.preview(x,orders,l1);assert.equal(linked.status,'ALREADY_LINKED');assert.equal(linked.linkedByContent,true);
+ const x2={...x,contentOrdinal:E.nextFreeOrdinal(x,l1)};assert.equal(x2.contentOrdinal,2);   // 앱이 선언 시 1회 확정
+ const sep=E.preview(x2,orders,l1,aliases,{separateSale:true});
+ assert.equal(sep.status,'REVIEW');assert.equal(sep.contentOrdinal,2);assert.ok(sep.issues[0].includes('별개 거래'));
+ assert.throws(()=>commit(x2,orders,l1,{eventId:'e2',separateSale:true,allocations:sep.proposal}),/검토/);
+ const l2=commit(x2,orders,l1,{eventId:'e2',separateSale:true,allocations:sep.proposal,reviewConfirmed:true,reviewReason:'같은 날 2회 출하'});
+ assert.equal(l2[1].contentOrdinal,2);
+ // 자기 전표행이 이미 반영된 전표행 키 행은 separateSale과 무관하게 기존 반영
+ assert.equal(E.preview(E.withContentOrdinals([s()])[0],[o()],commit(E.withContentOrdinals([s()])[0],[o()]),aliases,{separateSale:true}).status,'ALREADY_LINKED');
+ // 이후 두 행이 든 파일 재업로드 → 둘 다 기존 반영
+ assert.deepEqual(E.withContentOrdinals([s({documentNo:'',documentLine:''}),s({documentNo:'',documentLine:''})]).map(r=>E.preview(r,orders,l2).status),['ALREADY_LINKED','ALREADY_LINKED']);
+});
+test('내용은 같아도 사업자번호·품목코드가 서로 다르면 같은 매각으로 묶지 않음',()=>{
+ const [a]=E.withContentOrdinals([s({documentNo:'',documentLine:'',vendorRegNo:'1111111111'})]);
+ const ledger=commit(a,[o()]);
+ const [b]=E.withContentOrdinals([s({documentNo:'',documentLine:'',vendorRegNo:'2222222222'})]);
+ assert.equal(E.preview(b,[o({id:'2'})],ledger).status,'READY');
+ const [c]=E.withContentOrdinals([s({documentNo:'',documentLine:'',vendorRegNo:'1111111111'})]);
+ assert.equal(E.preview(c,[o({id:'2'})],ledger).status,'ALREADY_LINKED');
+ const [d]=E.withContentOrdinals([s({documentNo:'',documentLine:'',itemCode:'A1'})]);
+ const l2=commit(d,[o()]);
+ assert.equal(E.preview(E.withContentOrdinals([s({documentNo:'',documentLine:'',itemCode:'B1'})])[0],[o({id:'2'})],l2).status,'READY');
+});
+test('마이그레이션은 정수가 아닌 순번을 무시하고 정수 순번만 이어감',()=>{
+ const bad={id:'B',version:1,sourceKey:JSON.stringify(['content','TEST',E.contentTuple(s()),1]),contentOrdinal:'1',sourceSnapshot:E.sourceSnapshot(s()),actor:'x',createdAt:'2026-09-01',reviewReason:'',allocations:[],reversedAt:null};
+ const legacy={id:'L',version:1,sourceKey:JSON.stringify(['file-row','a'.repeat(64),0,1]),sourceSnapshot:E.sourceSnapshot(s()),actor:'x',createdAt:'2026-09-02',reviewReason:'',allocations:[{orderId:'1',baseQty:1000}],reversedAt:null};
+ const m=E.migrateLedger([bad,legacy]);assert.equal(m[0].contentOrdinal,1);assert.equal(m[1].contentOrdinal,2);
+});
+test('저장된 키 문자열이 아니라 스냅샷에서 다시 계산한 내용으로 대조 — 키 문자열이 낡아도 기존 반영 인식',()=>{
+ const [x]=E.withContentOrdinals([s({documentNo:'',documentLine:''})]);
+ const ledger=commit(x,[o()]).map(e=>({...e,sourceKey:JSON.stringify(['content','TEST','옛 정규화 결과',1])}));
+ assert.equal(E.preview(x,[o(),o({id:'2'})],ledger).status,'ALREADY_LINKED');
+});
+test('전표행 키 행도 [별개 거래]로 내용 대조를 건너뛰고 다음 순번으로 새 건 처리',()=>{
+ const [x]=E.withContentOrdinals([s({documentNo:'',documentLine:''})]);
+ const ledger=commit(x,[o()]);
+ const [d3]=E.withContentOrdinals([s({documentNo:'D3'})]);
+ const linked=E.preview(d3,[o(),o({id:'2'})],ledger);assert.equal(linked.status,'ALREADY_LINKED');assert.equal(linked.linkedByContent,true);
+ const sep=E.preview(d3,[o(),o({id:'2'})],ledger,aliases,{separateSale:true});
+ assert.equal(sep.status,'REVIEW');assert.equal(sep.contentOrdinal,2);
+ const l2=commit(d3,[o(),o({id:'2'})],ledger,{eventId:'e2',separateSale:true,allocations:sep.proposal,reviewConfirmed:true,reviewReason:'별개 전표'});
+ assert.equal(l2[1].contentOrdinal,2);
+ assert.equal(E.preview(x,[o(),o({id:'2'})],l2).status,'ALREADY_LINKED');   // 원래 행 재업로드는 여전히 1건과만 대조(합산 없음)
+});
+test('부분 배분으로 이력이 2건인 매각은 마이그레이션 후에도 한 순번을 공유하고 재업로드는 기존 반영',()=>{
+ const [x]=E.withContentOrdinals([s({documentNo:'',documentLine:''})]);
+ const key=JSON.stringify(['file-row','a'.repeat(64),0,4]);
+ const mk=(id,orderId,q)=>({id,version:1,sourceKey:key,sourceSnapshot:E.sourceSnapshot(x),actor:'x',createdAt:'2026-09-0'+id.slice(-1),reviewReason:'',allocations:[{orderId,baseQty:q}],reversedAt:null});
+ const m=E.migrateLedger([mk('L1','1',600),mk('L2','2',400)]);
+ assert.equal(m[0].contentOrdinal,1);assert.equal(m[1].contentOrdinal,1);
+ assert.equal(E.preview(x,[o(),o({id:'2'}),o({id:'3'})],m).status,'ALREADY_LINKED');
+ // 새 이력도 같은 매각의 두 번째 배분은 첫 배분과 같은 순번
+ const orders=[o({qty:600}),o({id:'2',qty:400})];
+ const p1=E.preview(x,orders,[]);
+ const l1=E.commit({sale:x,orders,ledger:[],allocations:[{orderId:'1',baseQty:600}],actor:'t',now:'n',eventId:'a',expectedSourceSnapshot:p1.sourceSnapshot,expectedOrders:{1:E.orderSnapshot(orders[0]),2:E.orderSnapshot(orders[1])},reviewConfirmed:true,reviewReason:'부분'});
+ const p2=E.preview(x,orders,l1);
+ const l2=E.commit({sale:x,orders,ledger:l1,allocations:[{orderId:'2',baseQty:400}],actor:'t',now:'n',eventId:'b',expectedSourceSnapshot:p2.sourceSnapshot,expectedOrders:{1:E.orderSnapshot(orders[0]),2:E.orderSnapshot(orders[1])},reviewConfirmed:true,reviewReason:'부분'});
+ assert.equal(l2[0].contentOrdinal,l2[1].contentOrdinal);
+ assert.equal(E.preview(x,[...orders,o({id:'3'})],l2).status,'ALREADY_LINKED');
+});
+test('서로 다른 파일에서 온 같은 내용의 전표 2건을 행번호 없이 함께 재업로드해도 둘 다 기존 반영',()=>{
+ const [d1]=E.withContentOrdinals([s({documentNo:'D1'})]);const [d2]=E.withContentOrdinals([s({documentNo:'D2'})]);
+ const orders=[o(),o({id:'2'}),o({id:'3'})];
+ const l1=commit(d1,[o()]);const l2=commit(d2,[o({id:'2'})],l1,{eventId:'e2'});
+ assert.deepEqual(l2.map(e=>e.contentOrdinal),[1,2]);   // 전표행 이력의 순번은 파일이 아니라 원장 기준
+ const rows=E.withContentOrdinals([s({documentNo:'',documentLine:''}),s({documentNo:'',documentLine:''})]);
+ assert.deepEqual(rows.map(r=>E.preview(r,orders,l2).status),['ALREADY_LINKED','ALREADY_LINKED']);
+ // 전표 순서를 바꿔 반영해도(D2 먼저) 순번은 빈 자리부터 채움
+ const l3=commit(d1,[o()],commit(d2,[o({id:'2'})]),{eventId:'e2'});
+ assert.deepEqual(l3.map(e=>e.contentOrdinal).sort(),[1,2]);
+});
+test('내용 기준으로 반영된 매각(부분 배분)을 행번호 열과 함께 다시 올리면 같은 순번을 이어받아 합산됨',()=>{
+ const [x]=E.withContentOrdinals([s({documentNo:'',documentLine:''})]);
+ const orders=[o({qty:600}),o({id:'2',qty:400}),o({id:'3'})];
+ const p1=E.preview(x,orders,[]);
+ const l1=E.commit({sale:x,orders,ledger:[],allocations:[{orderId:'1',baseQty:600}],actor:'t',now:'n',eventId:'a',expectedSourceSnapshot:p1.sourceSnapshot,expectedOrders:Object.fromEntries(orders.map(q=>[q.id,E.orderSnapshot(q)])),reviewConfirmed:true,reviewReason:'부분'});
+ const [slip]=E.withContentOrdinals([s()]);   // 전표행 있음, 파일 순번 1
+ const p2=E.preview(slip,orders,l1);assert.equal(p2.remaining,400);assert.equal(p2.contentOrdinal,1);
+ const l2=E.commit({sale:slip,orders,ledger:l1,allocations:[{orderId:'2',baseQty:400}],actor:'t',now:'n',eventId:'b',expectedSourceSnapshot:p2.sourceSnapshot,expectedOrders:Object.fromEntries(orders.map(q=>[q.id,E.orderSnapshot(q)])),reviewConfirmed:true,reviewReason:'부분'});
+ assert.equal(l2[1].contentOrdinal,1);
+ assert.equal(E.preview(slip,orders,l2).status,'ALREADY_LINKED');   // 전표 형태 재업로드: 자기 전표행 400 + 내용 기준 이력 600 합산
+ assert.equal(E.preview(x,orders,l2).status,'ALREADY_LINKED');      // 내용 형태 재업로드: 순번 1 이력 2건 합산 1000
+});
+test('별개 거래 순번은 선언 시 한 번 확정(nextFreeOrdinal)되고, 자기 키가 batchKeys에 있어도 미리보기·반영에서 흔들리지 않음',()=>{
+ const rows=E.withContentOrdinals([s({documentNo:'',documentLine:''}),s({documentNo:'',documentLine:''})]);
+ const orders=[o(),o({id:'2'}),o({id:'3'})];
+ const l=commit(rows[1],[o({id:'2'})],commit(rows[0],[o()]),{eventId:'e2'});
+ const a={...rows[0],contentOrdinal:E.nextFreeOrdinal(rows[0],l,[E.sourceKey(rows[1])])};
+ assert.equal(a.contentOrdinal,3);
+ const b={...rows[1],contentOrdinal:E.nextFreeOrdinal(rows[1],l,[E.sourceKey(a)])};
+ assert.equal(b.contentOrdinal,4);
+ const batchKeys=[E.sourceKey(a),E.sourceKey(b)];   // 실제 화면처럼 자기 키 포함
+ const pa=E.preview(a,orders,l,aliases,{separateSale:true,batchKeys});
+ assert.equal(pa.contentOrdinal,3);assert.equal(pa.status,'REVIEW');
+ const la=E.commit({sale:a,orders,ledger:l,allocations:pa.proposal,actor:'t',now:'n',eventId:'e3',expectedSourceSnapshot:pa.sourceSnapshot,expectedOrders:Object.fromEntries(orders.map(q=>[q.id,E.orderSnapshot(q)])),reviewConfirmed:true,reviewReason:'별개',separateSale:true,batchKeys});
+ assert.equal(la[2].contentOrdinal,3);
+ assert.equal(E.preview(a,orders,la,aliases,{batchKeys}).status,'ALREADY_LINKED');   // 반영 후 플래그를 내리면 자기 이력(3번)과 대조
+ const pb=E.preview(b,[...orders,o({id:'4'})],la,aliases,{separateSale:true,batchKeys});assert.equal(pb.contentOrdinal,4);assert.equal(pb.status,'REVIEW');
+});
+test('중복 의심은 사업자번호·품목코드가 다른 업체·품목에는 적용하지 않음',()=>{
+ const [a]=E.withContentOrdinals([s({documentNo:'',documentLine:'',vendorRegNo:'1111111111'})]);
+ const ledger=commit(a,[o()]);
+ const [b]=E.withContentOrdinals([s({documentNo:'',documentLine:'',vendorRegNo:'2222222222',qty:900})]);
+ assert.equal(E.preview(b,[o({id:'2'})],ledger).duplicateSuspect,false);
+ const [c]=E.withContentOrdinals([s({documentNo:'',documentLine:'',qty:900})]);
+ assert.equal(E.preview(c,[o({id:'2'})],ledger).duplicateSuspect,true);
 });

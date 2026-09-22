@@ -301,6 +301,7 @@ details.card summary .cnt{font-size:11.5px;color:var(--mut);font-weight:500}
         <select id="invRestoreSel" style="display:none" title="날짜별로 쌓인 이전 재고 스냅샷 중 하나를 골라 지금 재고로 되돌릴 수 있음 — 잘못된 파일을 올렸을 때 사용"></select>
         <button class="btn sm ghost" id="invRestoreBtn" style="display:none" onclick="restoreInvSnapshot()">선택 날짜로 복원</button>
       </div>
+      <div id="invSplitWrap" style="display:none;margin-bottom:8px"></div>
       <div id="ropWrap" style="display:none">
         <div class="grp-lbl">재고 기준 — 발주점(ROP) 도달 <span class="cnt" id="cntRop"></span></div>
         <div class="tbl scroll"><table><thead><tr><th>품목</th><th>업체</th><th class="num">현재고(kg)</th><th class="num">발주점(kg)</th><th class="num">1회 발주량</th><th>입고까지</th><th></th></tr></thead><tbody id="boardRop"></tbody></table></div>
@@ -1756,14 +1757,17 @@ function renderBoard(){
   const dueN=due.length+rop.filter(r=>r.stk<=r.rop).length;window._dueN=dueN;
   document.getElementById('invInfo').textContent=hasInv?`재고 기준: ${S.inv.ts} · ${Object.keys(S.inv.stock).length}개 품목 반영`:'DW 재고 파일을 올리면(또는 이 카드에 끌어다 놓으면) 발주점 기준으로 자동 계산됨';
   document.getElementById('invClear').style.display=hasInv?'':'none';
-  renderInvRestoreOptions();
+  renderInvRestoreOptions();renderInvSplit();
   document.getElementById('ropWrap').style.display=hasInv?'':'none';
   document.getElementById('cycLbl').textContent=hasInv?'주기 기준 (자가 — 벌크·직납 등 재고 파일에 없는 품목)':'주기 기준 (자가) — 권장 주기와 마지막 발주일로 계산. [발주 체크] 시 착일 자동 생성.';
   if(hasInv){
     const ordered=it=>S.orders.some(o=>!o.skip&&!o.inDate&&norm(o.item)===norm(it));
     document.getElementById('boardRop').innerHTML=rop.length?rop.map(r=>{
       const shortStk=r.stk<=r.rop;
-      return `<tr><td><b>${esc(ITEM_DISPLAY_LABEL[r.item]||r.item)}</b> ${shortStk?'<span class="chip c-late">부족 '+fmtN(Math.max(0,Math.round(r.rop-r.stk)))+'kg</span>':'<span class="chip c-wait">임박</span>'}${r.zeroGap?' <span class="chip c-late" title="바로 전 재고 파일에는 있었는데 이번 파일에는 행 자체가 없음 — 품절로 보고 0으로 처리">품절 추정</span>':''}${r.flag?' <span class="tag">'+esc(r.flag)+'</span>':''}${r.gpps?'<div class="tag">⚠ '+esc(r.gpps)+' · 발주 여부는 검토 후 확정</div>':''}</td><td><b>${esc(r.vendor)}</b></td><td class="num">${fmtN(Math.round(r.stk))}</td><td class="num">${fmtN(r.rop)}</td><td class="num">${fmtN(r.qty)} kg</td><td>${r.lt}일</td><td>${ordered(r.item)?'<span class="chip c-ord">발주됨</span>':`<button class="btn sm warn" onclick="ropOrder('${escJs(esc(r.item))}')">발주 체크</button>`}</td></tr>`;
+      // 이 수치에 백/지대를 못 가른 수량이 섞여 있으면 숫자 옆에서 바로 보이게 함 — 라벨은 '(백)'인데
+      // 값은 백+미확인인 상태를 모르고 발주 판단을 하면 안 됨(사용자 신고 2026-09-22).
+      const unkStk=invUnknownOf(r.item);
+      return `<tr><td><b>${esc(ITEM_DISPLAY_LABEL[r.item]||r.item)}</b>${unkStk>0?' <span class="chip c-late" title="재고 파일에서 백/지대 보관 위치를 읽지 못한 행 — 이 현재고에 합쳐져 있음">위치 미확인 '+fmtN(Math.round(unkStk))+'kg 포함</span>':''} ${shortStk?'<span class="chip c-late">부족 '+fmtN(Math.max(0,Math.round(r.rop-r.stk)))+'kg</span>':'<span class="chip c-wait">임박</span>'}${r.zeroGap?' <span class="chip c-late" title="바로 전 재고 파일에는 있었는데 이번 파일에는 행 자체가 없음 — 품절로 보고 0으로 처리">품절 추정</span>':''}${r.flag?' <span class="tag">'+esc(r.flag)+'</span>':''}${r.gpps?'<div class="tag">⚠ '+esc(r.gpps)+' · 발주 여부는 검토 후 확정</div>':''}</td><td><b>${esc(r.vendor)}</b></td><td class="num">${fmtN(Math.round(r.stk))}</td><td class="num">${fmtN(r.rop)}</td><td class="num">${fmtN(r.qty)} kg</td><td>${r.lt}일</td><td>${ordered(r.item)?'<span class="chip c-ord">발주됨</span>':`<button class="btn sm warn" onclick="ropOrder('${escJs(esc(r.item))}')">발주 체크</button>`}</td></tr>`;
     }).join(''):'<tr><td colspan="7" class="empty">발주점 도달 품목 없음 — 전 품목 재고 여유</td></tr>';
     document.getElementById('cntRop').textContent=rop.length?`부족 ${rop.filter(r=>r.stk<=r.rop).length} · 임박 ${rop.filter(r=>r.stk>r.rop).length}`:'';
   }
@@ -1814,21 +1818,89 @@ function skipOrder(type,i){const p=type==='self'?M.presetSelf[i]:M.presetConsign
 
 /* ═════════ DW 재고 → 발주점(ROP) ═════════ */
 function invDeptOf(d){d=d||'';if(d.startsWith('창호'))return'창호';if(d.startsWith('경질'))return'경질';if(/^디럭스|^타일/.test(d))return'타일';if(d.startsWith('데코'))return'DBP';return'전사';}
+/* ═══ DW 재고 파일의 백/지대 분리 ═══
+   TIONA-696(R696)·K-2450은 DW 재고 엑셀의 품목명 텍스트가 백·지대 공통이고 창고 컬럼값도 둘 다
+   M404P2로 같아서 품목명만으로는 절대 안 갈림 — 실제로는 보관 위치(로케이터)로만 갈림:
+   '14동 2열'=백(F/B 500kg), '14동 1열'=지대(P/B 25kg). 예전에는 행 전체 텍스트에서 정확히
+   '14동1열'이라는 표기만 찾아 그 행만 지대로 보냈는데, 파일의 위치 표기가 조금만 달라도
+   (열 번호만 오거나 동·열 표기가 흔들리거나 위치 컬럼이 비어 있거나) 그 행이 통째로 백 항목에
+   합산됨 — 그래서 화면에는 'TIONA-696(백)'이라고 적혀 있는데 실제로는 백+지대가 섞인 수량이
+   되는 문제가 있었음(사용자 신고 2026-09-22). 아래 규칙으로 넓게 판정하고, 그래도 못 가른 행은
+   '위치 미확인'으로 따로 세어 화면에 그대로 드러냄. */
+const INV_SPLIT_FAMILIES=[
+  {bag:'TIONA-696',jd:'TIONA-666(696)',label:'TIONA-696'},
+  {bag:'Kronos2450',jd:'K-2450(지대)',label:'K-2450'}
+];
+// 위치·포장 표기 비교용 — norm()은 괄호·하이픈까지 지워서 '14-1'이 '141'이 되어버리므로 따로 둠(공백만 제거)
+const locNorm=s=>String(s??'').toUpperCase().replace(/\s+/g,'');
+/* 위치(로케이터) 표기로 판정 — 열 번호만 보므로 '14동 1열'·'1열'·'14동1' 같은 표기 흔들림을 모두 받음.
+   셀을 하나로 이어붙이지 않고 칸별로 따로 봄: 창고코드(M404P2)와 위치(2열)가 붙으면 'M404P22열'이
+   되어 열 번호 앞이 숫자가 되고, 그러면 '12열' 같은 다른 번호와 구분하려고 둔 숫자 경계 조건에
+   걸려 멀쩡한 위치 표기를 못 읽음(자체 검증에서 발견). */
+function invLocVariant(cells){
+  for(const c of cells){
+    const src=locNorm(c);
+    if(!src)continue;
+    if(/(^|[^0-9])1열|14동1(?![0-9])/.test(src))return 'jd';
+    if(/(^|[^0-9])2열|14동2(?![0-9])/.test(src))return 'bag';
+  }
+  return null;
+}
+/* 포장 표기로 판정 — 위치를 전혀 못 읽을 때만 쓰는 보조 규칙(F/B 500kg=백, P/B 25kg=지대).
+   포장 코드(F/B·P/B)가 가장 확실하므로 먼저 보고 무게 표기는 마지막에 봄. 무게에 숫자 경계를
+   두지 않으면 같은 행에 있는 수량에 걸림 — '12,500KG'이 '500KG'에, '4,625KG'이 '25KG'에 잡혀
+   백 행이 통째로 지대로 넘어갔음(자체 코드리뷰에서 재현). 알파벳 경계도 같은 이유로 둠. */
+function invPackVariant(rowText){
+  const r=locNorm(rowText);
+  if(/(^|[^A-Z])F\/?B|톤백|빅백|\(백\)/.test(r))return 'bag';
+  if(/(^|[^A-Z])P\/?B|지대/.test(r))return 'jd';
+  if(/(^|[^0-9.,])500KG/.test(r))return 'bag';
+  if(/(^|[^0-9.,])25KG/.test(r))return 'jd';
+  return null;
+}
+/* 모아둔 행들을 백/지대로 배정 — 파일 안에서 위치 표기가 하나라도 읽히면 위치로만 가름(가장 확실).
+   위치를 하나도 못 읽었을 때만 포장 표기로 가르되, 그것도 행이 2개 이상일 때만 함: 행이 하나뿐이면
+   그 행이 백·지대를 이미 합친 총계일 수 있어, 포장 표기만 보고 한쪽으로 몰면 반대쪽이 통째로
+   품절로 잘못 잡힘. 어느 규칙으로도 못 가른 행은 예전처럼 백 항목에 합산하되 '위치 미확인'으로
+   따로 세어 화면에 표시함(멋대로 갈라 잘못된 발주점 경고를 내는 것보다 안전). */
+function resolveInvSplit(rows){
+  const byLoc=rows.map(r=>invLocVariant(r.cells));
+  const useLoc=byLoc.some(v=>v);
+  const usePack=!useLoc&&rows.length>1;
+  const d={bag:0,jd:0,unknown:0,by:useLoc?'위치 표기':(usePack?'포장 표기':''),rows:[]};
+  rows.forEach((r,i)=>{
+    const v=useLoc?byLoc[i]:(usePack?invPackVariant(r.rowText):null);
+    d[v||'unknown']+=r.qty;
+    if(d.rows.length<40)d.rows.push({loc:String(r.locText||'').trim().slice(0,60),qty:r.qty,v:v||''});
+  });
+  // 규칙은 돌렸지만 한 행도 못 가른 경우 — '포장 표기 기준'이라고 적으면 갈린 줄 알게 되므로 비움
+  if(d.bag===0&&d.jd===0)d.by='';
+  return d;
+}
+// 이 품목(백 항목) 수치에 '위치 미확인'으로 합쳐진 수량(kg) — 화면 경고 표시용. 없으면 0.
+function invUnknownOf(item){
+  const f=INV_SPLIT_FAMILIES.find(x=>x.bag===item);
+  const d=f&&S.inv&&S.inv.split?S.inv.split[f.label]:null;
+  return d?(d.unknown||0):0;
+}
 function readInv(f){
   if(!f)return;
   const r=new FileReader();
   r.onload=e=>{try{
     const wb=XLSX.read(new Uint8Array(e.target.result),{type:'array'});
-    const stock={};let hits=0;
+    const stock={},split={},pend={};let hits=0;
     const rops=[...M.rop].sort((a,b)=>String(b.item).length-String(a.item).length);
     wb.SheetNames.forEach(n=>{
       const rows=XLSX.utils.sheet_to_json(wb.Sheets[n],{header:1,raw:true,defval:''});
-      let qCol=-1,iCol=-1,hRow=-1,whCol=-1;
+      let qCol=-1,iCol=-1,hRow=-1,whCol=-1;const locCols=[];
       for(let ri=0;ri<Math.min(rows.length,20);ri++){
         (rows[ri]||[]).forEach((c,ci)=>{const s=String(c).replace(/\s/g,'');
           if(qCol<0&&/현재고|가용재고|재고수량|^재고|기말재고|재고량/.test(s))qCol=ci;
           if(iCol<0&&/품목|품명|자재명|자재내역|명칭|Description/i.test(s))iCol=ci;
-          if(whCol<0&&/창고|위치|장소/.test(s))whCol=ci;});
+          if(whCol<0&&/창고|위치|장소/.test(s))whCol=ci;
+          // 로케이터(보관 위치) 후보 컬럼은 전부 모아둠 — 창고코드(M404P2)와 위치(14동 2열)가
+          // 서로 다른 컬럼에 들어있는 파일이 있어, 첫 하나(whCol)만 보면 위치 값을 놓침.
+          if(/창고|위치|장소|로케이터|보관|적치|LOC/i.test(s)&&!locCols.includes(ci))locCols.push(ci);});
         if(qCol>=0)break;
       }
       if(qCol>=0){for(let ri=0;ri<rows.length;ri++){if((rows[ri]||[]).some(c=>/현재고|가용재고|재고수량|기말재고|재고량|^재고$/.test(String(c).replace(/\s/g,'')))){hRow=ri;break;}}}
@@ -1852,24 +1924,48 @@ function readInv(f){
         if(hit){
           // 95T(HYDROCARB)는 P201P2·M404P2 두 창고에 나뉘어 있고 자가 발주 대상은 M404P2뿐 —
           // 창고 컬럼 인식 여부와 무관하게 행 전체에서 P201P2가 보이면 항상 제외(이중 안전장치)
-          if(/95T|HYDROCARB/.test(norm(hit.item))&&norm(row.map(c=>String(c??'')).join(' ')).includes('P201P2'))continue;
+          const rowText=row.map(c=>String(c??'')).join(' ');
+          if(/95T|HYDROCARB/.test(norm(hit.item))&&norm(rowText).includes('P201P2'))continue;
           // K-2450·TIONA-696(R696)은 엑셀 품목명 텍스트가 백/지대 공통이고 창고 컬럼값도 둘 다
           // M404P2로 같아서(현장 확인) 위 텍스트 매칭만으론 절대 구분이 안 됨 — 실제로는 위치
           // (로케이터)로만 갈림: '14동 2열'=백, '14동 1열'=지대. 기본(백) 항목으로 매칭된 행만
           // 행 전체 텍스트에서 위치 표기를 직접 찾아 지대 전용 항목으로 재배정함. 위치 표기를
           // 못 찾으면(파일 양식이 바뀌었거나 다른 창고인 경우) 무리하게 가르지 않고 기존처럼
           // 백 항목에 합산 — 엉뚱하게 지대로 갈라 잘못된 발주점 경고를 내는 것보다 안전함.
-          const jdVariant={'TIONA-696':'TIONA-666(696)','Kronos2450':'K-2450(지대)'}[hit.item];
-          let key=hit.item;
-          if(jdVariant&&/14동1열/.test(norm(row.map(c=>String(c??'')).join(' '))))key=jdVariant;
-          stock[key]=(stock[key]||0)+qty;hits++;
+          // 백/지대 분리 대상은 바로 합산하지 않고 모아둠 — 파일 전체를 다 읽은 뒤에야
+          // "이 파일에 위치 표기가 읽히는 행이 있는지"를 알 수 있고, 그에 따라 판정 규칙이 갈림
+          // (resolveInvSplit 참고).
+          const fam=INV_SPLIT_FAMILIES.find(f=>f.bag===hit.item);
+          if(fam){
+            const locCells=locCols.map(ci=>row[ci]).filter(v=>v!=null&&String(v).trim()!=='').map(String);
+            // 위치 후보 칸을 먼저 보고, 없으면 행의 나머지 칸에서도 찾음(위치 컬럼이 없는 양식 대비)
+            const cells=[...locCells,...row.map(c=>String(c??''))];
+            (pend[fam.label]=pend[fam.label]||[]).push({qty,locText:locCells.join(' '),rowText,cells});
+            hits++;continue;
+          }
+          stock[hit.item]=(stock[hit.item]||0)+qty;hits++;
         }
       }
     });
+    // 모아둔 백/지대 행을 배정 — 위치를 못 가른 수량(unknown)은 예전과 똑같이 백 항목에 합산하되
+    // split에 따로 남겨 화면에서 "이 수치에 미확인 N kg이 섞여 있음"을 볼 수 있게 함.
+    Object.keys(pend).forEach(label=>{
+      const fam=INV_SPLIT_FAMILIES.find(f=>f.label===label);
+      const d=resolveInvSplit(pend[label]);
+      split[label]=d;
+      stock[fam.bag]=(stock[fam.bag]||0)+d.bag+d.unknown;
+      // 지대 수치는 "0"도 하나의 주장이라, 미확인 행이 하나도 없을 때만 0으로 기록함 — 미확인 행이
+      // 남아 있으면 그게 지대였을 수도 있는데 0으로 적어버리면 있지도 않은 부족을 띄움(자체 코드리뷰).
+      if(d.jd>0||(d.by&&d.unknown===0))stock[fam.jd]=(stock[fam.jd]||0)+d.jd;
+    });
     if(!hits){toast('재고 파일에서 발주 기준 품목을 못 찾음 — 품목명·재고 컬럼이 있는지 확인');return;}
-    S.inv={ts:localISO(new Date())+' '+new Date().toTimeString().slice(0,5),stock};
-    pushInvHistSnapshot(localISO(new Date()),stock);
-    saveDB();refreshAll();toast(`재고 ${Object.keys(stock).length}개 품목 반영됨`);
+    S.inv={ts:localISO(new Date())+' '+new Date().toTimeString().slice(0,5),stock,split};
+    pushInvHistSnapshot(localISO(new Date()),stock,split);
+    saveDB();refreshAll();
+    const unk=Object.keys(split).filter(k=>split[k].unknown>0);
+    toast(unk.length
+      ?`재고 ${Object.keys(stock).length}개 품목 반영됨 — 위치 미확인 ${unk.map(k=>k+' '+fmtN(Math.round(split[k].unknown))+'kg').join(', ')} (백에 합산됨)`
+      :`재고 ${Object.keys(stock).length}개 품목 반영됨`);
   }catch(err){toast('재고 파일을 읽지 못함: '+err.message);}};
   r.readAsArrayBuffer(f);
 }
@@ -1877,9 +1973,13 @@ function clearInv(){delete S.inv;saveDB();refreshAll();toast('재고 데이터 �
 /* readInv()·restoreInvSnapshot() 둘 다 "오늘 날짜 스냅샷을 지우고 새로 넣은 뒤 정렬·90개로
    자르기"를 하므로 한 곳에 모음 — 따로 두면 나중에 한쪽만 고치다 캡·정렬 규칙이 어긋날 위험
    (코드리뷰로 발견). */
-function pushInvHistSnapshot(d,stock){
+function pushInvHistSnapshot(d,stock,split){
   S.invHist=(S.invHist||[]).filter(h=>h.d!==d);
-  S.invHist.push({d,stock:{...stock}});
+  // 백/지대 배정 결과도 같이 남겨야 스냅샷으로 되돌렸을 때 "이 수치에 미확인이 섞여 있음" 경고가
+  // 같이 살아남음 — 경고만 사라지면 이 기능이 고치려던 상태로 그대로 되돌아감(자체 코드리뷰).
+  // 행별 원문(rows)은 90일치를 쌓으면 저장 용량만 키우므로 합계만 남김.
+  const sp={};Object.keys(split||{}).forEach(k=>{const v=split[k]||{};sp[k]={bag:v.bag||0,jd:v.jd||0,unknown:v.unknown||0,by:v.by||'',rows:[]};});
+  S.invHist.push({d,stock:{...stock},split:sp});
   S.invHist.sort((a,b)=>a.d<b.d?-1:1);
   if(S.invHist.length>90)S.invHist=S.invHist.slice(-90);
 }
@@ -1887,6 +1987,27 @@ function pushInvHistSnapshot(d,stock){
    아님) 되돌리기 기능이 따로 없었음(실사용 문의로 확인). 매일 자동으로 쌓이는 날짜별 스냅샷
    (S.invHist, readInv() 참고)에서 이전 날짜를 골라 지금 재고로 되돌릴 수 있게 함 — 정상 파일이
    남아있으면 그걸 다시 올리는 게 가장 확실하지만, 없을 때를 위한 안전망. */
+/* 백/지대 배정 결과를 그대로 보여줌 — 합쳐진 숫자만 보면 'TIONA-696(백)'이 정말 백만인지 알 수
+   없어서(사용자 신고 2026-09-22), 판정 근거·위치 미확인 수량과 함께 재고 파일의 위치 표기 원문을
+   행별로 펼쳐볼 수 있게 함. 파일 양식이 바뀌어 규칙이 안 맞을 때 무엇을 고쳐야 하는지가 이 표에
+   그대로 드러남. */
+function renderInvSplit(){
+  const el=document.getElementById('invSplitWrap');if(!el)return;
+  const sp=(S.inv&&S.inv.split)||{};
+  const fams=INV_SPLIT_FAMILIES.filter(f=>sp[f.label]);
+  el.style.display=fams.length?'':'none';
+  el.innerHTML=fams.map(f=>{
+    const d=sp[f.label],tot=d.bag+d.jd+d.unknown;
+    // 스냅샷 복원본에는 행별 원문을 안 남기므로(저장 용량) 표 대신 그 사실을 적어둠
+    const body=(d.rows||[]).length
+      ?`<div class="tbl"><table><thead><tr><th>재고 파일의 위치 표기</th><th class="num">수량(kg)</th><th>배정</th></tr></thead><tbody>${d.rows.map(r=>`<tr><td>${esc(r.loc||'(위치 표기 없음)')}</td><td class="num">${fmtN(Math.round(r.qty))}</td><td>${r.v==='jd'?'지대':r.v==='bag'?'백':'<b>미확인 → 백에 합산</b>'}</td></tr>`).join('')}</tbody></table></div>`
+      :'<div class="tag">행별 내역은 재고 파일을 올린 직후에만 남음 — 스냅샷 복원본에는 합계만 있음</div>';
+    return `<details style="margin:2px 0"><summary class="tag" style="cursor:pointer">
+      <b>${esc(f.label)}</b> 백 ${fmtN(Math.round(d.bag))}kg · 지대 ${fmtN(Math.round(d.jd))}kg
+      ${d.unknown>0?`<span class="chip c-late" title="백·지대 어느 쪽인지 못 읽은 행 — 백 수치에 합산됨">위치 미확인 ${fmtN(Math.round(d.unknown))}kg</span>`:''}
+      <span class="tag">${d.by?esc(d.by)+' 기준 · ':''}파일 합계 ${fmtN(Math.round(tot))}kg</span></summary>${body}</details>`;
+  }).join('');
+}
 const invRestoreLbl=key=>_arm===key?'정말 복원?':'선택 날짜로 복원';   // armLbl은 "삭제" 전용 문구라 복원엔 안 맞아 별도로 둠(같은 _arm/armDel 상태를 그대로 씀)
 function renderInvRestoreOptions(){
   const sel=document.getElementById('invRestoreSel'),btn=document.getElementById('invRestoreBtn');
@@ -1907,10 +2028,10 @@ function restoreInvSnapshot(){
   const d=document.getElementById('invRestoreSel').value;if(!d)return;
   const h=(S.invHist||[]).find(x=>x.d===d);if(!h)return;
   if(!armDel('invRestore'+d)){toast('한 번 더 누르면 이 날짜 스냅샷으로 되돌립니다');return;}
-  S.inv={ts:`${d} 스냅샷으로 복원`,stock:{...h.stock}};
+  S.inv={ts:`${d} 스냅샷으로 복원`,stock:{...h.stock},split:h.split||{}};
   // 오늘자 스냅샷도 이 값으로 맞춰 둠 — 실제로 오늘 이 수치의 파일을 다시 올린 것과 같은 상태로
   // 만들어야, 재고 추이 그래프에 방금 있었던 잘못된 업로드가 오늘자로 남아 헷갈리지 않음.
-  pushInvHistSnapshot(realToday(),h.stock);
+  pushInvHistSnapshot(realToday(),h.stock,h.split);
   saveDB();refreshAll();
   toast(`${d} 스냅샷으로 복원됨`);
 }
@@ -2270,14 +2391,19 @@ function k2450Variant(it){return /지대/.test(norm(it))?'K-2450(지대)':'Krono
 function openR696(m){
   const variant=r696Variant(m.item);
   const rp=ropOf(m.item);   // 백/지대 발주점 조회는 ropOf()로 통일 — 여기서 따로 다시 구현하면 나중에 매칭 로직이 바뀔 때 한쪽만 갱신되는 사고가 남
-  const stk=S.inv&&S.inv.stock?(S.inv.stock[variant]??S.inv.stock['TIONA-696']??null):null;
+  // 어느 키의 수치를 보여주는지 먼저 정함 — 지대 이동이라도 지대 재고가 없으면 백 수치로 폴백하는데,
+  // 그때도 미확인 경고는 실제로 보여주는 그 키를 기준으로 띄워야 함(자체 코드리뷰).
+  const stkKey=S.inv&&S.inv.stock?(S.inv.stock[variant]!=null?variant:(S.inv.stock['TIONA-696']!=null?'TIONA-696':null)):null;
+  const stk=stkKey?S.inv.stock[stkKey]:null;
+  // 이 창의 수치로 발주를 판단하므로, 백/지대를 못 가른 수량이 섞여 있으면 같이 알려줌
+  const stkUnk=stkKey?invUnknownOf(stkKey):0;
   const openPo=S.orders.filter(o=>!o.skip&&!o.inDate&&o.unit==='kg'&&isR696(o.item)).reduce((a,o)=>a+(+o.qty||0),0);
   const mvKg=m.unit==='kg'?+m.qty||0:null;
   const r=m.r696||{};   // 이미 확인된 기록이 있으면(재확인·정정) 그 값을 그대로 채워둠
   dlgTitle.textContent='R696 — 당월 추가 사용량 확인';
   dlgBody.innerHTML=`
     <div style="grid-column:1/-1" class="hint">R696(TIONA-696) 창고이동은 <b>실사용 신호</b>임. 생산팀에 이번 달 추가 사용 예정량을 확인해 기록함(실물이동완료 체크와는 별개).<br>
-    ${stk!=null?`재고파일 기준 현재고 <b>${fmtN(stk)}kg</b> · 미입고 발주 ${fmtN(openPo)}kg · 발주점 ${rp?fmtN(rp.rop)+'kg':'기준 미등록'}`:'DW 재고 파일 미반영 — 수치는 직접 판단'} · 이번 이동 ${fmtN(m.qty)} ${esc(m.unit)}</div>
+    ${stk!=null&&stkUnk>0?`<br><span class="chip c-late">※ 이 현재고에 백/지대 위치를 못 읽은 ${fmtN(Math.round(stkUnk))}kg이 섞여 있음 — [현황] 재고 카드에서 내역 확인</span><br>`:''}${stk!=null?`재고파일 기준 현재고 <b>${fmtN(stk)}kg</b> · 미입고 발주 ${fmtN(openPo)}kg · 발주점 ${rp?fmtN(rp.rop)+'kg':'기준 미등록'}`:'DW 재고 파일 미반영 — 수치는 직접 판단'} · 이번 이동 ${fmtN(m.qty)} ${esc(m.unit)}</div>
     <div><label>당월 추가 사용 예정량(kg) — 없으면 0</label><input data-k="usage" type="number" step="any" value="${r.usage??''}"></div>
     <div><label>확인자(생산팀)</label><input data-k="by" placeholder="예: 경질 ○○○" value="${esc(r.by||'')}"></div>
     <div style="grid-column:1/-1"><label>확인 근거 메모(생산계획·통화 내용)</label><input data-k="note" value="${esc(r.note||'')}"></div>

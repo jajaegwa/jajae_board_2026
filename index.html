@@ -3512,29 +3512,30 @@ function csSalesQuickApply(opts={}){
     if(touchable(idx)||!st.include)return;
     reserve(p.preview,csSalesValidAllocs(st.alloc));
   });
-  // 4단계: 매각일 순으로 행마다 배분.
+  // 4단계: 매각일 순으로 행마다 배분 — 두 번 돈다. 1차는 자동 확정 행만 뽑아 예약(모의 원장에 반영될
+  // 행만 있음). 2차는 확인 필요 행끼리도 같은 발주를 겹쳐 잡지 않게, 자동 확정 예약 위에 앞선 확인 필요
+  // 행의 임시 배분까지 얹은 별도 모의 원장으로 배분함 — 3차 코드리뷰: 1000kg 발주 하나에 800kg 매각
+  // 2행이면 두 행 다 같은 발주에 800을 제안해, 사람이 둘 다 확인·반영하면 두 번째가 잔량 초과로 실패했음.
+  // 확인 필요 행의 임시 배분이 자동 확정 행을 밀어내지는 않도록(2차 코드리뷰) 1차 예약에는 넣지 않음.
   const idxs=CS_SALES_PREVIEW.map((p,idx)=>idx).filter(touchable)
     .sort((a,b)=>(CS_SALES_PREVIEW[a].sale.date||'').localeCompare(CS_SALES_PREVIEW[b].sale.date||'')||a-b);
-  idxs.forEach(idx=>{
+  // 한 행의 배분 결정. ledger/reserved: 이 행이 봐야 할 모의 원장과 그 안에 예약된 발주 id.
+  // 반환 null = 채울 수 없는 행(선택 해제).
+  const decide=(idx,ledger,reserved)=>{
     const p=CS_SALES_PREVIEW[idx];
     // 화면·반영 검증에 쓰는 p.preview(실제 원장 기준)는 그대로 두고, 배분 결정에만 모의 원장 미리보기를 씀.
     // 예약된 발주가 이 행의 후보에 없으면 결과가 같으므로 다시 계산하지 않음(행 수×사급 건수 비용).
-    const touched=p.preview.candidates.some(c=>reservedIds.has(String(c.orderId)));
-    const prev=touched?CsSalesEngine.preview(p.sale,orders,sim,S.salesAliases,csSalesPreviewOpts(idx,batchKeys)):p.preview;
-    const {lastError,...base}=CS_SALES_ROW_STATE[idx];   // 이전 반영 실패 문구는 이번 자동 채움으로 무효
-    // 채우지 못하는 행은 선택도 풀어 둠 — 앞선(매각일이 빠른) 행이 같은 발주 잔량을 다 써 버린 경우
-    // 처음 열 때 자동으로 체크돼 있던 제안(READY)이 그대로 남아 반영 때 "잔량 초과"로 반드시 실패함
-    // (코드리뷰로 발견). 제안 자체는 참고용으로 남겨 둠.
-    const deselect=()=>{CS_SALES_ROW_STATE[idx]={...base,include:false};};
-    if(prev.hardBlocked.length||['ALREADY_LINKED','INVALID','SOURCE_CHANGED'].includes(prev.status)){deselect();return;}
+    const touched=p.preview.candidates.some(c=>reserved.has(String(c.orderId)));
+    const prev=touched?CsSalesEngine.preview(p.sale,orders,ledger,S.salesAliases,csSalesPreviewOpts(idx,batchKeys)):p.preview;
+    if(prev.hardBlocked.length||['ALREADY_LINKED','INVALID','SOURCE_CHANGED'].includes(prev.status))return null;
     // duplicateSuspect: 같은 매각일·업체·품목의 기존 반영이 있는데 수량만 다른 행 — 재발행·정정
     // 파일일 가능성이 있어 자동으로 검토 확인을 채우지 않고 사람이 직접 확인·지정하게 남김.
-    if(prev.duplicateSuspect){deselect();return;}
+    if(prev.duplicateSuspect)return null;
     // staleDone: 완료 후 오래된 건은 이 원장이 생기기 전에 이미 매각된 발주일 수 있어(잔량이 허수)
     // 자동 배분에서 제외 — 후보 목록엔 남아 있어 사람이 직접 고를 수는 있음.
     // crossFamily(kg↔L): 수량이 매각과 같은 척도가 아니라 자동 배분 대상이 아님 — 후보 목록엔 남아 직접 지정 가능.
     const usable=prev.candidates.filter(c=>!c.hardBlocked.length&&!c.staleDone&&!c.crossFamily&&c.remaining>1e-6);
-    if(!usable.length){deselect();return;}
+    if(!usable.length)return null;
     let alloc=[],fifo=false;
     const proposalOk=prev.proposal.length>0&&prev.proposal.every(a=>usable.some(u=>String(u.orderId)===String(a.orderId)));
     if(proposalOk)alloc=csSalesProposalAlloc(prev);
@@ -3549,17 +3550,40 @@ function csSalesQuickApply(opts={}){
           if(take>1e-6){alloc.push({orderId:String(c.orderId),baseQty:take});need-=take;}
         });
     }
-    if(!alloc.length){deselect();return;}
+    if(!alloc.length)return null;
     const short=prev.remaining-alloc.reduce((n,a)=>n+a.baseQty,0);
     // 자동 확정은 엔진 제안 그대로 + 확인 사항 없음(모의·실제 원장 모두)일 때만. 그 외는 배분만 채우고
     // 선택·검토 확인은 비워 "확인 필요"로 둠 — 예전엔 여기서 사유를 정형 문구로 채우고 확인까지 켜서
     // 사람이 본 적 없는 행이 검토된 것처럼 반영됐음(2026-09-23 결정으로 자동은 정확 일치만).
     const auto=proposalOk&&!csSalesNeedsReview(prev,alloc)&&!csSalesNeedsReview(p.preview,alloc);
-    if(auto)reserve(prev,alloc);
+    return {prev,alloc,proposalOk,fifo,short,auto};
+  };
+  // 채우지 못하는 행은 선택도 풀어 둠 — 앞선(매각일이 빠른) 행이 같은 발주 잔량을 다 써 버린 경우
+  // 처음 열 때 자동으로 체크돼 있던 제안(READY)이 그대로 남아 반영 때 "잔량 초과"로 반드시 실패함
+  // (코드리뷰로 발견). 제안 자체는 참고용으로 남겨 둠.
+  const setRow=(idx,d)=>{
+    const {lastError,...base}=CS_SALES_ROW_STATE[idx];   // 이전 반영 실패 문구는 이번 자동 채움으로 무효
+    if(!d){CS_SALES_ROW_STATE[idx]={...base,include:false};return;}
     // 사유 제안은 시스템이 제안대로 배분하지 못한(선입선출·부분 배분) 행에만 — 별칭 미승인처럼 확인
     // 사항이 이유인 행은 근거 칸의 안내가 곧 이유라 사유 칸은 비워 사람이 씀.
-    const hint=proposalOk?'':(fifo?CS_SALES_QUICK_REASON_FIFO:CS_SALES_QUICK_REASON)+(short>1e-6?` · 대응 잔량 부족으로 ${fmtN(Math.round(short))} 미배분`:'');
-    CS_SALES_ROW_STATE[idx]={...base,alloc,include:auto,reviewReason:auto?'':hint,reviewConfirmed:false,completeToo:true,userEdited:false,showManual:false};
+    const hint=d.proposalOk?'':(d.fifo?CS_SALES_QUICK_REASON_FIFO:CS_SALES_QUICK_REASON)+(d.short>1e-6?` · 대응 잔량 부족으로 ${fmtN(Math.round(d.short))} 미배분`:'');
+    CS_SALES_ROW_STATE[idx]={...base,alloc:d.alloc,include:d.auto,reviewReason:d.auto?'':hint,reviewConfirmed:false,completeToo:true,userEdited:false,showManual:false};
+  };
+  // 1차: 자동 확정 행 확정·예약. 나머지는 2차로.
+  const pending=[];
+  idxs.forEach(idx=>{
+    const d=decide(idx,sim,reservedIds);
+    if(d&&d.auto){reserve(d.prev,d.alloc);setRow(idx,d);}
+    else pending.push(idx);
+  });
+  // 2차: 확인 필요 행 — 자동 확정 예약 + 앞선 확인 필요 행의 임시 배분을 얹은 모의 원장으로 배분.
+  // 여기서는 자동 확정으로 승격하지 않음(1차에서 실제·모의 원장 모두 정확 일치가 아니었던 행).
+  const reviewSim=sim.slice(),reviewReserved=new Set(reservedIds);
+  const reviewReserve=(prev,alloc)=>{if(alloc.length){reviewSim.push(synth(prev,alloc));alloc.forEach(a=>reviewReserved.add(String(a.orderId)));}};
+  pending.forEach(idx=>{
+    const d=decide(idx,reviewSim,reviewReserved);
+    if(d){d.auto=false;reviewReserve(d.prev,d.alloc);}
+    setRow(idx,d);
   });
   const n=csSalesRenderReview();
   toast(`자동 확정 ${n.auto.length}건 선택됨${n.auto.length?' — [선택 항목 반영]을 누르면 반영과 함께 완료 처리':''}${n.review.length?` · 확인 필요 ${n.review.length}건은 표에서 직접 확인`:''}${n.linked.length?` · 기존 반영 ${n.linked.length}건`:''}${aliasApproved?` · 별칭 ${aliasApproved}건 승인됨(별칭 목록에서 확인)`:''}`);

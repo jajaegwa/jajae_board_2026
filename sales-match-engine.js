@@ -305,18 +305,43 @@
       return memo.get(key);
     };
   }
+  // Exact-sum subsets of candidate remaining quantities. When several subsets reach the target the
+  // oldest orders win (first-in first-out, decided 2026-09-23): each subset is read as its members
+  // sorted by start date then id, and the lexicographically earliest subset is proposed — so with
+  // three 1,000 kg orders and a 2,000 kg sale the two oldest are consumed first, and a 1,000+2,000
+  // pair dated before a single 3,000 kg order beats it. Enumeration is bounded by the 12-candidate cap.
+  // A subset whose members all commit cleanly ranks before one carrying a review issue (e.g. a
+  // completion far older than the sale): such an order is by nature the oldest and would otherwise
+  // win every tie, turning an exact match into a review.
+  const SUBSET_CAP = 12;
+  // Exported so the caller's own first-in-first-out fallback consumes orders in the same sequence.
+  const orderRank = c => (c.start || '') + '|' + String(c.orderId).padStart(12, '0');
+  const issueCount = set => set.filter(c => (c.issues || []).length).length;
   function uniqueSubset(candidates, target) {
-    if (candidates.length>12) return {kind:'too_many', sets:[]};
+    if (candidates.length>SUBSET_CAP) return {kind:'too_many', sets:[]};
     const sets=[];
     function visit(i, sum, picked) {
-      if (sets.length>1) return;
       if (Math.abs(sum-target)<1e-6 && picked.length) {sets.push(picked);return;}
       if (i===candidates.length || sum>target+1e-6) return;
       visit(i+1,sum,picked);
-      visit(i+1,sum+candidates[i].remaining,[...picked,candidates[i].orderId]);
+      visit(i+1,sum+candidates[i].remaining,[...picked,candidates[i]]);
     }
     visit(0,0,[]);
-    return {kind:sets.length===1?'unique':sets.length>1?'ambiguous':'none',sets};
+    if (!sets.length) return {kind:'none', sets:[]};
+    const ids = set => set.map(c=>c.orderId);
+    if (sets.length===1) return {kind:'unique', sets:[ids(sets[0])]};
+    const ranked = sets.map(set => ({set, key: set.map(orderRank).sort()}));
+    ranked.sort((a,b) => {
+      const ia = issueCount(a.set), ib = issueCount(b.set);
+      if (ia !== ib) return ia - ib;
+      for (let k=0; k<Math.max(a.key.length,b.key.length); k++) {
+        if (a.key[k]===undefined) return -1;   // shorter prefix (fewer orders) first when otherwise equal
+        if (b.key[k]===undefined) return 1;
+        if (a.key[k]!==b.key[k]) return a.key[k]<b.key[k]?-1:1;
+      }
+      return 0;
+    });
+    return {kind:'fifo', sets:[ids(ranked[0].set)]};
   }
   // opts.batchKeys: source keys of every row in the current upload, so sibling rows committed
   // earlier in the same batch are not reported as duplicate suspects.
@@ -445,18 +470,30 @@
       if (staleDone) issues.push(`완료 후 ${STALE_DONE_DAYS}일 넘은 건 — 이미 매각된 발주일 수 있어 확인 필요`);
       const reasons=manual?['담당자 직접 지정']:[vm.reason,im.reason];
       if (sale.supplier&&o.supplier&&vendorName(sale.supplier)===vendorName(o.supplier)) reasons.push('공급사 표기 일치');
-      base.candidates.push({orderId:o.id,action:o.action,item:o.item,vendor:o.vendor,remaining:remainingQty,
+      base.candidates.push({orderId:o.id,action:o.action,item:o.item,vendor:o.vendor,remaining:remainingQty,start,
         done,staleDone,crossFamily,packKg:oPack,unitOk:orderComparable,orderSnapshot:orderSnapshot(o,oPack),issues,hardBlocked,reasons,
         quantityDifference:crossFamily?null:remaining-remainingQty});
     }
     // kg↔L candidates are never auto-combined: their quantities are not on the sale's scale.
-    const subset=uniqueSubset(base.candidates.filter(c=>!c.crossFamily),remaining);
-    if (subset.kind==='unique') base.proposal=subset.sets[0].map(id=>{
+    // Hard-blocked candidates (blank unit, missing start date, M-210 without destination) can never
+    // be committed, so they take no part in the proposal either: with an old unit-less order beside
+    // a proper one of the same quantity, the proper one is proposed instead of the row being stuck.
+    // They stay listed (with their issue) so the operator sees why they were passed over.
+    const nonCross=base.candidates.filter(c=>!c.crossFamily), committable=nonCross.filter(c=>!c.hardBlocked.length);
+    const subset=uniqueSubset(committable,remaining);
+    // No committable combination, but one exists once the blocked candidates are counted: the row
+    // needs data fixed (unit, date, destination), not a quantity decision — say so in the status.
+    const blockedExact=subset.kind==='none' && committable.length<nonCross.length && ['unique','fifo'].includes(uniqueSubset(nonCross,remaining).kind);
+    if (subset.kind==='unique'||subset.kind==='fifo') base.proposal=subset.sets[0].map(id=>{
       const c=base.candidates.find(x=>String(x.orderId)===String(id));
+      // A FIFO pick is a proposal like any other, but the reason says so, so the operator (and the
+      // 근거 column) can see that older orders were preferred over an equally valid combination.
+      if (subset.kind==='fifo') c.reasons.push('같은 수량 후보 여러 건 — 오래된 발주부터 배분(선입선출)');
       return {orderId:id,baseQty:c.remaining};
     });
     const selected=base.candidates.filter(c=>base.proposal.some(p=>String(p.orderId)===String(c.orderId)));
-    const status=!base.candidates.length?'NO_CANDIDATE':base.candidates.every(c=>c.crossFamily)?'REVIEW':subset.kind==='ambiguous'?'AMBIGUOUS':
+    const status=!base.candidates.length?'NO_CANDIDATE':base.candidates.every(c=>c.crossFamily)?'REVIEW':
+      !committable.length||blockedExact?'REVIEW':   // candidates need data fixed first — not a quantity question
       subset.kind==='too_many'?'REVIEW':subset.kind==='none'?'QUANTITY_REVIEW':
       base.issues.length||selected.some(c=>c.issues.length)?'REVIEW':'READY';
     return {...base,status,remaining,subsetKind:subset.kind};
@@ -508,6 +545,6 @@
     if (!ledger.some(e=>e.id===eventId&&!e.reversedAt)) throw Error('취소할 활성 배분 없음');
     return ledger.map(e=>e.id===eventId?{...e,reversedAt:now,reversedBy:actor,reversalReason:reason}:e);
   }
-  return {VERSION,STALE_DONE_DAYS,compact,vendorName,cleanItem,itemForms,hasBounded,unit,amount,baseFactor,unitProblem,saleUsed,isoDate,regNo,vendorMatch,itemMatch,
+  return {VERSION,STALE_DONE_DAYS,SUBSET_CAP,orderRank,compact,vendorName,cleanItem,itemForms,hasBounded,unit,amount,baseFactor,unitProblem,saleUsed,isoDate,regNo,vendorMatch,itemMatch,
     contentFields,contentTuple,withContentOrdinals,contentKey,sourceKey,keyKind,sourceSnapshot,migrateLedger,nextFreeOrdinal,similarPrior,orderSnapshot,orderStart,remainingOrder,uniqueSubset,preview,commit,reverse};
 });

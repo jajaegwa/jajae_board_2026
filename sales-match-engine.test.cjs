@@ -47,9 +47,25 @@ test('10000+1000 유일 합계 11000',()=>{
  const p=E.preview(s({qty:11000}),[o({qty:10000}),o({id:'2',qty:1000})]);
  assert.equal(p.status,'READY');assert.equal(p.proposal.length,2);
 });
-test('1000 세 건 중 2000 선택은 모호함',()=>{
+test('1000 세 건 중 2000 선택은 오래된 발주부터 선입선출(같은 날짜면 번호 순)',()=>{
  const p=E.preview(s({qty:2000}),[o(),o({id:'2'}),o({id:'3'})]);
- assert.equal(p.status,'AMBIGUOUS');assert.equal(p.proposal.length,0);
+ assert.equal(p.status,'READY');assert.equal(p.subsetKind,'fifo');
+ assert.deepEqual(p.proposal.map(a=>String(a.orderId)),['1','2']);
+ assert.ok(p.candidates.find(c=>c.orderId==='1').reasons.some(r=>/선입선출/.test(r)));
+ assert.ok(!p.candidates.find(c=>c.orderId==='3').reasons.some(r=>/선입선출/.test(r)));
+ // 발주일이 다르면 번호가 아니라 날짜 순 — 9/3(1)·9/1(2)·9/2(3) → 2·3
+ const q=E.preview(s({qty:2000,date:'2026-09-07'}),[o({orderDate:'2026-09-03'}),o({id:'2',orderDate:'2026-09-01'}),o({id:'3',orderDate:'2026-09-02'})]);
+ assert.deepEqual(q.proposal.map(a=>String(a.orderId)).sort(),['2','3']);
+ // 구성이 다른 조합끼리도 가장 오래된 발주를 포함하는 쪽 — 9/1 1000 + 9/5 2000 vs 9/3 3000 → 앞쪽
+ const r=E.preview(s({qty:3000,date:'2026-09-07'}),[o({orderDate:'2026-09-03',qty:3000}),o({id:'2',orderDate:'2026-09-01',qty:1000}),o({id:'3',orderDate:'2026-09-05',qty:2000})]);
+ assert.deepEqual(r.proposal.map(a=>String(a.orderId)).sort(),['2','3']);
+ // 반영하면 그 두 건이 소진되고, 다음 같은 매각은 남은 한 건으로 유일 조합
+ const led=commit(s({qty:2000}),[o(),o({id:'2'}),o({id:'3'})]);
+ const n=E.preview(s({qty:1000,documentNo:'2'}),[o(),o({id:'2'}),o({id:'3'})],led);
+ assert.equal(n.status,'READY');assert.deepEqual(n.proposal.map(a=>String(a.orderId)),['3']);
+ // 조합 탐색 상한을 넘으면 종전대로 REVIEW
+ const many=Array.from({length:E.SUBSET_CAP+1},(_,i)=>o({id:String(i+1)}));
+ assert.equal(E.preview(s({qty:2000}),many).status,'REVIEW');
 });
 test('P3000 3079/3000 차이 79 노출',()=>{
  const p=E.preview(s({item:'P3000',qty:3079}),[o({item:'P-3000',qty:3000})]);
@@ -145,7 +161,10 @@ test('매각일이 발주일보다 앞서면 자동은 제외(사유 기록), �
 });
 test('M210 행선지는 검토 버튼만으로 우회 불가',()=>{
  const sale=s({item:'M210'}),orders=[o({item:'M-210'})];
- assert.throws(()=>commit(sale,orders,[],{reviewConfirmed:true,reviewReason:'확인'}),/행선지/);
+ // 반영 불가 후보는 제안에 오르지 않으므로(REVIEW, 제안 없음) 배분을 직접 지정해도 막혀야 함
+ const p=E.preview(sale,orders);
+ assert.equal(p.status,'REVIEW');assert.equal(p.proposal.length,0);
+ assert.throws(()=>commit(sale,orders,[],{reviewConfirmed:true,reviewReason:'확인',allocations:[{orderId:'1',baseQty:1000}]}),/행선지/);
 });
 test('M210: 사급 건에 확인·행선지가 모두 있으면 반영 가능, 매각 행선지는 있을 때만 대조',()=>{
  const ok=o({item:'M-210',m210Confirmed:true,destination:'울산공장'});
@@ -476,4 +495,35 @@ test('별개 거래 순번이 반영 직전 다른 반영에 쓰였으면 반영
  const p=E.preview(x2,[o({id:'3'})],l2,aliases,{separateSale:true});
  assert.equal(p.status,'SOURCE_CHANGED');
  assert.throws(()=>commit(x2,[o({id:'3'})],l2,{eventId:'e3',separateSale:true,reviewConfirmed:true,reviewReason:'별개'}),/SOURCE_CHANGED/);
+});
+
+test('반영 불가(단위 빈칸) 후보는 제안에서 빠지고, 같은 수량의 정상 후보가 제안됨',()=>{
+ const orders=[o({id:'9',unit:'',orderDate:'2026-09-01'}),o({id:'2',orderDate:'2026-09-02'})];   // 9가 더 오래됐지만 단위 빈칸
+ const p=E.preview(s(),orders);
+ assert.equal(p.status,'READY');assert.deepEqual(p.proposal.map(a=>String(a.orderId)),['2']);
+ assert.ok(p.candidates.find(c=>c.orderId==='9').hardBlocked.length);   // 후보 목록에는 남아 이유가 보임
+ // 후보 전부가 반영 불가면 수량 문제가 아니라 자료 보완 문제 → REVIEW
+ const q=E.preview(s(),[o({id:'9',unit:''})]);
+ assert.equal(q.status,'REVIEW');assert.equal(q.proposal.length,0);
+});
+
+test('선입선출 동률에서 완료 후 오래된(확인 사항) 후보보다 깨끗한 후보를 먼저 제안',()=>{
+ const stale=o({id:'A',done:true,inDate:'2026-05-01',orderDate:'2026-04-20'}),fresh=o({id:'B',orderDate:'2026-09-01'});
+ const p=E.preview(s({date:'2026-09-07'}),[stale,fresh]);
+ assert.equal(p.status,'READY');assert.deepEqual(p.proposal.map(a=>String(a.orderId)),['B']);
+ assert.ok(p.candidates.find(c=>c.orderId==='A').staleDone);
+});
+test('정확히 맞는 후보가 반영 불가뿐이면 수량 확인이 아니라 검토 필요(자료 보완)',()=>{
+ const p=E.preview(s(),[o({id:'A',unit:''}),o({id:'B',qty:2000})]);
+ assert.equal(p.status,'REVIEW');assert.equal(p.proposal.length,0);
+ assert.ok(p.candidates.find(c=>c.orderId==='A').hardBlocked.length);
+ // 반영 불가 후보를 빼도 정확히 맞는 조합이 없으면 종전대로 수량 확인
+ assert.equal(E.preview(s({qty:1500}),[o({id:'A',unit:''}),o({id:'B',qty:2000})]).status,'QUANTITY_REVIEW');
+});
+
+test('반영 불가 후보를 더해도 후보가 상한을 넘으면 자료 보완이 아니라 종전 판정(REVIEW/수량 확인) 유지',()=>{
+ const many=Array.from({length:E.SUBSET_CAP},(_,i)=>o({id:String(i+1),qty:700}));   // 정확히 맞는 조합 없음
+ assert.equal(E.preview(s({qty:1000}),many).status,'QUANTITY_REVIEW');
+ assert.equal(E.preview(s({qty:1000}),[...many,o({id:'X',unit:''})]).status,'QUANTITY_REVIEW');   // 13건째가 반영 불가 → too_many는 "맞는 조합 있음"이 아님
+ assert.ok(E.orderRank({start:'2026-09-01',orderId:'9'})<E.orderRank({start:'2026-09-01',orderId:'10'}));
 });

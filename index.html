@@ -237,7 +237,7 @@ details.card summary .cnt{font-size:11.5px;color:var(--mut);font-weight:500}
   <span class="sub">입고 · 창고이동 · 발주 · 사급 한 화면</span>
   <!-- 화면이 최신 버전인지 바로 확인할 수 있게 표시 — 이 값이 다르면 브라우저가
        예전 파일을 캐시해 둔 것이므로 강력 새로고침(Ctrl+F5 / 아이폰은 Safari 재실행) 필요 -->
-  <span class="sub" id="buildStamp" title="화면 버전 — 최신이 아니면 Ctrl+F5로 강력 새로고침">v2026-09-08b</span>
+  <span class="sub" id="buildStamp" title="화면 버전 — 최신이 아니면 Ctrl+F5로 강력 새로고침">v2026-09-23a</span>
   <span class="sp"></span>
   <span class="date">기준일 <button class="btn sm" onclick="setDate(addDays(cur,-1))" title="하루 전 (기준일 −1)">◀</button><input type="date" id="curDate" onchange="setDate(this.value)"><button class="btn sm" onclick="setDate(addDays(cur,1))" title="하루 뒤 (기준일 +1)">▶</button></span>
   <span id="curWarn" class="tag" style="display:none;background:var(--amber-soft);color:var(--amber);border:1px solid var(--amber);padding:3px 8px;border-radius:2px;font-weight:700;cursor:pointer" title="기준일이 오늘이 아니면 등록·체크가 이 날짜로 기록됩니다" onclick="setDate(realToday())">⚠ 기준일이 오늘이 아님 — 오늘로</span>
@@ -473,7 +473,7 @@ details.card summary .cnt{font-size:11.5px;color:var(--mut);font-weight:500}
   </div>
   <div class="card">
     <h2>사급 매각내역 업로드 — 발주·직접출고 대조</h2>
-    <div class="hint">매각내역을 발주와 직접출고에 연결합니다. 표기가 다른 항목은 후보와 근거를 확인하고, 분할·합산 수량을 배분할 수 있습니다.</div>
+    <div class="hint">엑셀을 올리면 열을 자동 인식해 바로 대조하고, 업체·품목·수량이 모두 맞는 행은 <b>자동 확정</b>으로 선택됩니다. [선택 항목 반영]을 누르면 대조 이력을 남기고 전량 배분된 사급 건을 입고·출고 완료 처리합니다. 대응 없음·수량 차이 행만 직접 지정하거나 검토 사유를 쓰면 됩니다.</div>
     <div class="row" style="margin-top:8px">
       <button class="btn sm pri" onclick="csSalesFile.click()">매각내역 엑셀 올리기</button>
       <input type="file" id="csSalesFile" accept=".xlsx,.xls,.csv" style="display:none" onchange="csSalesReadFile(this.files[0]);this.value=''">
@@ -717,10 +717,10 @@ details.card summary .cnt{font-size:11.5px;color:var(--mut);font-weight:500}
 
 <dialog id="dlgSalesReview" style="max-width:1240px;width:97vw"><div class="dlg" id="dlgSalesReviewBody"></div>
 <div class="dlg-foot" style="flex-wrap:wrap">
-  <button class="btn sm pri" onclick="csSalesQuickApply()" title="대응 가능한 사급 발주·직접출고가 있는 행을 전부 자동으로 선택·배분·확인 처리 — 후보가 여럿이면 오래된 발주부터 순서대로(선입선출) 배분. 대응 건이 아예 없거나 자료 보완이 필요한 행만 남김. 반영 전 표에서 내용을 확인하세요">빠른 매칭(자동 대응)</button>
+  <button class="btn sm" onclick="csSalesQuickApply({approveAliases:true})" title="업로드 때 이미 한 번 실행됨 — 다시 돌리면 표기가 갈린 업체·품목 별칭(후보가 한 가지뿐인 행)도 승인해 자동 확정에 넣음. 업체·품목·수량이 정확히 맞는 행만 자동 확정으로 선택하고, 수량이 안 맞는 행은 배분만 미리 채워 확인 필요로 둠">자동 대응 다시 실행(별칭 승인 포함)</button>
   <input id="csSalesBulkReason" placeholder="선택된 행에 한 번에 적용할 검토 사유(예: 실제 엑셀 대사 완료)" style="flex:1;min-width:220px">
   <button class="btn sm" onclick="csSalesApplyBulkReason()" title="지금 체크된 행에만 이 사유를 채우고 검토 확인을 켬 — 반영 전 마지막에 눌러도 됨">선택 행에 사유 일괄 적용</button>
-  <button class="btn" onclick="dlgSalesReview.close()">닫기</button><button class="btn pri" id="csSalesApplyBtn" onclick="csSalesApplySelected()">선택 항목 반영</button>
+  <button class="btn" onclick="dlgSalesReview.close()">닫기</button><button class="btn pri" id="csSalesApplyBtn" onclick="csSalesApplySelected()" title="체크된 행을 반영하고, 전량 배분된 사급 건은 입고(발주)·출고(직접출고) 완료 처리">선택 항목 반영 · 완료 처리</button>
 </div></dialog>
 
 <dialog id="dlgSalesAlias" style="max-width:820px"><div class="dlg" id="dlgSalesAliasBody"></div>
@@ -1154,6 +1154,7 @@ function sbNormalize(d){
     salesImportBatches:arrOfObj(d.salesImportBatches),
     salesMatchSchemaVersion:Number.isFinite(d.salesMatchSchemaVersion)?d.salesMatchSchemaVersion:1,
     salesAliasSeeded:!!d.salesAliasSeeded,
+    salesAliasSeedVersion:Number.isFinite(d.salesAliasSeedVersion)?d.salesAliasSeedVersion:1,   // 시드 버전도 화이트리스트에 — 빠지면 동기화마다 시드 병합이 다시 돎
     // 아래 csEngineState()의 1회성 별칭 확정 패치 플래그도 salesAliasSeeded와 똑같이 화이트리스트에
     // 넣어야 함 — 빠뜨리면 다른 기기 동기화(sbApply)가 올 때마다 이 플래그가 지워져(서버엔 저장돼
     // 있어도 이 필터에서 사라짐) 패치가 매번 다시 돌면서, 그 사이 사람이 직접 되돌려놓은 승인
@@ -2850,19 +2851,25 @@ function csBulkSetUnit(){
    - 확정되지 않은 표기 차이는 "별칭 후보"로만 보여주고, 담당자가 직접 승인해야 다음부터 자동
      인식됨(자동으로 전부 승인하지 않음)
    - 부분배분·합산배분을 지원하고 수량 차이를 숨기지 않음
-   - 실제 출고/입고 완료(csApplyMark)는 대조와 분리된 별도 선택으로, 완전 배분됐을 때만 적용
+   - 실제 출고/입고 완료(csApplyMark)는 대조 이력과 별개의 행별 선택이며 완전 배분됐을 때만 적용.
+     2026-09-23부터 기본값이 켜짐(사용자 결정: "수량 맞으면 알아서 입고완료") — 행에서 끌 수 있음
    자세한 설계는 CLAUDE_CODE_PROMPT.md(자재과 작업판 저장소 별도 보관) 참고. */
 const CS_SALES_SCHEMA_VERSION=1;
 const CS_SALES_ISSUER_ID='jajae-cs-sales-ledger';
 // alias-candidates.json(저장소 루트, Node 테스트에서도 씀)과 내용이 같은 최초 시드 — 전부
 // approved:false로 시작하며, 실제 승인은 화면에서 담당자가 눌러야만 이뤄짐(임의 일괄 승인 금지).
+// 시드 버전 — 올리면 이미 시드를 받은 설치본에도 "빠진 그룹만" 한 번 더 병합됨(이미 있는 그룹과
+// 담당자가 승인·수정한 내용은 그대로). 2: 선영·광성 부서 표기 추가(2026-09-23, 백업 데이터에서 확인).
+const CS_SALES_ALIAS_SEED_VERSION=2;
 const CS_SALES_ALIAS_SEED={
   "vendors": [
     {"names":["케이에스씨에이티","KSC AT","KSCAT"],"regNo":"1318664447","approved":false},
     {"names":["엔에이치씨","NHC"],"regNo":"3438600139","approved":false},
     {"names":["두하","두하 생산관리"],"regNo":"3018537479","approved":false},
     {"names":["신호인더스트리","신호인더스트리 국내영업팀"],"regNo":"3118114892","approved":false},
-    {"names":["두성인더스트리","두성산업"],"regNo":"3578702676","approved":false,"note":"두성산업의 사업자번호 확인 필수. 동일 업체 확정 아님"}
+    {"names":["두성인더스트리","두성산업"],"regNo":"3578702676","approved":false,"note":"두성산업의 사업자번호 확인 필수. 동일 업체 확정 아님"},
+    {"names":["선영 천안지점","선영(천안)"],"approved":false,"note":"작업판 사급처 표기 2종(2026-09-23)"},
+    {"names":["광성","광성 품질관리지원팀"],"approved":false,"note":"작업판 사급처 표기 2종(2026-09-23)"}
   ],
   "items": [
     {"vendor":"KSC AT","names":["HELIOGEN GREEN L 8710","P.GREEN(L8710)"],"approved":false},
@@ -2893,13 +2900,13 @@ function csEngineState(){
   if(!S.salesAliases||typeof S.salesAliases!=='object'||Array.isArray(S.salesAliases))S.salesAliases={vendors:[],items:[]};
   if(!Array.isArray(S.salesAliases.vendors))S.salesAliases.vendors=[];
   if(!Array.isArray(S.salesAliases.items))S.salesAliases.items=[];
-  if(!S.salesAliasSeeded){
+  if(!S.salesAliasSeeded||(S.salesAliasSeedVersion||1)<CS_SALES_ALIAS_SEED_VERSION){
     const key=g=>JSON.stringify((g.names||[]).slice().sort());
     const haveV=new Set(S.salesAliases.vendors.map(key));
     CS_SALES_ALIAS_SEED.vendors.forEach(g=>{if(!haveV.has(key(g)))S.salesAliases.vendors.push(JSON.parse(JSON.stringify(g)));});
     const haveI=new Set(S.salesAliases.items.map(g=>(g.vendor||'')+'|'+key(g)));
     CS_SALES_ALIAS_SEED.items.forEach(g=>{const k=(g.vendor||'')+'|'+key(g);if(!haveI.has(k))S.salesAliases.items.push(JSON.parse(JSON.stringify(g)));});
-    S.salesAliasSeeded=true;
+    S.salesAliasSeeded=true;S.salesAliasSeedVersion=CS_SALES_ALIAS_SEED_VERSION;
   }
   // "두성인더스트리/두성산업" 별칭 후보 — 이전엔 사업자번호 미확인이라 검토 대기였는데, 담당자가
   // 직접 같은 업체로 확인해줌(2026-09-09) — 이미 salesAliasSeeded가 true라 시드가 다시 안 도는
@@ -3033,10 +3040,16 @@ function csSalesLoadSheet(idx){
   const sh=CS_SALES_WB.Sheets[CS_SALES_WB.SheetNames[idx]];
   CS_SALES_GRID=XLSX.utils.sheet_to_json(sh,{header:1,raw:false,dateNF:'yyyy-mm-dd',defval:''});
   const det=csSalesDetect(CS_SALES_GRID);
-  csSalesRenderColumnMap(det);
+  // 사급처·품목·수량·매각일 열이 모두 인식되면 [열 확정]을 기다리지 않고 바로 대조함(2026-09-23,
+  // "올리면 알아서" 요청) — 열 지정 패널은 그대로 남겨(대조 창을 닫으면 보임) 인식이 틀렸으면 고쳐서
+  // [열 확정]을 다시 누르면 됨. 매각일 열이 없으면 모든 행이 반영 불가라 종전처럼 사람이 지정.
+  const auto=Boolean(det&&det.di>=0);
+  csSalesRenderColumnMap(det,auto);
+  if(auto)csSalesConfirmMap(true);
 }
 // 자동 인식 결과든 아니든 항상 직접 확인·수정 가능하게 표시(자동 인식만 믿고 넘어가지 않게).
-function csSalesRenderColumnMap(det){
+// autoRan: 인식 결과로 이미 대조를 시작했음(안내 문구만 다름).
+function csSalesRenderColumnMap(det,autoRan=false){
   const grid=CS_SALES_GRID;
   const ncol=Math.max(1,...grid.slice(0,6).map(r=>r.length));
   const h=det?det.h:0;
@@ -3052,7 +3065,8 @@ function csSalesRenderColumnMap(det){
   // 행이 대조된다는 점을 힌트에 명시해 혼동을 줄임.
   const totalRows=Math.max(0,grid.length-(h+1));
   document.getElementById('csSalesMap').innerHTML=`
-    <div class="hint">자동 인식 결과입니다 — 틀렸으면 아래에서 직접 고치고 [열 확정]을 누르세요. 아래 표는 이 시트의 데이터 <b>${totalRows}행</b> 중 처음 5행 샘플입니다(칸에 마우스를 올리면 전체 내용이 보입니다). [열 확정 — 대조 미리보기]를 눌러야 전체 ${totalRows}행이 대조됩니다.</div>
+    <div class="hint">${autoRan?`자동 인식한 열로 이 시트의 데이터 <b>${totalRows}행</b>을 바로 대조했습니다. 열이 틀렸으면 아래에서 고치고 [열 확정]을 다시 누르세요(아래 표는 처음 5행 샘플, 칸에 마우스를 올리면 전체 내용).`
+      :`자동 인식 결과입니다 — 틀렸으면 아래에서 직접 고치고 [열 확정]을 누르세요. 아래 표는 이 시트의 데이터 <b>${totalRows}행</b> 중 처음 5행 샘플입니다(칸에 마우스를 올리면 전체 내용이 보입니다). [열 확정 — 대조 미리보기]를 눌러야 전체 ${totalRows}행이 대조됩니다.`}</div>
     <div class="tbl scroll" style="max-height:260px;margin:6px 0"><table style="white-space:nowrap"><thead>${headRow}</thead><tbody>${sample}</tbody></table></div>
     <div class="row" style="align-items:center;flex-wrap:wrap;gap:6px 12px">
       <label>헤더행(1부터, 헤더 없으면 0)</label><input id="csmH" type="number" value="${h+1}" min="0" style="width:60px">
@@ -3074,7 +3088,8 @@ const csSalesNum=v=>{if(v==null)return NaN;const s=String(v).trim().replace(/,/g
 const csSalesIsSubtotal=s=>/^(합계|소계|계|total|subtotal)$/i.test(String(s||'').trim());
 /* 매핑을 확정하면 원본 그리드를 sale 레코드(원천행 1개=1개)로 변환 — 요약/합산은 화면 표시에서만
    하고, 저장은 항상 원천행 단위로 함(그룹을 가짜 전표행으로 합쳐 저장하지 않음). */
-function csSalesConfirmMap(){
+// keepMap: 자동 인식으로 바로 대조하는 경우 열 지정 패널을 지우지 않고 남김(틀렸을 때 고칠 자리).
+function csSalesConfirmMap(keepMap=false){
   const val=id=>+document.getElementById(id).value;
   const h=(+document.getElementById('csmH').value||0)-1;   // 헤더행에 0을 넣으면(헤더 없는 파일) -1이 되어 0행부터 그대로 데이터로 읽음
   const vi=val('csmV'),si=val('csmS'),ri2=val('csmR'),ii=val('csmI'),ci=val('csmC'),qi=val('csmQ'),ui=val('csmU'),di=val('csmD'),dni=val('csmDN'),dli=val('csmDL');
@@ -3099,8 +3114,8 @@ function csSalesConfirmMap(){
       documentLine:dli>=0?String(row[dli]??'').trim():'',
     });
   }
-  document.getElementById('csSalesMap').innerHTML='';
   if(!rows.length){toast('매각내역 행을 찾지 못했습니다 — 열 지정을 확인하세요');csSalesRenderColumnMap(csSalesDetect(CS_SALES_GRID));return;}
+  if(!keepMap)document.getElementById('csSalesMap').innerHTML='';
   csSalesPreviewAndShow(rows,excluded);
 }
 /* 원본 행 → 엔진 sale 스키마. issuerId는 "이 매각 장부를 발행한 주체"의 고정 ID임 — 행마다 다른
@@ -3141,14 +3156,14 @@ function csSalesPreviewAndShow(rows,excluded){
   // 파일 안에서 별칭 승인·부분 반영으로 다시 그릴 때는 방금 쓴 사유를 유지해야 편하므로 건드리지 않음).
   const bulkReasonEl=document.getElementById('csSalesBulkReason');
   if(bulkReasonEl)bulkReasonEl.value='';
-  csSalesRenderReview();
+  csSalesQuickApply();   // 업로드 즉시 자동 대응까지 마치고 표를 그림 — 사람은 결과(자동 확정/확인 필요)만 봄
 }
 function csSalesStatusLabel(st){
-  return ({READY:'연결 가능',ALREADY_LINKED:'기존 반영',REVIEW:'검토 필요',AMBIGUOUS:'수량 확인(조합 여러 개)',
+  return ({READY:'연결 가능',ALREADY_LINKED:'기존 반영',REVIEW:'검토 필요',
     QUANTITY_REVIEW:'수량 확인',NO_CANDIDATE:'대응 없음',INVALID:'자료 확인',SOURCE_CHANGED:'자료 확인'}[st])||st;
 }
 function csSalesStatusClass(st){
-  return ({READY:'c-done',ALREADY_LINKED:'c-mut',REVIEW:'c-wait',AMBIGUOUS:'c-wait',
+  return ({READY:'c-done',ALREADY_LINKED:'c-mut',REVIEW:'c-wait',
     QUANTITY_REVIEW:'c-wait',NO_CANDIDATE:'c-late',INVALID:'c-late',SOURCE_CHANGED:'c-late'}[st])||'c-wait';
 }
 // 완료 이력 후보인데 아직 별칭 승인이 안 된 경우처럼, 후보 issue 문구를 보고 "별칭 최초 확인
@@ -3159,6 +3174,34 @@ let CS_SALES_ROW_STATE={};   // rowIndex(=CS_SALES_PREVIEW 배열 인덱스) -> 
 // 모든 행이 초기화돼 이미 검토·입력해 둔 다른 행 내용이 통째로 날아갔었음). 새 파일을 올렸을
 // 때만 csSalesPreviewAndShow가 명시적으로 csSalesRowInit()을 부르고, 그 외의 재호출(별칭 승인,
 // 반영 후 갱신)은 건드린 행만 부분적으로 갱신함.
+// 행 묶음 — auto: 체크돼 있고 확인 사항 없음(반영하면 완료 처리까지), review: 그 외 사람이 볼 행,
+// linked: 이미 반영된 행. 표 그리기·요약·자동 대응 안내가 같은 기준을 쓰도록 한 곳에 둠.
+const CS_SALES_BUCKET_ORDER=['auto','review','linked'];
+const CS_SALES_BUCKET_LABEL={
+  auto:['자동 확정','업체·품목·수량이 모두 맞아 바로 반영 가능 — 반영하면 전량 배분된 사급 건은 입고·출고 완료 처리됨','var(--acc-soft)'],
+  review:['확인 필요','대응 건이 없거나 수량·표기·자료 확인이 필요한 행 — 직접 지정하거나 배분을 확인한 뒤 검토 사유를 쓰고 왼쪽 체크','var(--amber-soft)'],
+  linked:['기존 반영','이미 반영된 매각 행(건너뜀)','var(--line2)']};
+// "이 행을 지금 [선택 항목 반영]에 넣으면 commit()이 통과하는가" — 전체선택·묶음 분류가 같은 기준을 쓰도록
+// 한 곳에 둠(둘이 따로 있으면 한쪽만 고쳐져 전체선택이 반드시 실패할 행을 다시 고름). 검토가 필요한
+// 행은 검토 확인+사유가 있어야 통과.
+// needsReview를 이미 계산한 호출자는 넘겨서 같은 계산을 반복하지 않음.
+function csSalesRowCommittable(idx,needsReview){
+  const p=CS_SALES_PREVIEW[idx],st=CS_SALES_ROW_STATE[idx],prev=p.preview;
+  if(['ALREADY_LINKED','INVALID','SOURCE_CHANGED','NO_CANDIDATE'].includes(prev.status)||prev.hardBlocked.length||!prev.unitOk)return false;
+  const alloc=csSalesValidAllocs(st.alloc);
+  if(!alloc.length)return false;
+  // 후보가 아니거나 반영 불가인 대상, kg↔L 후보인데 매각 소진량이 없는 배분은 commit()이 거부함
+  if(alloc.some(a=>{const c=csSalesCandOrder(prev,a.orderId);return !c||c.hardBlocked.length||(c.crossFamily&&!(+a.saleQty>0));}))return false;
+  if(needsReview==null)needsReview=csSalesNeedsReview(prev,alloc);
+  return !needsReview||Boolean(st.reviewConfirmed&&String(st.reviewReason||'').trim());
+}
+function csSalesBucket(idx){
+  const p=CS_SALES_PREVIEW[idx],st=CS_SALES_ROW_STATE[idx];
+  if(p.preview.status==='ALREADY_LINKED')return 'linked';
+  const needsReview=csSalesNeedsReview(p.preview,st.alloc);
+  if(st.include&&!needsReview&&csSalesRowCommittable(idx,needsReview))return 'auto';
+  return 'review';
+}
 function csSalesRenderReview(){
   const excluded=CS_SALES_EXCLUDED;
   const groups={};   // 표시용 그룹(업체+품목) — 저장은 여전히 행 단위
@@ -3166,8 +3209,11 @@ function csSalesRenderReview(){
   const rawRows=CS_SALES_PREVIEW.length,groupCount=Object.keys(groups).length;
   const counts={};CS_SALES_PREVIEW.forEach(p=>{counts[p.preview.status]=(counts[p.preview.status]||0)+1;});
   const summary=Object.entries(counts).map(([st,n])=>`${csSalesStatusLabel(st)} ${n}건`).join(' · ');
+  // 표는 세 묶음으로 나눠 그림 — 사람이 볼 곳은 "확인 필요"뿐이고 "자동 확정"은 이미 체크돼 있음.
+  const buckets={auto:[],review:[],linked:[]};
+  CS_SALES_PREVIEW.forEach((p,idx)=>{buckets[csSalesBucket(idx)].push(idx);});
   let html=`<h3>매각내역 대조 — ${esc(CS_SALES_FILENAME)}</h3>
-    <div class="hint">원본 행 <b>${rawRows}</b>건 · 업체·품목 요약 <b>${groupCount}</b>그룹 · 상태별: ${summary||'없음'}${excluded.length?` · 제외 ${excluded.length}건(합계/소계·필수값 누락)`:''}</div>
+    <div class="hint"><b>자동 확정 ${buckets.auto.length}건</b>(체크됨 — [선택 항목 반영]을 누르면 반영과 함께 완료 처리) · <b>확인 필요 ${buckets.review.length}건</b> · 기존 반영 ${buckets.linked.length}건 — 원본 행 ${rawRows}건 · 업체·품목 요약 ${groupCount}그룹 · 상태별: ${summary||'없음'}${excluded.length?` · 제외 ${excluded.length}건(합계/소계·필수값 누락)`:''}</div>
     <div class="hint" style="color:var(--amber)">근거 배지는 검증된 확률이 아닙니다 — 표시된 근거와 사유를 직접 확인하세요.</div>`;
   if(excluded.length)html+=`<div class="tbl scroll" style="max-height:100px;margin:6px 0"><table><thead><tr><th>행</th><th>제외 사유</th></tr></thead><tbody>${excluded.map(e=>`<tr><td>${e.row}행</td><td>${esc(e.reason)}</td></tr>`).join('')}</tbody></table></div>`;
   html+=`<div class="tbl scroll" id="csSalesReviewScroll" style="max-height:56vh;margin-top:8px"><table><thead><tr>
@@ -3176,7 +3222,12 @@ function csSalesRenderReview(){
     <th>상태</th><th>근거/사유</th><th style="min-width:260px">배분(대상 발주·직접출고 → 수량)</th><th>검토</th></tr></thead>
     <tbody id="csSalesReviewBody">`;
   csSalesBuildManualOpts();   // 직접 지정 목록은 렌더 1회당 한 번만 계산(행마다 사급 전체를 다시 훑지 않게)
-  CS_SALES_PREVIEW.forEach((p,idx)=>{html+=csSalesRenderRow(p,idx);});
+  CS_SALES_BUCKET_ORDER.forEach(b=>{
+    const idxs=buckets[b];if(!idxs.length)return;
+    const [title,desc,bg]=CS_SALES_BUCKET_LABEL[b];
+    html+=`<tr class="csSalesGrp"><td colspan="10" style="background:${bg};font-size:12px;padding:6px 8px"><b>${title} ${idxs.length}건</b> — ${desc}</td></tr>`;
+    idxs.forEach(idx=>{html+=csSalesRenderRow(CS_SALES_PREVIEW[idx],idx);});
+  });
   html+='</tbody></table></div>';
   // 별칭 승인·일괄 사유 적용·반영처럼 이미 스크롤해 내려간 상태에서 다시 그리는 경우가 많음 —
   // 표를 통째로 새로 만들면(innerHTML) 스크롤이 맨 위로 튀어 방금 체크한 하단 행들이 실제로
@@ -3193,6 +3244,7 @@ function csSalesRenderReview(){
   // 발견 — 이 앱이 실제로 지원하는 iOS Safari 포함) 열려 있으면 다시 부르지 않음.
   if(!dlgSalesReview.open)dlgSalesReview.showModal();
   csSalesSyncSelectAll();
+  return buckets;   // 호출한 쪽(자동 대응 안내)이 같은 분류를 다시 계산하지 않게
 }
 // 헤더 체크박스로 화면에 보이는 모든 행을 한 번에 선택/해제 — 배분·검토 사유 등 다른 입력은
 // 건드리지 않고 include(반영 대상 여부)만 바꿈. 실제 반영 가능 여부(배분 비어있음 등)는 기존대로
@@ -3210,19 +3262,20 @@ function csSalesToggleAll(){
   // 수량이 비어 있음"으로 실패 처리돼 실패 무더기가 뜸(실사용에서 확인된 문제 — 전체선택 후
   // 바로 반영을 눌러 대부분 행이 실패로 표시됐음). 켤 때는 이미 배분(대상+수량)이 채워진 행만
   // 선택하고, 나머지는 그대로 둔 채 몇 건을 건너뛰었는지 안내함.
+  // 자동 대응이 "확인 필요" 행에도 배분을 미리 채워 두므로(2026-09-23) 배분 유무만 보면 검토 확인이
+  // 없는 행까지 골라져 반영 때 "검토 확인 및 사유 필수"로 무더기 실패함 — 반영이 통과할 행만 고름.
   let skipped=0;
   Object.keys(CS_SALES_ROW_STATE).forEach(k=>{
     const st=CS_SALES_ROW_STATE[k];
     if(!v){st.include=false;return;}
-    const hasAlloc=csSalesValidAllocs(st.alloc).length>0;
-    if(hasAlloc)st.include=true;else skipped++;
+    if(csSalesRowCommittable(+k))st.include=true;else skipped++;
   });
-  document.querySelectorAll('#csSalesReviewBody tr').forEach((tr,idx)=>{
+  document.querySelectorAll('#csSalesReviewBody tr[data-idx]').forEach(tr=>{
     const cb=tr.querySelector('td:first-child input[type=checkbox]');
-    if(cb)cb.checked=!!CS_SALES_ROW_STATE[idx]?.include;
+    if(cb)cb.checked=!!CS_SALES_ROW_STATE[tr.dataset.idx]?.include;
   });
   csSalesSyncSelectAll();
-  if(v&&skipped)toast(`배분 대상이 아직 없는 ${skipped}건은 선택에서 제외했습니다 — 후보를 먼저 지정하세요`);
+  if(v&&skipped)toast(`배분 대상이 없거나 검토 확인·사유가 아직 없는 ${skipped}건은 선택에서 제외했습니다`);
 }
 // 개별 행 체크박스와 헤더 체크박스 상태를 맞춤 — 일부만 선택돼 있으면 헤더를 부분선택(가로줄)으로 표시.
 function csSalesSyncSelectAll(){
@@ -3275,7 +3328,7 @@ function csSalesResetRowState(idx){
   // 플래그로 구분하면 이런 오판이 없음.
   CS_SALES_ROW_STATE[idx]={alloc:alloc.length?alloc:[{orderId:'',baseQty:''}],
     include:p.preview.status==='READY'&&alloc.length>0,
-    reviewReason:'',reviewConfirmed:false,completeToo:false,userEdited:false,
+    reviewReason:'',reviewConfirmed:false,completeToo:true,userEdited:false,   // completeToo 기본 켬: 전량 배분되면 입고·출고 완료까지(2026-09-23 결정)
     manualOrderIds:keep.manualOrderIds||[],showManual:false,separateSale:Boolean(keep.separateSale),...(keep.manualLearn!=null?{manualLearn:keep.manualLearn}:{})};
 }
 function csSalesRowInit(){   // 호출 전 CS_SALES_ROW_STATE는 csSalesPreviewAndShow가 비워 둠
@@ -3292,17 +3345,24 @@ function csSalesValidAllocs(alloc){return (alloc||[]).filter(a=>a.orderId&&a.bas
 // 검토 사유·확인이 실제로 필요한 행인지 — 화면 표시와 일괄 사유 적용(csSalesApplyBulkReason)이
 // 서로 다른 기준을 쓰면, 자동으로 깨끗하게 매칭된(READY, 이슈 없음) 행에까지 "검토 사유"가
 // 남아 나중에 감사 기록만 보고 "사람이 검토했다"고 오해하게 됨(코드리뷰로 발견) — 하나로 합침.
-function csSalesNeedsReview(prev){return prev.status!=='READY'||prev.candidates.some(c=>c.issues&&c.issues.length);}
+// 판단 기준은 commit()과 같음: 행 자체 확인 사항 또는 "실제로 배분하는" 후보의 확인 사항. 예전엔 후보
+// 목록 전체를 봐서, 배분하지도 않을 단위 빈칸 형제 발주 하나 때문에 정확히 맞는 행까지 전부 "검토
+// 필요"가 됐음(자동 확정이 0건 나오는 원인, 2026-09-23 모의 업로드로 확인).
+function csSalesNeedsReview(prev,alloc){
+  if(prev.status!=='READY'||prev.issues.length)return true;
+  const ids=new Set(csSalesValidAllocs(alloc).map(a=>String(a.orderId)));
+  return prev.candidates.some(c=>ids.has(String(c.orderId))&&c.issues&&c.issues.length);
+}
 function csSalesRenderRow(p,idx){
   const st=CS_SALES_ROW_STATE[idx];
   const sale=p.sale,prev=p.preview;
-  const needsReview=csSalesNeedsReview(prev);
+  const needsReview=csSalesNeedsReview(prev,st.alloc);
   const candOpts=`<option value="">— 선택 —</option>`+prev.candidates.map(c=>
     `<option value="${c.orderId}">${esc(c.action)} ${esc(c.item)} / ${esc(c.vendor)} — 잔량 ${fmtN(c.remaining)}${c.packKg?`(×${fmtN(c.packKg)}kg 환산)`:''}${c.done?' (완료이력)':''}</option>`).join('');
   const allocRows=st.alloc.map((a,ai)=>{
     const cand=a.orderId?csSalesCandOrder(prev,a.orderId):null;
     const aliasBtn=cand&&csSalesAliasIssue(cand)?`<button class="btn sm ghost" onclick="csSalesApproveAlias(${idx},'${a.orderId}')" title="이 표기를 별칭으로 승인하면 다음부터 자동 인식됨">별칭 승인</button>`:'';
-    const doneChk=cand&&!cand.done?`<label style="font-size:12px"><input type="checkbox" ${st.completeToo?'checked':''} onchange="csSalesSetCompleteToo(${idx},this.checked)"> 완전 배분 시 실제 완료 처리</label>`:'';
+    const doneChk=cand&&!cand.done?`<label style="font-size:12px" title="이 사급 건의 잔량이 이번 반영으로 0이 되면 ${cand.action==='발주'?'입고일':'출고일'}을 매각일로 적고 완료 처리. 부분 배분이면 완료하지 않음"><input type="checkbox" ${st.completeToo?'checked':''} onchange="csSalesSetCompleteToo(${idx},this.checked)"> 전량 배분 시 ${cand.action==='발주'?'입고':'출고'}완료</label>`:'';
     return `<div class="row" style="align-items:center;gap:4px;margin-bottom:3px">
       <select onchange="csSalesSetAllocOrder(${idx},${ai},this.value)" style="max-width:230px">${candOpts.replace(`value="${a.orderId}"`,`value="${a.orderId}" selected`)}</select>
       <input type="number" step="any" value="${a.baseQty}" placeholder="배분량" style="width:90px" onchange="csSalesSetAllocQty(${idx},${ai},this.value)">
@@ -3312,8 +3372,13 @@ function csSalesRenderRow(p,idx){
       <button class="btn sm ghost" onclick="csSalesRemoveAlloc(${idx},${ai})">✕</button>
     </div>`;
   }).join('');
-  const issues=[...new Set(prev.candidates.flatMap(c=>c.issues||[]))];
-  const reasons=[...new Set(prev.candidates.flatMap(c=>c.reasons||[]))];
+  // 확인 사항은 실제로 배분하는 후보 것만 크게 보여줌 — 배분하지 않는 형제 발주(단위 빈칸 등)의 안내가
+  // 자동 확정 행에까지 붙으면 "왜 확인 필요라고 뜨는데 자동이지?"가 됨. 배분이 비어 있으면 전체 후보 기준.
+  const allocIds=new Set(csSalesValidAllocs(st.alloc).map(a=>String(a.orderId)));
+  const shown=allocIds.size?prev.candidates.filter(c=>allocIds.has(String(c.orderId))):prev.candidates;
+  const issues=[...new Set(shown.flatMap(c=>c.issues||[]))];
+  const otherIssueN=allocIds.size?prev.candidates.filter(c=>!allocIds.has(String(c.orderId))&&(c.issues||[]).length).length:0;
+  const reasons=[...new Set(shown.flatMap(c=>c.reasons||[]))];
   // 업체·품목은 맞는데 잔량·날짜·단위 때문에 후보에서 빠진 건이 있으면 그 이유를 같이 보여줌 —
   // "발주가 있는데 왜 대응 없음으로 뜨지?"를 화면에서 바로 알 수 있게(엔진 rejected 참고).
   const rejected=[...new Set((prev.rejected||[]).map(r=>r.reason))];
@@ -3321,12 +3386,13 @@ function csSalesRenderRow(p,idx){
   // 가려지는 문제가 있었음.
   const badgeParts=[...prev.issues,...issues];
   if(prev.status==='NO_CANDIDATE')badgeParts.push('대응하는 발주·직접출고 없음'+(rejected.length?` — 제외된 사급 건: ${rejected.join(' · ')}`:''));
+  if(otherIssueN)badgeParts.push(`배분하지 않은 다른 후보 ${otherIssueN}건에 확인 사항 있음(고르면 표시)`);
   const badgeTxt=badgeParts.join(' · ');
   const manualUi=(st.showManual||prev.status==='NO_CANDIDATE')&&prev.status!=='ALREADY_LINKED'
     ?`<div class="row" style="gap:4px;margin-top:4px;align-items:center"><select onchange="csSalesManualPick(${idx},this.value)" style="max-width:260px"><option value="">직접 지정 — 사급 목록에서 대응 건 고르기…</option>${csSalesManualOptions(prev)}</select><label style="font-size:12px" title="이 매각 표기와 고른 사급 건의 업체·품목 표기를 별칭으로 저장해 다음 파일부터 자동 인식"><input type="checkbox" ${st.manualLearn!==false?'checked':''} onchange="csSalesSetManualLearn(${idx},this.checked)"> 별칭 저장</label></div>`
     :(prev.status!=='ALREADY_LINKED'?` <button class="btn sm ghost" onclick="csSalesToggleManual(${idx})" title="후보에 없는 다른 사급 건을 직접 골라 연결">직접 지정…</button>`
     :(prev.linkedByContent&&!st.separateSale?` <button class="btn sm ghost" onclick="csSalesSetSeparate(${idx})" title="업체·품목·수량·매각일이 같은 기존 반영이 있지만 이 행은 별개 거래임 — 새 건으로 다시 계산(검토 사유 필요)">별개 거래로 반영…</button>`:''));
-  return `<tr>
+  return `<tr data-idx="${idx}">
     <td><input type="checkbox" ${st.include?'checked':''} onchange="csSalesSetInclude(${idx},this.checked)"></td>
     <td><b>${esc(sale.vendor)}</b>${sale.vendorRegNo?`<div class="tag">사업자 ${esc(sale.vendorRegNo)}</div>`:''}</td>
     <td style="word-break:break-all">${esc(sale.item)}${sale.itemCode?`<div class="tag">코드 ${esc(sale.itemCode)}</div>`:''}</td>
@@ -3341,8 +3407,9 @@ function csSalesRenderRow(p,idx){
 }
 function csSalesRerenderRow(idx){
   const tb=document.getElementById('csSalesReviewBody');if(!tb)return;
-  const trs=tb.querySelectorAll('tr');
-  if(trs[idx])trs[idx].outerHTML=csSalesRenderRow(CS_SALES_PREVIEW[idx],idx);
+  // 표는 자동 확정/확인 필요/기존 반영 묶음 순으로 그려져 행 위치와 idx가 다름 — data-idx로 찾음.
+  const tr=tb.querySelector(`tr[data-idx="${idx}"]`);
+  if(tr)tr.outerHTML=csSalesRenderRow(CS_SALES_PREVIEW[idx],idx);
 }
 function csSalesSetInclude(idx,v){CS_SALES_ROW_STATE[idx].include=v;CS_SALES_ROW_STATE[idx].userEdited=true;csSalesSyncSelectAll();}
 // 실패 후 사용자가 이 행을 고치기 시작했다는 신호(사유·확인·배분 변경)가 있으면, 다시 반영해
@@ -3370,7 +3437,7 @@ function csSalesApplyBulkReason(){
   if(!idxs.length){toast('먼저 반영할 행을 선택하세요(왼쪽 체크박스)');return;}
   // 자동으로 깨끗하게 붙은(READY, 이슈 없음) 행에는 사유를 남기지 않음 — 실제로 사람이 검토한
   // 적 없는데도 나중에 이력에서 "검토 사유"가 보이면 감사 기록이 오히려 왜곡됨(코드리뷰로 발견).
-  const reviewIdxs=idxs.filter(idx=>csSalesNeedsReview(CS_SALES_PREVIEW[idx].preview));
+  const reviewIdxs=idxs.filter(idx=>csSalesNeedsReview(CS_SALES_PREVIEW[idx].preview,CS_SALES_ROW_STATE[idx].alloc));
   if(!reviewIdxs.length){toast('선택된 행은 모두 검토가 필요 없는(자동 확정) 상태입니다');return;}
   reviewIdxs.forEach(idx=>{
     CS_SALES_ROW_STATE[idx].reviewReason=v;
@@ -3384,39 +3451,42 @@ function csSalesApplyBulkReason(){
   const skipped=idxs.length-reviewIdxs.length;
   toast(`검토 필요한 ${reviewIdxs.length}건에 사유를 적용했습니다${skipped?` · 검토 불필요 ${skipped}건은 건너뜀`:''}`);
 }
-// 빠른 매칭 — 대응할 만한 사급 발주·직접출고가 있는 행은 전부 자동으로 채움(요청: "사급발주한거
-// 입고돼서 매각한것들 자동으로 매칭하게 해주라, 아예 안맞는거만 내가 수동으로 승인"). 예전엔
-// "후보가 하나뿐인 행"만 자동 처리했는데, 실제 업무는 같은 사급처에 같은 품목을 반복 발주하고
-// 입고 완료 뒤에 매각 파일이 오는 흐름이라 거의 모든 행이 후보 여럿(반복 발주) 또는 완료 이력
-// 후보라 사실상 아무것도 자동으로 안 붙었음("이거 계속 해결 안되네").
-// 배분 규칙(행마다): ① 엔진이 찾은 유일 조합(proposal)이 있으면 그대로 ② 아니면 후보 중 오래된
-// 발주·직접출고부터 순서대로 잔량만큼 배분(선입선출) — 매각 수량이 어느 발주에도 딱 안 맞아도
-// 배분되며 남는 차이는 사유에 적어 숨기지 않음. 같은 파일 안 여러 매각 행이 같은 발주를 겹쳐
-// 잡지 않도록 작업용 잔량을 매각일 순으로 차감해 가며 배분함(예전엔 두 행이 같은 발주를 제안해
-// 두 번째 행이 반영 때 "잔량 초과"로 반드시 실패했음).
+// 자동 대응 — 업로드 직후(그리고 [자동 대응 다시 실행] 버튼으로) 행마다 배분을 채움(요청: "매각 내역
+// 엑셀 올리면 수량 다 맞으면 이상없게 대사해서 입고 완료 처리 되게", 2026-09-23 결정 반영).
+// 자동 확정(체크해 둠, 사유 불필요): 엔진이 찾은 정확 일치 조합(proposal — 같은 수량 후보가 여럿이면
+//   엔진이 오래된 발주부터 고름)을 그대로 쓸 수 있고 확인 사항이 하나도 없는 행. 반영하면 전량 배분된
+//   사급 건은 입고·출고 완료까지 됨.
+// 확인 필요(체크 안 함): 정확히 맞는 조합이 없는 행은 후보 중 오래된 발주부터 잔량만큼 배분(선입선출)
+//   해 두되 사람이 보고 검토 확인을 켜야 반영됨 — 허용 오차 없음(결정). 별칭 미승인·완료 후 오래된
+//   건 등 확인 사항이 붙은 행도 여기. 같은 파일 안 여러 매각 행이 같은 발주를 겹쳐 잡지 않도록 작업용
+//   잔량을 매각일 순으로 차감해 가며 배분함.
 // 손대지 않는 행: 사람이 이미 직접 만진 행(userEdited), 대응 후보가 아예 없는 행(→ 직접 지정으로
 // 처리), commit()이 검토 확인과 무관하게 항상 거부하는 자료 문제(엔진 미리보기의 hardBlocked —
-// 선택해 봤자 반영 때 반드시 실패). 실제 반영(commit)은 하지 않고 화면에 선택·배분·사유만
-// 채워둠 — 최종 확인·반영은 사람이 표를 보고 [선택 항목 반영]을 눌러야 함.
-const CS_SALES_QUICK_REASON='빠른 매칭 — 업로드한 매각내역 파일 기준 자동 대응(수량 확인 후 반영)';
-const CS_SALES_QUICK_REASON_FIFO='빠른 매칭 — 후보 여러 건 중 오래된 발주·직접출고부터 순서대로 배분(선입선출, 수량 확인 후 반영)';
+// 선택해 봤자 반영 때 반드시 실패), 중복 의심 행. 실제 반영(commit)은 하지 않고 화면 상태만 채움 —
+// 최종 반영은 [선택 항목 반영].
+// 확인 필요 행에 미리 채워 두는 사유 제안 — 사람이 그대로 두거나 고쳐서 검토 확인을 켬.
+const CS_SALES_QUICK_REASON='자동 배분 제안 — 매각 수량과 정확히 맞는 조합이 없어 잔량만큼 배분(수량 확인 후 반영)';
+const CS_SALES_QUICK_REASON_FIFO='자동 배분 제안 — 후보 여러 건에 오래된 발주·직접출고부터 순서대로 배분(선입선출, 수량 확인 후 반영)';
 // commit()이 검토 확인·사유와 무관하게 항상 막는(하드 블록) 조건은 엔진이 미리보기에 hardBlocked
 // (행 전체 prev.hardBlocked · 후보별 candidates[i].hardBlocked)로 표시해 줌 — 여기서 사유 문구를
 // 따로 목록으로 들고 비교하지 않음(문구가 바뀌면 조용히 어긋나는 사고 방지, 코드리뷰로 발견).
 // 후보(사급 건)의 선입선출 기준일 — 엔진과 같은 규칙(orderStart)을 그대로 씀.
 function csSalesConsStart(c){return CsSalesEngine.orderStart(csToMatchOrder(c));}
-function csSalesQuickApply(){
+// opts.approveAliases: 미승인 별칭을 자동 승인할지 — 업로드 직후 자동 실행에서는 끔(별칭 승인은 담당자가
+// 한 번은 직접 하는 것이 이 파일의 원칙 — "임의 일괄 승인 금지"; 파일을 고르기만 했는데 별칭이 영구
+// 승인·저장되면 안 됨). [자동 대응 다시 실행] 버튼처럼 사람이 눌렀을 때만 켬(종전 빠른 매칭과 같음).
+function csSalesQuickApply(opts={}){
   csEngineState();
   const touchable=idx=>{const st=CS_SALES_ROW_STATE[idx],p=CS_SALES_PREVIEW[idx];return !st.userEdited&&!['ALREADY_LINKED','INVALID','SOURCE_CHANGED'].includes(p.preview.status);};
   const candKey=c=>CsSalesEngine.vendorName(c.vendor)+'|'+CsSalesEngine.compact(CsSalesEngine.cleanItem(c.item));
-  // 1단계: 미승인 별칭 때문에 막힌 후보가 있는 행에서 별칭 승인. 별칭은 S.salesAliases에 영구 저장돼
-  // 앞으로 모든 파일에 적용되므로 사람이 이미 손댄 행은 건드리지 않고, 후보가 여럿이면 전부 같은
-  // 업체·품목(같은 건의 반복 발주)일 때만 승인 — 서로 다른 품목이 섞여 있으면 어느 쪽 표기를
-  // 인정할지 사람이 골라야 하므로 그대로 둠. 직접 지정으로 학습된(learned) 품목 별칭도 자동 승인
-  // 대상에서 제외 — 서로 다른 품목을 사람이 한 번 이어준 것일 수 있어 [별칭 승인]을 한 번은 사람이
-  // 눌러야 함.
+  // 1단계(버튼으로 실행했을 때만): 미승인 별칭 때문에 막힌 후보가 있는 행에서 별칭 승인. 별칭은
+  // S.salesAliases에 영구 저장돼 앞으로 모든 파일에 적용되므로 사람이 이미 손댄 행은 건드리지 않고,
+  // 후보가 여럿이면 전부 같은 업체·품목(같은 건의 반복 발주)일 때만 승인 — 서로 다른 품목이 섞여
+  // 있으면 어느 쪽 표기를 인정할지 사람이 골라야 하므로 그대로 둠. 직접 지정으로 학습된(learned) 품목
+  // 별칭도 자동 승인 대상에서 제외 — 서로 다른 품목을 사람이 한 번 이어준 것일 수 있어 [별칭 승인]을
+  // 한 번은 사람이 눌러야 함.
   let aliasApproved=0;
-  CS_SALES_PREVIEW.forEach((p,idx)=>{
+  if(opts.approveAliases)CS_SALES_PREVIEW.forEach((p,idx)=>{
     if(!touchable(idx))return;
     const cands=p.preview.candidates.filter(csSalesAliasIssue);
     if(!cands.length||new Set(p.preview.candidates.map(candKey)).size!==1)return;
@@ -3425,72 +3495,74 @@ function csSalesQuickApply(){
   });
   // 2단계: 별칭을 뭔가 승인했을 때만 전체 미리보기 재계산(발주 수만큼 비용이 드는 작업).
   if(aliasApproved){saveDB();csSalesRecomputePreviews();}
-  // 3단계: 작업용 잔량 — 손대지 않을 행(사람이 만진 행)이 이미 잡아 둔 배분은 먼저 빼 둠.
-  const working={};
-  CS_SALES_PREVIEW.forEach(p=>p.preview.candidates.forEach(c=>{working[String(c.orderId)]=c.remaining;}));
+  // 3단계: 모의 원장 — 이 파일 안에서 앞 행이 잡은 배분을 뒤 행이 겹쳐 잡지 않도록, 반영될 행(자동 확정,
+  // 사람이 체크한 행)의 배분을 가짜 이력으로 붙인 원장으로 다음 행의 미리보기를 다시 계산함(반영 때
+  // commit()이 배치 원장으로 검증하는 것과 같은 방식). 예전엔 후보 잔량 표만 차감해서, 같은 수량 발주
+  // 3건에 매각 3행이 오면 엔진이 세 행 모두 첫 발주를 제안 → 2·3행은 "제안 불일치"로 확인 필요가 됐음
+  // (코드리뷰로 발견). "확인 필요" 행의 임시 배분은 예약하지 않음 — 사람이 거를 수 있는 배분이 실제
+  // 원장에 없는 소진을 만들어, 뒤 행이 모의로는 정확 일치인데 반영 때는 수량 확인으로 실패하거나 진짜
+  // 정확 일치 행이 밀려나기 때문(2차 코드리뷰로 발견). 자동 확정은 실제 원장 기준으로도 검토 불필요할 때만.
+  const orders=csSalesOrders(),batchKeys=csSalesBatchKeys();
+  const sim=S.salesLedger.slice(),reservedIds=new Set();
+  const synth=(prev,alloc)=>({id:'sim-'+Math.random().toString(36).slice(2),version:CsSalesEngine.VERSION,sourceKey:prev.sourceKey,contentOrdinal:prev.contentOrdinal,
+    sourceSnapshot:prev.sourceSnapshot,actor:'(모의)',createdAt:'',reviewReason:'',allocations:alloc.map(a=>({orderId:a.orderId,baseQty:+a.baseQty})),reversedAt:null});
+  const reserve=(prev,alloc)=>{if(alloc.length){sim.push(synth(prev,alloc));alloc.forEach(a=>reservedIds.add(String(a.orderId)));}};
   CS_SALES_PREVIEW.forEach((p,idx)=>{
     const st=CS_SALES_ROW_STATE[idx];
     if(touchable(idx)||!st.include)return;
-    csSalesValidAllocs(st.alloc).forEach(a=>{const k=String(a.orderId);if(working[k]!=null)working[k]=Math.max(0,working[k]-(+a.baseQty));});
+    reserve(p.preview,csSalesValidAllocs(st.alloc));
   });
-  const startById={};S.cons.forEach(c=>{startById[String(c.id)]=csSalesConsStart(c);});
-  const startOf=id=>startById[String(id)]||'';
   // 4단계: 매각일 순으로 행마다 배분.
   const idxs=CS_SALES_PREVIEW.map((p,idx)=>idx).filter(touchable)
     .sort((a,b)=>(CS_SALES_PREVIEW[a].sale.date||'').localeCompare(CS_SALES_PREVIEW[b].sale.date||'')||a-b);
-  let matched=0;
   idxs.forEach(idx=>{
-    const p=CS_SALES_PREVIEW[idx],prev=p.preview;
+    const p=CS_SALES_PREVIEW[idx];
+    // 화면·반영 검증에 쓰는 p.preview(실제 원장 기준)는 그대로 두고, 배분 결정에만 모의 원장 미리보기를 씀.
+    // 예약된 발주가 이 행의 후보에 없으면 결과가 같으므로 다시 계산하지 않음(행 수×사급 건수 비용).
+    const touched=p.preview.candidates.some(c=>reservedIds.has(String(c.orderId)));
+    const prev=touched?CsSalesEngine.preview(p.sale,orders,sim,S.salesAliases,csSalesPreviewOpts(idx,batchKeys)):p.preview;
     const {lastError,...base}=CS_SALES_ROW_STATE[idx];   // 이전 반영 실패 문구는 이번 자동 채움으로 무효
-    const wasIncluded=base.include;
     // 채우지 못하는 행은 선택도 풀어 둠 — 앞선(매각일이 빠른) 행이 같은 발주 잔량을 다 써 버린 경우
-    // 처음 열 때 자동으로 체크돼 있던 제안(READY)이 그대로 남아 반영 때 "잔량 초과"로 반드시 실패하고,
-    // 안내 건수에서도 빠짐(코드리뷰로 발견). 제안 자체는 참고용으로 남겨 둠.
+    // 처음 열 때 자동으로 체크돼 있던 제안(READY)이 그대로 남아 반영 때 "잔량 초과"로 반드시 실패함
+    // (코드리뷰로 발견). 제안 자체는 참고용으로 남겨 둠.
     const deselect=()=>{CS_SALES_ROW_STATE[idx]={...base,include:false};};
-    if(prev.hardBlocked.length){deselect();return;}
+    if(prev.hardBlocked.length||['ALREADY_LINKED','INVALID','SOURCE_CHANGED'].includes(prev.status)){deselect();return;}
     // duplicateSuspect: 같은 매각일·업체·품목의 기존 반영이 있는데 수량만 다른 행 — 재발행·정정
     // 파일일 가능성이 있어 자동으로 검토 확인을 채우지 않고 사람이 직접 확인·지정하게 남김.
     if(prev.duplicateSuspect){deselect();return;}
     // staleDone: 완료 후 오래된 건은 이 원장이 생기기 전에 이미 매각된 발주일 수 있어(잔량이 허수)
     // 자동 배분에서 제외 — 후보 목록엔 남아 있어 사람이 직접 고를 수는 있음.
     // crossFamily(kg↔L): 수량이 매각과 같은 척도가 아니라 자동 배분 대상이 아님 — 후보 목록엔 남아 직접 지정 가능.
-    const usable=prev.candidates.filter(c=>!c.hardBlocked.length&&!c.staleDone&&!c.crossFamily&&working[String(c.orderId)]>1e-6);
+    const usable=prev.candidates.filter(c=>!c.hardBlocked.length&&!c.staleDone&&!c.crossFamily&&c.remaining>1e-6);
     if(!usable.length){deselect();return;}
     let alloc=[],fifo=false;
-    const proposalOk=prev.proposal.length&&prev.proposal.every(a=>{const c=usable.find(u=>String(u.orderId)===String(a.orderId));return c&&working[String(c.orderId)]>=a.baseQty-1e-6;});
+    const proposalOk=prev.proposal.length>0&&prev.proposal.every(a=>usable.some(u=>String(u.orderId)===String(a.orderId)));
     if(proposalOk)alloc=csSalesProposalAlloc(prev);
     else{
       fifo=usable.length>1;
       let need=prev.remaining;
-      usable.slice().sort((a,b)=>startOf(a.orderId).localeCompare(startOf(b.orderId))||String(a.orderId).localeCompare(String(b.orderId),undefined,{numeric:true}))
+      // 엔진의 선입선출 순서(orderRank)를 그대로 써서 제안과 같은 순서로 소진
+      usable.slice().sort((a,b)=>CsSalesEngine.orderRank(a)<CsSalesEngine.orderRank(b)?-1:CsSalesEngine.orderRank(a)>CsSalesEngine.orderRank(b)?1:0)
         .forEach(c=>{
           if(need<=1e-6)return;
-          const take=Math.min(need,working[String(c.orderId)]);
+          const take=Math.min(need,c.remaining);
           if(take>1e-6){alloc.push({orderId:String(c.orderId),baseQty:take});need-=take;}
         });
     }
     if(!alloc.length){deselect();return;}
-    alloc.forEach(a=>{working[a.orderId]=Math.max(0,working[a.orderId]-a.baseQty);});
     const short=prev.remaining-alloc.reduce((n,a)=>n+a.baseQty,0);
-    // 엔진 제안 그대로가 아니면(선입선출·부분 배분) 반영 때 다시 계산되는 미리보기가 수량 확인 상태가
-    // 되어 검토 사유가 필수 — 화면의 현재 미리보기(READY)만 보고 사유를 비워 두면 반드시 실패함(코드리뷰로 발견).
-    const needsReview=csSalesNeedsReview(prev)||!proposalOk;
-    const reason=(fifo?CS_SALES_QUICK_REASON_FIFO:CS_SALES_QUICK_REASON)+(short>1e-6?` · 대응 잔량 부족으로 ${fmtN(Math.round(short))} 미배분`:'');
-    // 검토가 필요 없는(READY, 이슈 없음) 행에는 사유를 남기지 않음 — 검토한 적 없는 건에 사유가
-    // 찍히면 감사 기록이 왜곡됨(csSalesApplyBulkReason과 같은 원칙).
-    CS_SALES_ROW_STATE[idx]={...base,alloc,include:true,reviewReason:needsReview?reason:'',reviewConfirmed:needsReview,completeToo:false,userEdited:false,showManual:false};
-    if(!wasIncluded)matched++;   // 같은 버튼을 두 번 눌러도 이미 채워져 있던 행은 다시 세지 않음
+    // 자동 확정은 엔진 제안 그대로 + 확인 사항 없음(모의·실제 원장 모두)일 때만. 그 외는 배분만 채우고
+    // 선택·검토 확인은 비워 "확인 필요"로 둠 — 예전엔 여기서 사유를 정형 문구로 채우고 확인까지 켜서
+    // 사람이 본 적 없는 행이 검토된 것처럼 반영됐음(2026-09-23 결정으로 자동은 정확 일치만).
+    const auto=proposalOk&&!csSalesNeedsReview(prev,alloc)&&!csSalesNeedsReview(p.preview,alloc);
+    if(auto)reserve(prev,alloc);
+    // 사유 제안은 시스템이 제안대로 배분하지 못한(선입선출·부분 배분) 행에만 — 별칭 미승인처럼 확인
+    // 사항이 이유인 행은 근거 칸의 안내가 곧 이유라 사유 칸은 비워 사람이 씀.
+    const hint=proposalOk?'':(fifo?CS_SALES_QUICK_REASON_FIFO:CS_SALES_QUICK_REASON)+(short>1e-6?` · 대응 잔량 부족으로 ${fmtN(Math.round(short))} 미배분`:'');
+    CS_SALES_ROW_STATE[idx]={...base,alloc,include:auto,reviewReason:auto?'':hint,reviewConfirmed:false,completeToo:true,userEdited:false,showManual:false};
   });
-  // "직접 확인 필요"는 처리가 다 끝난 뒤의 실제 상태를 보고 셈 — 사람이 손댄(userEdited) 행이 아직
-  // [선택 항목 반영] 준비가 안 된 경우(예: 배분만 고치고 검토 확인은 안 누름)도 포함되게.
-  const left=CS_SALES_PREVIEW.filter((p,idx)=>{
-    if(p.preview.status==='ALREADY_LINKED')return false;
-    const st=CS_SALES_ROW_STATE[idx];
-    const ready=st.include&&csSalesValidAllocs(st.alloc).length&&(!csSalesNeedsReview(p.preview)||(st.reviewReason&&st.reviewConfirmed));
-    return !ready;
-  }).length;
-  csSalesRenderReview();
-  toast(`빠른 매칭: ${matched}건을 자동 대응·선택했습니다${left?` · 대응 건이 없거나 자료 보완이 필요한 ${left}건은 직접 확인(직접 지정) 필요`:''} — 내용을 확인하고 [선택 항목 반영]을 누르세요`);
+  const n=csSalesRenderReview();
+  toast(`자동 확정 ${n.auto.length}건 선택됨${n.auto.length?' — [선택 항목 반영]을 누르면 반영과 함께 완료 처리':''}${n.review.length?` · 확인 필요 ${n.review.length}건은 표에서 직접 확인`:''}${n.linked.length?` · 기존 반영 ${n.linked.length}건`:''}${aliasApproved?` · 별칭 ${aliasApproved}건 승인됨(별칭 목록에서 확인)`:''}`);
 }
 /* 별칭 승인 — 이 특정 후보가 걸린 별칭 그룹(업체 또는 품목)을 찾아 approved=true로 저장.
    승인 즉시 이 미리보기도 다시 계산해 화면에 반영(재업로드 없이 바로 "연결 가능"으로 바뀔 수 있음). */
@@ -3662,6 +3734,7 @@ async function csSalesApplySelected(){
     const batchKeys=csSalesBatchKeys();
     let ledger=baseLedger.slice();   // 이번 반영 배치 안에서 앞 행의 배분을 다음 행 검증에 즉시 반영(중복 소진 방지)
     const results=[];   // {idx, ok, message}
+    let completedN=0;   // 이번 반영으로 입고·출고 완료 처리한 사급 건 수
     selIdx.forEach(idx=>{
       const p=CS_SALES_PREVIEW[idx],st=CS_SALES_ROW_STATE[idx];
       const sale=p.sale;
@@ -3700,7 +3773,9 @@ async function csSalesApplySelected(){
           const fullyAllocated=CsSalesEngine.remainingOrder(matchOrder,ledger,CsSalesEngine.unit(matchOrder.unit)?.family==='PACK'?csPackKgOf(matchOrder.item,matchOrder.unit):null)<=1e-6;
           const order=S.cons.find(c=>String(c.id)===String(a.orderId));
           // 단위 유효성은 commit()이 이미 이 배분 전체에 대해 검증을 마쳤음(실패했다면 여기 도달하지 않음)
-          if(fullyAllocated&&order&&!order.done){
+          // 이미 입고일·출고일이 적힌 건은 화면의 완료 체크가 숨겨지는 것(후보 done 판정과 같은 기준)과 맞춰
+          // 여기서도 건드리지 않음 — completeToo 기본값이 켜지면서 기존 날짜를 매각일로 덮어쓸 수 있었음(코드리뷰로 발견).
+          if(fullyAllocated&&order&&!order.done&&!order.inDate&&!order.outDate){
             // matchOrder는 방금 서버에서 읽어온 최신 값(baseCons) 기준 — 로컬 S.cons가 그 사이
             // 달라져 있다면(다른 기기가 이 발주/직접출고를 먼저 고쳤다는 뜻) 오래된 로컬 값으로
             // 완료 처리를 덮어쓰지 않고 배분(대조 이력)만 반영한 채 완료 표시는 건너뜀 — 담당자가
@@ -3715,6 +3790,7 @@ async function csSalesApplySelected(){
             // 처리일로 씀(csApplyMark와 같은 부수효과를 직접 적용).
             if(order.action==='발주'){if(sale.date)order.inDate=sale.date;csApplyMark(order,'done');}
             else if(order.action==='직접출고'){order.outDate=sale.date||cur;order.done=true;order.outBy=whoNow();}
+            completedN++;
           }
         });
       }
@@ -3724,7 +3800,7 @@ async function csSalesApplySelected(){
     saveDB();refreshAll();
     const okN=results.filter(r=>r.ok).length,failN=results.length-okN;
     const skipN=results.filter(r=>r.ok&&/완료 표시는 건너뜀/.test(r.message)).length;
-    toast(`매각대조 반영: ${okN}건 성공${failN?` · ${failN}건 실패(사유는 표 참고)`:''}${skipN?` · ${skipN}건은 완료 표시 건너뜀(직접 확인 필요)`:''}`);
+    toast(`매각대조 반영: ${okN}건 성공 · 사급 건 입고·출고 완료 처리 ${completedN}건${failN?` · ${failN}건 실패(사유는 표 참고)`:''}${skipN?` · ${skipN}건은 완료 표시 건너뜀(직접 확인 필요)`:''}`);
     // 이번 배치에 포함된 행만 갱신함(코드리뷰로 발견 — 예전엔 모든 행을 초기화해서, 이번에
     // 선택 안 한 다른 행이 이미 입력해 둔 검토 내용까지 날아갔었음). 성공한 행은 최신 제안값으로
     // 다시 채우고, 실패한 행은 입력해 둔 배분·검토 내용을 그대로 남긴 채 실패 사유만 별도

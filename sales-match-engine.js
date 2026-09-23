@@ -315,7 +315,10 @@
   // win every tie, turning an exact match into a review.
   const SUBSET_CAP = 12;
   // Exported so the caller's own first-in-first-out fallback consumes orders in the same sequence.
-  const orderRank = c => (c.start || '') + '|' + String(c.orderId).padStart(12, '0');
+  // Open (not yet received/shipped) orders rank before completed ones whatever their dates: a new
+  // sale is the normal counterpart of an open order, while a completed order within the stale
+  // window may have had its own sale before the ledger existed (decision 2026-09-23, open first).
+  const orderRank = c => (c.done ? '1' : '0') + '|' + (c.start || '') + '|' + String(c.orderId).padStart(12, '0');
   const issueCount = set => set.filter(c => (c.issues || []).length).length;
   function uniqueSubset(candidates, target) {
     if (candidates.length>SUBSET_CAP) return {kind:'too_many', sets:[]};
@@ -488,7 +491,7 @@
       const c=base.candidates.find(x=>String(x.orderId)===String(id));
       // A FIFO pick is a proposal like any other, but the reason says so, so the operator (and the
       // 근거 column) can see that older orders were preferred over an equally valid combination.
-      if (subset.kind==='fifo') c.reasons.push('같은 수량 후보 여러 건 — 오래된 발주부터 배분(선입선출)');
+      if (subset.kind==='fifo') c.reasons.push('같은 수량 후보 여러 건 — 미완료 건 먼저, 오래된 발주부터 배분(선입선출)');
       return {orderId:id,baseQty:c.remaining};
     });
     const selected=base.candidates.filter(c=>base.proposal.some(p=>String(p.orderId)===String(c.orderId)));

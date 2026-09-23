@@ -526,4 +526,19 @@ test('반영 불가 후보를 더해도 후보가 상한을 넘으면 자료 보
  assert.equal(E.preview(s({qty:1000}),many).status,'QUANTITY_REVIEW');
  assert.equal(E.preview(s({qty:1000}),[...many,o({id:'X',unit:''})]).status,'QUANTITY_REVIEW');   // 13건째가 반영 불가 → too_many는 "맞는 조합 있음"이 아님
  assert.ok(E.orderRank({start:'2026-09-01',orderId:'9'})<E.orderRank({start:'2026-09-01',orderId:'10'}));
+ assert.ok(E.orderRank({start:'2026-09-09',orderId:'2',done:false})<E.orderRank({start:'2026-09-01',orderId:'1',done:true}));   // 미완료가 날짜와 무관하게 먼저
+});
+
+test('같은 수량의 완료 건(60일 이내)과 열린 발주가 함께 있으면 열린 발주부터 제안(2026-09-23 결정)',()=>{
+ const done=o({id:'44',done:true,inDate:'2026-09-01',orderDate:'2026-08-26'}),open=o({id:'338',orderDate:'2026-09-09'});
+ const p=E.preview(s({date:'2026-09-20'}),[done,open]);
+ assert.equal(p.status,'READY');assert.equal(p.subsetKind,'fifo');
+ assert.deepEqual(p.proposal.map(a=>String(a.orderId)),['338']);
+ assert.ok(!p.candidates.find(c=>c.orderId==='44').staleDone);   // 확인 사항이 아니라 순위로만 밀림
+ // 열린 발주를 다 쓰면 완료 건이 다음 순서
+ const ledger=[{id:'x',version:E.VERSION,sourceKey:'k',sourceSnapshot:'{}',allocations:[{orderId:'338',baseQty:1000}],reversedAt:null}];
+ assert.deepEqual(E.preview(s({date:'2026-09-20'}),[done,open],ledger).proposal.map(a=>String(a.orderId)),['44']);
+ // 조합끼리도 열린 발주로만 된 조합 우선 — 열린 9/5 1000+9/9 2000 vs 완료 8/26 3000
+ const r=E.preview(s({qty:3000,date:'2026-09-20'}),[o({id:'D',done:true,inDate:'2026-09-01',orderDate:'2026-08-26',qty:3000}),o({id:'A',orderDate:'2026-09-05',qty:1000}),o({id:'B',orderDate:'2026-09-09',qty:2000})]);
+ assert.deepEqual(r.proposal.map(a=>String(a.orderId)).sort(),['A','B']);
 });

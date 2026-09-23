@@ -1146,7 +1146,10 @@ function sbNormalize(d){
     // 사급 매각대조(salesLedger 등)도 다른 목록과 똑같이 화이트리스트에 넣어야 함 — 빠뜨리면
     // 다른 기기의 실시간 동기화(sbApply)가 올 때마다 이 기기에서 방금 반영한 배분/별칭 승인
     // 기록이 통째로 사라짐(서버엔 저장돼 있어도 이 필터를 거치며 지워짐).
-    salesLedger:arrOfObj(d.salesLedger),
+    // 예전 파일행(file-row) 키 이력에 내용 순번(contentOrdinal)을 붙이는 보정을 여기서 함 — 로컬·서버
+    // 데이터가 모두 이 정규화를 거치므로 두 쪽이 어긋나지 않고, 다음 일반 저장 때 자연히 영구화됨
+    // (바뀔 게 없으면 같은 배열을 그대로 돌려줌).
+    salesLedger:typeof CsSalesEngine!=='undefined'?CsSalesEngine.migrateLedger(arrOfObj(d.salesLedger)):arrOfObj(d.salesLedger),
     salesAliases:isObj(d.salesAliases)?{vendors:arrOfObj(d.salesAliases.vendors),items:arrOfObj(d.salesAliases.items)}:{vendors:[],items:[]},
     salesImportBatches:arrOfObj(d.salesImportBatches),
     salesMatchSchemaVersion:Number.isFinite(d.salesMatchSchemaVersion)?d.salesMatchSchemaVersion:1,
@@ -2836,8 +2839,12 @@ function csBulkSetUnit(){
    전표를 반영했다는 증거 없음), 293F-1/293F-10처럼 접미 숫자가 다른 규격을 느슨하게 묶어버릴
    위험이 있었다. 이번 버전은:
    - 발주·직접출고를 모두 대상으로 함
-   - 원천 전표행(또는 파일 해시+시트+행) 단위로 배분 이력(salesLedger)을 남겨, 재업로드해도
-     "이미 반영됨"으로 정확히 구분함(이름만 보고 추측하지 않음)
+   - 원천 전표행(전표번호+행번호) 단위로 배분 이력(salesLedger)을 남겨, 재업로드해도
+     "이미 반영됨"으로 정확히 구분함(이름만 보고 추측하지 않음). 전표행 정보가 없는 파일은
+     업체·품목·수량·매각일 "내용 키"+파일 내 동일내용 순번으로 식별하고, 전표행 키가 있는 행도
+   내용 키를 함께 저장해 열 지정이 달라도 같은 건으로 잡음 — 예전에는 파일 바이트
+     해시+행번호로 식별했는데, 더존 재출력·다시 저장·행 추가만으로 바이트가 달라져 같은 매각이
+     새 건으로 취급되고 남은 다른 발주에 또 배분되는 이중 반영이 재현됨(2026-09-21 점검)
    - 사업자번호·ERP 품목코드가 다르면 이름이 비슷해도 차단하고, 접미 숫자·등급(NT/PF/PL/1/10)은
      보존해 다른 규격을 섞지 않음
    - 확정되지 않은 표기 차이는 "별칭 후보"로만 보여주고, 담당자가 직접 승인해야 다음부터 자동
@@ -2846,6 +2853,7 @@ function csBulkSetUnit(){
    - 실제 출고/입고 완료(csApplyMark)는 대조와 분리된 별도 선택으로, 완전 배분됐을 때만 적용
    자세한 설계는 CLAUDE_CODE_PROMPT.md(자재과 작업판 저장소 별도 보관) 참고. */
 const CS_SALES_SCHEMA_VERSION=1;
+const CS_SALES_ISSUER_ID='jajae-cs-sales-ledger';
 // alias-candidates.json(저장소 루트, Node 테스트에서도 씀)과 내용이 같은 최초 시드 — 전부
 // approved:false로 시작하며, 실제 승인은 화면에서 담당자가 눌러야만 이뤄짐(임의 일괄 승인 금지).
 const CS_SALES_ALIAS_SEED={
@@ -2877,6 +2885,11 @@ const CS_SALES_ALIAS_SEED={
    최초 1회만 병합(다시 실행돼도 사용자가 다룬 내용을 되돌리지 않음). */
 function csEngineState(){
   if(!Array.isArray(S.salesLedger))S.salesLedger=[];
+  // 예전 파일행(file-row) 키로 저장된 이력에 내용 순번(contentOrdinal)을 붙여, 같은 매각을 다른
+  // 파일로 다시 올려도 "기존 반영"으로 잡히게 함 — sbNormalize와 같은 보정을 메모리에서만 적용하고
+  // 여기서 저장하지는 않음(S 전체를 덮어쓰는 saveDB를 화면을 여는 것만으로 부르면 다른 기기의 최신
+  // 수정을 오래된 로컬 값으로 덮을 수 있음 — 코드리뷰로 발견). 다음 일반 저장 때 영구화됨.
+  S.salesLedger=CsSalesEngine.migrateLedger(S.salesLedger);
   if(!S.salesAliases||typeof S.salesAliases!=='object'||Array.isArray(S.salesAliases))S.salesAliases={vendors:[],items:[]};
   if(!Array.isArray(S.salesAliases.vendors))S.salesAliases.vendors=[];
   if(!Array.isArray(S.salesAliases.items))S.salesAliases.items=[];
@@ -2910,16 +2923,6 @@ function csEngineState(){
   if(!Array.isArray(S.salesImportBatches))S.salesImportBatches=[];
   if(!Number.isFinite(S.salesMatchSchemaVersion))S.salesMatchSchemaVersion=CS_SALES_SCHEMA_VERSION;
   return S;
-}
-// 파일 바이트의 SHA-256 — 전표행 식별자가 없는 파일에서 "같은 파일 재업로드"를 확인하는 fallback
-// 키 재료로 씀(엔진 sourceKey의 file-row 방식). 브라우저 내장 crypto.subtle만 쓰고 외부 라이브러리
-// 추가 없음.
-async function csSalesFileHash(buf){
-  // crypto.subtle은 보안 컨텍스트(HTTPS/localhost)에서만 제공됨 — 없으면 이 파일은 파일행 폴백
-  // 키를 만들 수 없어 매각내역 업로드 전체가 막히므로, 원인을 바로 알 수 있게 명확히 알려줌.
-  if(!crypto.subtle)throw Error('SHA-256 해시를 계산할 수 없습니다 — HTTPS(또는 localhost) 연결에서만 지원됩니다');
-  const h=await crypto.subtle.digest('SHA-256',buf);
-  return Array.from(new Uint8Array(h)).map(b=>b.toString(16).padStart(2,'0')).join('');
 }
 /* 기존 S.cons(사급 발주·직접출고 항목)를 엔진이 쓰는 order 객체로 변환.
    실제 데이터에 없는 필드는(빈 문자열로) 정직하게 비워둠 — 있지도 않은 값을 임의로 채우면
@@ -2972,13 +2975,12 @@ function csToMatchOrder(c){
 function csSalesOrders(){return S.cons.filter(c=>['발주','직접출고'].includes(c.action)).map(csToMatchOrder);}
 
 /* ── 엑셀 읽기 · 시트/열 확인 ── */
-let CS_SALES_WB=null,CS_SALES_HASH='',CS_SALES_FILENAME='';
+let CS_SALES_WB=null,CS_SALES_FILENAME='';
 function csSalesReadFile(f){
   if(!f)return;
   const r=new FileReader();
-  r.onload=async e=>{try{
+  r.onload=e=>{try{
     const buf=e.target.result;
-    CS_SALES_HASH=await csSalesFileHash(buf);
     CS_SALES_WB=XLSX.read(new Uint8Array(buf),{type:'array',cellDates:true});
     CS_SALES_FILENAME=f.name;
     if(CS_SALES_WB.SheetNames.length>1)csSalesRenderSheetPick();
@@ -3095,7 +3097,6 @@ function csSalesConfirmMap(){
       date:di>=0?fcDateOf(row[di]):'',
       documentNo:dni>=0?String(row[dni]??'').trim():'',
       documentLine:dli>=0?String(row[dli]??'').trim():'',
-      sourceRowIndex:r2,
     });
   }
   document.getElementById('csSalesMap').innerHTML='';
@@ -3103,13 +3104,13 @@ function csSalesConfirmMap(){
   csSalesPreviewAndShow(rows,excluded);
 }
 /* 원본 행 → 엔진 sale 스키마. issuerId는 "이 매각 장부를 발행한 주체"의 고정 ID임 — 행마다 다른
-   사급처명을 넣으면 안 되므로, 이 앱이 다루는 매각내역 장부 자체를 가리키는 고정 문자열을 씀. */
-const CS_SALES_ISSUER_ID='jajae-cs-sales-ledger';
+   사급처명을 넣으면 안 되므로, 이 앱이 다루는 매각내역 장부 자체를 가리키는 고정 문자열을 씀.
+   파일 해시·시트·행번호는 넘기지 않음 — 전표행이 없는 행의 식별(내용 키+순번)은 파일 전체 행을
+   받은 뒤 CsSalesEngine.withContentOrdinals가 붙임. */
 function csSalesToSale(r){
   return {
     sourceSystem:'excel-import',issuerId:CS_SALES_ISSUER_ID,
     documentNo:r.documentNo||'',documentLine:r.documentLine||'',
-    importBatchHash:CS_SALES_HASH,sheetIndex:CS_SALES_SHEET_IDX,sourceRowIndex:r.sourceRowIndex,
     vendor:r.vendor,vendorRegNo:r.vendorRegNo,item:r.item,itemCode:r.itemCode,supplier:r.supplier,
     qty:r.qty,unit:r.unit,date:r.date,
     destination:''   // 매각내역 파일에 행선지열 매핑이 없음 — 엔진은 빈 값이면 행선지 대조를 건너뜀(M-210 필수 조건은 사급 건 쪽 행선지)
@@ -3118,14 +3119,20 @@ function csSalesToSale(r){
 
 /* ── 미리보기 · 검토 화면 ── */
 let CS_SALES_PREVIEW=[];   // [{sale,rowMeta,preview}]
+// 이번 업로드 행들의 키 — 같은 파일 안의 다른 행이 먼저 반영됐다고 해서 "중복 의심"으로 잡지 않게 엔진에 넘김.
+// [별개 거래로 반영]으로 순번이 바뀐 행도 포함되게 업로드 시점에 고정하지 않고 현재 미리보기에서 매번 읽음
+// (아직 미리보기가 없는 행은 sale 자체의 키).
+function csSalesBatchKeys(exceptIdx=-1){return CS_SALES_PREVIEW.map((p,i)=>i===exceptIdx?'':(p.preview?p.preview.sourceKey:CsSalesEngine.sourceKey(p.sale))).filter(Boolean);}
 let CS_SALES_EXCLUDED=[];
 function csSalesPreviewAndShow(rows,excluded){
   csEngineState();
   const orders=csSalesOrders();
-  CS_SALES_PREVIEW=rows.map((r,idx)=>{
-    const sale=csSalesToSale(r);
-    return {sale,rowMeta:r,preview:CsSalesEngine.preview(sale,orders,S.salesLedger,S.salesAliases,csSalesPreviewOpts(idx))};
-  });
+  // 순번은 파일 전체 행을 본 뒤에야 매길 수 있어(같은 내용 n번째 행 = 순번 n) 행 단위 변환 후 한 번에 붙임.
+  const sales=CsSalesEngine.withContentOrdinals(rows.map(csSalesToSale));
+  CS_SALES_PREVIEW=sales.map((sale,i)=>({sale,rowMeta:rows[i],preview:null}));
+  CS_SALES_ROW_STATE={};   // 미리보기 옵션이 행 상태를 읽으므로, 이전 파일의 직접 지정·별개 거래 상태가 새 파일의 같은 번호 행에 섞이지 않게 먼저 비움
+  const batchKeys=csSalesBatchKeys();
+  CS_SALES_PREVIEW.forEach((pp,i)=>{pp.preview=CsSalesEngine.preview(pp.sale,orders,S.salesLedger,S.salesAliases,csSalesPreviewOpts(i,batchKeys));});
   CS_SALES_EXCLUDED=excluded||[];
   csSalesRowInit();   // 새로 올린 파일이므로 모든 행을 엔진의 기본 제안값으로 처음부터 채움
   // 일괄 사유 입력칸은 다이얼로그 본문(dlgSalesReviewBody) 밖에 있어 재렌더링돼도 안 지워짐 —
@@ -3234,10 +3241,27 @@ function csSalesProposalAlloc(preview){return (preview.proposal||[]).map(a=>({or
 // 행별 직접 지정(manualOrderIds)은 엔진 미리보기 옵션으로 넘겨야 후보로 잡힘 — 미리보기를 다시
 // 계산하는 곳(별칭 승인·빠른 매칭·반영 후·직접 지정)이 여럿이라 한 함수로 모음. 한 곳이라도
 // 옵션을 빼먹으면 직접 지정한 후보가 재계산 순간 사라져 반영 때 "잘못된 배분 대상"으로 실패함.
-function csSalesPreviewOpts(idx){const st=CS_SALES_ROW_STATE[idx];return {packKgOf:csPackKgOf,...(st&&st.manualOrderIds&&st.manualOrderIds.length?{manualOrderIds:st.manualOrderIds}:{})};}
+function csSalesPreviewOpts(idx,batchKeys=csSalesBatchKeys()){const st=CS_SALES_ROW_STATE[idx];return {packKgOf:csPackKgOf,batchKeys,manualOrderIds:st&&st.manualOrderIds&&st.manualOrderIds.length?st.manualOrderIds:[],separateSale:Boolean(st&&st.separateSale)};}
+// 내용 기준으로 "기존 반영"이 된 행을 담당자가 별개 거래(같은 날 같은 수량을 두 번 매각, 파일이 따로 옴)로
+// 선언 — 엔진이 다음 순번을 붙여 새 건으로 다시 계산하고, 검토 사유를 요구함. 반영이 성공하면
+// csSalesResetRowState가 이 플래그를 지워(유지하면 다시 "또 다른 새 건"으로 계산돼 재반영될 수 있음 —
+// 코드리뷰로 발견) 그 행은 "기존 반영"으로 돌아감.
+function csSalesSetSeparate(idx){
+  const st=CS_SALES_ROW_STATE[idx],pp=CS_SALES_PREVIEW[idx];
+  // 새 순번은 여기서 한 번만 확정해 sale에 박아 둠 — 미리보기를 다시 그릴 때마다(별칭 승인·빠른 매칭·
+  // 반영 후) 다시 계산하면 그때그때 batchKeys에 자기 키가 섞여 순번이 흔들리고, 화면과 이력이
+  // 어긋남(코드리뷰로 발견). 다른 행이 이미 쓰는 순번은 제외.
+  pp.sale={...pp.sale,contentOrdinal:CsSalesEngine.nextFreeOrdinal(pp.sale,S.salesLedger,csSalesBatchKeys(idx))};
+  st.separateSale=true;
+  csSalesRecomputeRow(idx);
+  const alloc=csSalesProposalAlloc(CS_SALES_PREVIEW[idx].preview);
+  st.alloc=alloc.length?alloc:[{orderId:'',baseQty:''}];st.include=false;st.userEdited=true;   // 검토 사유·확인을 쓴 뒤 직접 체크(다른 채움 경로와 같은 기준)
+  csSalesRerenderRow(idx);
+}
 function csSalesRecomputePreviews(){
   const orders=csSalesOrders();
-  CS_SALES_PREVIEW.forEach((pp,idx)=>{pp.preview=CsSalesEngine.preview(pp.sale,orders,S.salesLedger,S.salesAliases,csSalesPreviewOpts(idx));});
+  const batchKeys=csSalesBatchKeys();   // 행마다 다시 만들지 않고 한 번만(행 수 제곱 비용 방지)
+  CS_SALES_PREVIEW.forEach((pp,idx)=>{pp.preview=CsSalesEngine.preview(pp.sale,orders,S.salesLedger,S.salesAliases,csSalesPreviewOpts(idx,batchKeys));});
 }
 function csSalesRecomputeRow(idx){const pp=CS_SALES_PREVIEW[idx];pp.preview=CsSalesEngine.preview(pp.sale,csSalesOrders(),S.salesLedger,S.salesAliases,csSalesPreviewOpts(idx));}
 function csSalesResetRowState(idx){
@@ -3252,10 +3276,9 @@ function csSalesResetRowState(idx){
   CS_SALES_ROW_STATE[idx]={alloc:alloc.length?alloc:[{orderId:'',baseQty:''}],
     include:p.preview.status==='READY'&&alloc.length>0,
     reviewReason:'',reviewConfirmed:false,completeToo:false,userEdited:false,
-    manualOrderIds:keep.manualOrderIds||[],showManual:false,...(keep.manualLearn!=null?{manualLearn:keep.manualLearn}:{})};
+    manualOrderIds:keep.manualOrderIds||[],showManual:false,separateSale:Boolean(keep.separateSale),...(keep.manualLearn!=null?{manualLearn:keep.manualLearn}:{})};
 }
-function csSalesRowInit(){
-  CS_SALES_ROW_STATE={};
+function csSalesRowInit(){   // 호출 전 CS_SALES_ROW_STATE는 csSalesPreviewAndShow가 비워 둠
   CS_SALES_PREVIEW.forEach((p,idx)=>{
     csSalesResetRowState(idx);
   });
@@ -3294,14 +3317,15 @@ function csSalesRenderRow(p,idx){
   // 업체·품목은 맞는데 잔량·날짜·단위 때문에 후보에서 빠진 건이 있으면 그 이유를 같이 보여줌 —
   // "발주가 있는데 왜 대응 없음으로 뜨지?"를 화면에서 바로 알 수 있게(엔진 rejected 참고).
   const rejected=[...new Set((prev.rejected||[]).map(r=>r.reason))];
-  // 전표번호 없는 파일은 모든 행에 "파일행 식별만 가능" 안내가 붙어, 예전처럼 안내가 없을 때만
-  // (||) "대응 없음"을 보여주면 실제로는 한 번도 안 보였음 — 항상 덧붙임.
+  // 엔진 안내(issues)가 있든 없든 "대응 없음"은 항상 덧붙임 — 예전에 안내가 있을 때 "대응 없음"이
+  // 가려지는 문제가 있었음.
   const badgeParts=[...prev.issues,...issues];
   if(prev.status==='NO_CANDIDATE')badgeParts.push('대응하는 발주·직접출고 없음'+(rejected.length?` — 제외된 사급 건: ${rejected.join(' · ')}`:''));
   const badgeTxt=badgeParts.join(' · ');
   const manualUi=(st.showManual||prev.status==='NO_CANDIDATE')&&prev.status!=='ALREADY_LINKED'
     ?`<div class="row" style="gap:4px;margin-top:4px;align-items:center"><select onchange="csSalesManualPick(${idx},this.value)" style="max-width:260px"><option value="">직접 지정 — 사급 목록에서 대응 건 고르기…</option>${csSalesManualOptions(prev)}</select><label style="font-size:12px" title="이 매각 표기와 고른 사급 건의 업체·품목 표기를 별칭으로 저장해 다음 파일부터 자동 인식"><input type="checkbox" ${st.manualLearn!==false?'checked':''} onchange="csSalesSetManualLearn(${idx},this.checked)"> 별칭 저장</label></div>`
-    :(prev.status!=='ALREADY_LINKED'?` <button class="btn sm ghost" onclick="csSalesToggleManual(${idx})" title="후보에 없는 다른 사급 건을 직접 골라 연결">직접 지정…</button>`:'');
+    :(prev.status!=='ALREADY_LINKED'?` <button class="btn sm ghost" onclick="csSalesToggleManual(${idx})" title="후보에 없는 다른 사급 건을 직접 골라 연결">직접 지정…</button>`
+    :(prev.linkedByContent&&!st.separateSale?` <button class="btn sm ghost" onclick="csSalesSetSeparate(${idx})" title="업체·품목·수량·매각일이 같은 기존 반영이 있지만 이 행은 별개 거래임 — 새 건으로 다시 계산(검토 사유 필요)">별개 거래로 반영…</button>`:''));
   return `<tr>
     <td><input type="checkbox" ${st.include?'checked':''} onchange="csSalesSetInclude(${idx},this.checked)"></td>
     <td><b>${esc(sale.vendor)}</b>${sale.vendorRegNo?`<div class="tag">사업자 ${esc(sale.vendorRegNo)}</div>`:''}</td>
@@ -3309,7 +3333,7 @@ function csSalesRenderRow(p,idx){
     <td>${[...new Set(prev.candidates.map(c=>c.action))].join('/')||'-'}</td>
     <td>${esc(sale.date||'')}</td>
     <td class="num">${fmtN(sale.qty)}${sale.unit?' '+esc(sale.unit):' <span class="tag">단위?</span>'}${prev.salePackKg?`<div class="tag" title="기준정보 포장 kg로 환산해 비교함">×${fmtN(prev.salePackKg)}kg = ${fmtN(sale.qty*prev.salePackKg)}kg</div>`:''}</td>
-    <td><span class="chip ${csSalesStatusClass(prev.status)}">${csSalesStatusLabel(prev.status)}</span></td>
+    <td><span class="chip ${csSalesStatusClass(prev.status)}">${csSalesStatusLabel(prev.status)}</span>${CsSalesEngine.keyKind(prev.sourceKey)==='content'?'<div class="tag" title="전표번호·행번호가 없어 업체·품목·수량·매각일(+같은 내용 순번)로 식별한 행">내용 기준</div>':''}</td>
     <td style="font-size:12px;max-width:220px">${esc(reasons.join(' · '))}${badgeTxt?`<div style="color:var(--amber)">${esc(badgeTxt)}</div>`:''}</td>
     <td>${allocRows}<button class="btn sm ghost" onclick="csSalesAddAlloc(${idx})">+ 배분 추가</button>${manualUi}</td>
     <td>${needsReview?`<input placeholder="검토 사유" style="width:120px" onchange="csSalesSetReason(${idx},this.value)" value="${esc(st.reviewReason)}"><br><label style="font-size:12px"><input type="checkbox" ${st.reviewConfirmed?'checked':''} onchange="csSalesSetConfirmed(${idx},this.checked)"> 검토 확인</label>`:'<span class="tag">불필요</span>'}${st.lastError?`<div style="color:var(--red,#c00);font-size:11px">✕ ${esc(st.lastError)}</div>`:''}</td>
@@ -3334,8 +3358,8 @@ function csSalesSetAllocQty(idx,ai,v){CS_SALES_ROW_STATE[idx].alloc[ai].baseQty=
 function csSalesSetAllocSaleQty(idx,ai,v){CS_SALES_ROW_STATE[idx].alloc[ai].saleQty=v===''?'':(+v||0);CS_SALES_ROW_STATE[idx].userEdited=true;csSalesClearLastError(idx);csSalesRerenderRow(idx);}
 function csSalesAddAlloc(idx){CS_SALES_ROW_STATE[idx].alloc.push({orderId:'',baseQty:''});CS_SALES_ROW_STATE[idx].userEdited=true;csSalesClearLastError(idx);csSalesRerenderRow(idx);}
 function csSalesRemoveAlloc(idx,ai){CS_SALES_ROW_STATE[idx].alloc.splice(ai,1);if(!CS_SALES_ROW_STATE[idx].alloc.length)CS_SALES_ROW_STATE[idx].alloc.push({orderId:'',baseQty:''});CS_SALES_ROW_STATE[idx].userEdited=true;csSalesClearLastError(idx);csSalesRerenderRow(idx);}
-// 전표번호가 없는 파일은 행마다 검토 사유·확인이 필수라(중복 반영·오연결 방지용 안전장치 —
-// 임의로 없앨 수 없음), 선택한 행이 많으면 매 행 똑같은 사유를 타이핑해야 해 번거로움. 한 번만
+// 검토가 필요한 행(별칭 최초 확인, 수량 차이, 중복 의심, 완료 후 오래된 건 등)은 행마다 검토
+// 사유·확인이 필수라, 선택한 행이 많으면 매 행 똑같은 사유를 타이핑해야 해 번거로움. 한 번만
 // 써서 지금 체크된(반영 대상) 행 전체에 그대로 채우는 지름길만 제공 — "검토를 안 해도 되게"
 // 만드는 게 아니라 "직접 쓴 사유를 반복 타이핑하지 않게" 해주는 것뿐이며, 여전히 사람이 사유를
 // 직접 쓰고 반영은 [선택 항목 반영]에서 행별로 다시 검증됨.
@@ -3424,6 +3448,9 @@ function csSalesQuickApply(){
     // 안내 건수에서도 빠짐(코드리뷰로 발견). 제안 자체는 참고용으로 남겨 둠.
     const deselect=()=>{CS_SALES_ROW_STATE[idx]={...base,include:false};};
     if(prev.hardBlocked.length){deselect();return;}
+    // duplicateSuspect: 같은 매각일·업체·품목의 기존 반영이 있는데 수량만 다른 행 — 재발행·정정
+    // 파일일 가능성이 있어 자동으로 검토 확인을 채우지 않고 사람이 직접 확인·지정하게 남김.
+    if(prev.duplicateSuspect){deselect();return;}
     // staleDone: 완료 후 오래된 건은 이 원장이 생기기 전에 이미 매각된 발주일 수 있어(잔량이 허수)
     // 자동 배분에서 제외 — 후보 목록엔 남아 있어 사람이 직접 고를 수는 있음.
     // crossFamily(kg↔L): 수량이 매각과 같은 척도가 아니라 자동 배분 대상이 아님 — 후보 목록엔 남아 직접 지정 가능.
@@ -3627,10 +3654,12 @@ async function csSalesApplySelected(){
     if(sb&&sbOK){
       try{
         const{data:freshRaw,error}=await sb.rpc('get_board',{p_id:SB_BOARD,p_passcode:sbPass});
+        // sbNormalize가 서버 원장에도 내용 순번 보정을 적용하므로 화면과 같은 기준으로 commit 검증됨.
         if(!error&&freshRaw){const fn=sbNormalize(freshRaw);if(fn){baseCons=fn.cons;baseLedger=fn.salesLedger;}}
       }catch(e){/* 네트워크 실패 — 마지막으로 동기화된 로컬 값으로 계속 진행(완전 차단하지 않음) */}
     }
     const baseById=new Map(baseCons.map(c=>[String(c.id),c]));
+    const batchKeys=csSalesBatchKeys();
     let ledger=baseLedger.slice();   // 이번 반영 배치 안에서 앞 행의 배분을 다음 행 검증에 즉시 반영(중복 소진 방지)
     const results=[];   // {idx, ok, message}
     selIdx.forEach(idx=>{
@@ -3654,7 +3683,9 @@ async function csSalesApplySelected(){
           expectedSourceSnapshot:p.preview.sourceSnapshot,
           expectedOrders,
           reviewConfirmed:st.reviewConfirmed,reviewReason:st.reviewReason,
-          manualOrderIds:st.manualOrderIds||[],packKgOf:csPackKgOf
+          manualOrderIds:st.manualOrderIds||[],packKgOf:csPackKgOf,
+          batchKeys,
+          separateSale:Boolean(st.separateSale)
         });
       }catch(err){results.push({idx,ok:false,message:csSalesErrMsg(err.message)});return;}
       ledger=newLedger;
@@ -3700,6 +3731,8 @@ async function csSalesApplySelected(){
     // lastError로 옆에 보여줌 — 예전엔 reviewReason 칸 자체를 에러 문구로 덮어써서, "검토 확인"
     // 체크만 빠뜨려 실패한 경우 애써 입력한 사유가 지워지고 매번 다시 타이핑해야 했음(실사용에서
     // "반영이 계속 실패한다"는 문의로 확인).
+    // 별개 거래 플래그는 재계산 전에 지움 — 남겨 두면 방금 반영한 행이 "또 다른 새 건"으로 계산됨(코드리뷰로 발견).
+    results.forEach(r=>{if(r.ok)CS_SALES_ROW_STATE[r.idx].separateSale=false;});
     csSalesRecomputePreviews();
     results.forEach(r=>{
       if(r.ok)csSalesResetRowState(r.idx);
@@ -3710,7 +3743,7 @@ async function csSalesApplySelected(){
 }
 function csSalesErrMsg(m){
   const map={INVALID:'수량이 올바르지 않음(반품/취소는 별도 정정 필요)',SOURCE_CHANGED:'매각 원본이 바뀜 — 미리보기를 다시 여세요',
-    ALREADY_LINKED:'이미 반영된 전표행입니다',NO_CANDIDATE:'대응하는 발주·직접출고 후보 없음'};
+    ALREADY_LINKED:'이미 반영된 매각 행입니다(반영 이력 참고)',NO_CANDIDATE:'대응하는 발주·직접출고 후보 없음'};
   return map[m]||m;
 }
 
@@ -3742,9 +3775,10 @@ function csSalesShowLedger(){
   csEngineState();
   const active=S.salesLedger.filter(e=>!e.reversedAt).slice().reverse();
   const rows=active.map(e=>{
-    const src=(()=>{try{return JSON.parse(e.sourceKey);}catch(_){return [];}})();
+    const kind=CsSalesEngine.keyKind(e.sourceKey);
+    const kindLabel={transaction:'전표행',content:'내용 기준','file-row':'파일행(구)'}[kind]||kind;
     const allocTxt=e.allocations.map(a=>{const o=S.cons.find(c=>String(c.id)===String(a.orderId));return `${o?esc(o.item):a.orderId} ${fmtN(a.baseQty)}${a.saleQty!=null?` (매각 ${fmtN(a.saleQty)})`:''}`;}).join(', ');
-    return `<tr><td class="tag">${esc(src[0]||'')}</td><td>${esc(e.actor)}</td><td>${esc(e.createdAt)}</td><td>${allocTxt}</td><td>${esc(e.reviewReason||'')}</td>
+    return `<tr><td class="tag">${esc(kindLabel)}</td><td>${esc(e.actor)}</td><td>${esc(e.createdAt)}</td><td>${allocTxt}</td><td>${esc(e.reviewReason||'')}</td>
       <td><button class="btn sm ghost" style="color:var(--red)" onclick="csSalesReverse('${e.id}')">취소</button></td></tr>`;
   }).join('');
   document.getElementById('dlgSalesLedgerBody').innerHTML=`

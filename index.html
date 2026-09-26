@@ -2389,13 +2389,14 @@ function renderQm(){
   renderQmLast();
 }
 /* 방금 등록한 건 — 버튼 한 번에 바로 등록되는 속도는 유지하고, 잘못 누른 건은 여기서 바로 되돌리거나 고침 */
-let qmLast=null;
+/* 방금 등록한 이동 요청 — 전화 모드(qm)·지게차 직접 등록(drv)이 같은 되돌리기 로직을 씀 */
+const lastMove={qm:null,drv:null};
+function undoLastMove(k){const id=lastMove[k];if(!id)return;lastMove[k]=null;undoCreate('moves',[id],'방금 등록한 이동 요청을 취소했습니다 (휴지통에 보관)')();}
 function renderQmLast(){
   const el=document.getElementById('qmLast');if(!el)return;
-  const m=qmLast&&S.moves.find(x=>x.id===qmLast.id);
-  el.innerHTML=m?`<span>방금 등록: <span class="dept d-${esc(m.dept)}">${esc(m.dept)}</span> <b>${esc(m.item)}</b> ${esc(qtyTxt(m.qty,m.unit))} (${fmtK(m.date)})</span><button class="btn sm" onclick="qmUndoLast()" aria-label="방금 등록한 ${esc(m.item)} ${esc(qtyTxt(m.qty,m.unit))} 등록 취소">되돌리기</button><button class="btn sm ghost" onclick="editMove(${m.id})" aria-label="방금 등록한 ${esc(m.item)} 수정">수정</button>`:'';
+  const m=lastMove.qm&&S.moves.find(x=>x.id===lastMove.qm);
+  el.innerHTML=m?`<span>방금 등록: <span class="dept d-${esc(m.dept)}">${esc(m.dept)}</span> <b>${esc(m.item)}</b> ${esc(qtyTxt(m.qty,m.unit))} (${fmtK(m.date)})</span><button class="btn sm" onclick="undoLastMove('qm')" aria-label="방금 등록한 ${esc(m.item)} ${esc(qtyTxt(m.qty,m.unit))} 등록 취소">되돌리기</button><button class="btn sm ghost" onclick="editMove(${m.id})" aria-label="방금 등록한 ${esc(m.item)} 수정">수정</button>`:'';
 }
-function qmUndoLast(){if(!qmLast)return;const id=qmLast.id;qmLast=null;undoCreate('moves',[id],'방금 등록한 이동 요청을 취소했습니다 (휴지통에 보관)')();}
 function qmPick(it){qmItem=it;renderQm();document.getElementById('qmCustom')?.focus();}
 /* 전화 모드에서 바로 메모 — 신규 원료 추가 요청·특이사항 등 품목 탭으로는 못 남기는 내용을
    현재 고른 부서의 특이사항(부서별 메모)에 이어붙임. 기존 내용을 덮어쓰지 않고 ", "로 이어붙여
@@ -2418,9 +2419,9 @@ function qmAdd(n){
   S.moves.push({id,date:cur,dept:qmDept,item:qmItem,qty:n,unit:document.getElementById('qmUnit').value,loc:ov.loc||(m?m.loc.replace('(경질창고)',''):''),note:'',done:false});
   document.getElementById('qmCustom').value='';
   const u=document.getElementById('qmUnit').value,cv=convInfo(qmItem,n,u);
-  qmLast={id};
+  lastMove.qm=id;
   saveDB();refreshAll();
-  showUndo(`${qmDept} 라인 ← ${qmItem} ${fmtN(n)} ${u}${cv?' ('+cv+')':''} 등록됨`,()=>qmUndoLast());
+  showUndo(`${qmDept} 라인 ← ${qmItem} ${fmtN(n)} ${u}${cv?' ('+cv+')':''} 등록됨`,()=>undoLastMove('qm'));
   document.getElementById('qmCustom')?.focus();   // 같은 품목 연속 등록 대비 — 수량 입력창에 커서 유지
 }
 
@@ -2906,6 +2907,7 @@ function renderDraft(){
 let csCommitted=false;
 function renderCsSummary(){
   const el=document.getElementById('csSum');if(!el)return;
+  if(draft.length)csCommitted=false;   // 새 발주서를 인식하기 시작하면 이전 등록 완료 표시는 끝
   const s=UiHelpers.consDraftSummary(draft);
   const btn=document.getElementById('csCommitBtn');
   const steps=document.querySelectorAll('#csSteps span');
@@ -4356,7 +4358,8 @@ function cellSaved(sel,msg,undo){
   showUndo(`${msg} — ${sbOK?'공유 저장됨':'이 기기에만 저장됨(공유 연결 시 반영)'}`,undo);
 }
 /* 입력 중(아직 저장 전) 표시와 Esc 취소 — 기준정보 탭 전체에 위임 */
-document.getElementById('tab-master').addEventListener('input',e=>{const t=e.target;if(t.matches('td input:not([type=checkbox]),td select'))t.classList.toggle('dirty',t.value!==t.defaultValue);});
+// select는 defaultValue가 없고 바꾸는 즉시 저장되므로 입력칸만 대상
+document.getElementById('tab-master').addEventListener('input',e=>{const t=e.target;if(t.matches('td input:not([type=checkbox])'))t.classList.toggle('dirty',t.value!==t.defaultValue);});
 document.getElementById('tab-master').addEventListener('keydown',e=>{const t=e.target;if(e.key==='Escape'&&t.matches('td input.dirty')){t.value=t.defaultValue;t.classList.remove('dirty');toast('입력을 취소했습니다 (저장 안 됨)');}});
 function addRopRow(){
   const name=(prompt('추가할 품목명 — 재고파일·발주 등록에서 쓰는 이름과 정확히 같아야 발주점이 제대로 매칭됩니다')||'').trim();
@@ -4868,7 +4871,7 @@ function renderDriver(){
     <div class="quick" role="group" aria-label="품목 선택">${DRV_ADD.map((d,i)=>`<button style="font-size:15px;padding:10px 14px;${drvSel===d.item?'background:var(--acc);color:#fff;border-color:var(--acc)':''}" aria-pressed="${drvSel===d.item}" onclick="drvPick(${i})">${d.item}</button>`).join('')}</div>
     ${(()=>{const p=DRV_ADD.find(d=>d.item===drvSel);return p?`<div class="qm-summary">등록 내용: <span class="dept d-${esc(p.dept)}">${esc(p.dept)}</span> 라인으로 <b>${esc(p.item)}</b> · 출고창고 ${esc(p.loc||locOf(p.item)||'확인')} · 요청일 ${fmtK(cur)}<br><span class="tag">아래 톤 버튼을 누르면 바로 등록됩니다</span></div>`:'<div class="tag" style="margin-top:6px">품목을 먼저 누르세요</div>';})()}
     <div class="quick" style="margin-top:8px" role="group" aria-label="톤수 — 누르면 바로 등록">${[1,2,3,4,5].map(n2=>`<button style="font-size:16px;font-weight:700;min-width:60px;padding:10px 0" ${drvSel?'':'disabled'} aria-label="${esc(drvSel||'품목')} ${n2}톤(${fmtN(n2*1000)}kg) 바로 등록" onclick="drvAdd(${n2*1000})">${n2}t</button>`).join('')}</div>
-    ${(()=>{const m=drvLast&&S.moves.find(x=>x.id===drvLast);return m?`<div class="qm-last">방금 등록: <b>${esc(m.item)}</b> ${esc(qtyTxt(m.qty,m.unit))} → ${esc(m.dept)} 라인 <button class="btn sm" onclick="drvUndoLast()" aria-label="방금 등록한 ${esc(m.item)} 등록 취소">되돌리기</button></div>`:'';})()}
+    ${(()=>{const m=lastMove.drv&&S.moves.find(x=>x.id===lastMove.drv);return m?`<div class="qm-last">방금 등록: <b>${esc(m.item)}</b> ${esc(qtyTxt(m.qty,m.unit))} → ${esc(m.dept)} 라인 <button class="btn sm" onclick="undoLastMove('drv')" aria-label="방금 등록한 ${esc(m.item)} 등록 취소">되돌리기</button></div>`:'';})()}
     <form class="row" style="margin-top:10px" onsubmit="event.preventDefault();drvAddCustom()" onkeydown="imeSafeEnter(event)">
       <div><label for="drvDept">부서(도착 라인)</label><select id="drvDept" style="font-size:15px"><option>창호</option><option>경질</option><option>타일</option><option>DBP</option><option>기타</option></select></div>
       <div style="flex:1;min-width:130px"><label for="drvItem2">다른 품목 직접 입력</label><input id="drvItem2" list="itemList" placeholder="비슷한 품목 자동완성" style="font-size:15px"></div>
@@ -4936,11 +4939,9 @@ function drvAdd(kg){
   const loc=preset.loc||locOf(drvSel);
   const id=S.seq++;
   S.moves.push({id,date:cur,dept:preset.dept,item:drvSel,qty:kg,unit:'kg',loc,note:'기사 등록',addedBy:who,done:false});
-  drvLast=id;
-  saveDB();refreshAll();showUndo(`${preset.dept} 라인 ← ${drvSel} ${fmtN(kg)}kg 등록됨 (${who})`,()=>drvUndoLast());
+  lastMove.drv=id;
+  saveDB();refreshAll();showUndo(`${preset.dept} 라인 ← ${drvSel} ${fmtN(kg)}kg 등록됨 (${who})`,()=>undoLastMove('drv'));
 }
-let drvLast=null;
-function drvUndoLast(){if(!drvLast)return;const id=drvLast;drvLast=null;undoCreate('moves',[id],'방금 등록한 이동 요청을 취소했습니다')();}
 function drvAddCustom(){
   const it=document.getElementById('drvItem2').value.trim(),q=+document.getElementById('drvQty2').value,d=document.getElementById('drvDept').value;
   if(!it||!q){toast('품목과 kg을 입력하세요');return;}
@@ -4953,8 +4954,8 @@ function drvAddCustomDo(it,q,d){
   const isNew=!m&&ensureMaterial(it,{});   // 비슷한 기존 품목이 있으면 새로 만들지 않음(오타·줄임말 방지)
   const id=S.seq++;
   S.moves.push({id,date:cur,dept:d,item:it,qty:q,unit:'kg',loc:qmLocOverride(it)||(m?m.loc.replace('(경질창고)',''):''),note:'기사 등록',addedBy:who,done:false});
-  drvLast=id;
-  saveDB();refreshAll();showUndo(`${d} 라인 ← ${it} ${fmtN(q)}kg 등록됨 (${who})${isNew?' · 기준정보에 신규 등록':''}`,()=>drvUndoLast());
+  lastMove.drv=id;
+  saveDB();refreshAll();showUndo(`${d} 라인 ← ${it} ${fmtN(q)}kg 등록됨 (${who})${isNew?' · 기준정보에 신규 등록':''}`,()=>undoLastMove('drv'));
 }
 
 /* ═════════ 수정 다이얼로그 ═════════ */
@@ -5073,12 +5074,11 @@ function drvCalCellHTML(cell){
   if(ins.length)chips.push(`<span class="chip c-ord">입고${ins.length}</span>`);
   if(mvs.length)chips.push(`<span class="chip c-mut">이동${mvs.length}</span>`);
   if(outs.length)chips.push(`<span class="chip c-wait">출고${outs.length}</span>`);
-  return`<button type="button" class="calCell${cell.inMonth?'':' out'}${cell.date===realToday()?' today':''}${cell.date===cur?' sel':''}" onclick="drvCalPick('${cell.date}')" aria-pressed="${cell.date===cur}" aria-label="${esc(calDateName(cell.date))} 작업 보기 · ${esc(UiHelpers.calDayLabel('',ins.length,mvs.length,outs.length,false).replace(/^ · /,''))}">
+  return`<button type="button" class="calCell${cell.inMonth?'':' out'}${cell.date===realToday()?' today':''}${cell.date===cur?' sel':''}" onclick="drvCalPick('${cell.date}')" aria-pressed="${cell.date===cur}" aria-label="${esc(fmtK(cell.date))} 작업 보기 · ${esc(UiHelpers.calDayLabel('',ins.length,mvs.length,outs.length,false).replace(/^ · /,''))}">
     <span class="calDayNum" aria-hidden="true">${+cell.date.slice(8,10)}</span>
     <span class="calChips" aria-hidden="true">${chips.join('')}</span>
   </button>`;
 }
-const calDateName=d=>`${+d.slice(5,7)}월 ${+d.slice(8,10)}일(${KDAY[new Date(d+'T00:00:00').getDay()]})`;
 let drvCalOpen=true;
 function drvCalendarHTML(){
   const ym=(drvCalDate||cur).slice(0,7);
@@ -5132,7 +5132,7 @@ function calCellHTML(cell){
   if(outs.length)chips.push(`<span class="chip c-wait">출고${outs.length}</span>`);
   const names=[...ins.map(o=>o.item),...mvs.map(m=>m.item),...outs.map(c=>c.item)];
   const preview=names.slice(0,2).map(esc).join(', ');
-  return`<button type="button" class="calCell${cell.inMonth?'':' out'}${cell.date===realToday()?' today':''}${calSelDay===cell.date?' sel':''}" onclick="calPickDay('${cell.date}')" aria-pressed="${calSelDay===cell.date}" aria-label="${esc(UiHelpers.calDayLabel(calDateName(cell.date),ins.length,mvs.length,outs.length,false))} — 상세 보기">
+  return`<button type="button" class="calCell${cell.inMonth?'':' out'}${cell.date===realToday()?' today':''}${calSelDay===cell.date?' sel':''}" onclick="calPickDay('${cell.date}')" aria-pressed="${calSelDay===cell.date}" aria-label="${esc(UiHelpers.calDayLabel(fmtK(cell.date),ins.length,mvs.length,outs.length,false))} — 상세 보기">
     <span class="calDayNum" aria-hidden="true">${+cell.date.slice(8,10)}</span>
     <span class="calChips" aria-hidden="true">${chips.join('')}</span>
     ${preview?`<span class="calPreview" aria-hidden="true">${preview}${totalN>2?' 외 '+(totalN-2):''}</span>`:''}
@@ -5712,8 +5712,15 @@ function enhanceTables(root){
     const wide=box.scrollWidth>box.clientWidth+2;
     box.classList.toggle('has-x',wide);
     let hint=box.previousElementSibling;
-    if(!hint||!hint.classList.contains('xhint')){hint=document.createElement('div');hint.className='xhint';hint.textContent='↔ 표가 화면보다 넓습니다 — 옆으로 밀어서 나머지 열 보기'+(mobile?' · 품목을 누르면 행 전체 보기':'');box.before(hint);}
+    if(!hint||!hint.classList.contains('xhint')){hint=document.createElement('div');hint.className='xhint';box.before(hint);}
     hint.classList.toggle('show',wide);
+    // 행 상세는 아래 조건(모바일·열 4개 이상·품목 칸에 입력칸 없음)일 때만 붙으므로 안내 문구도 그때만 — 화면 폭이 바뀌면 다시 계산
+    const ths0=t.tHead?[...t.tHead.rows[0].cells]:[];
+    const itemCol=ths0[0]&&ths0[0].querySelector('input[type=checkbox]')?1:0;
+    const sample=t.tBodies[0]&&t.tBodies[0].rows[0]&&t.tBodies[0].rows[0].cells[itemCol];
+    const detail=mobile&&ths0.length>3&&!!sample&&sample.colSpan<=1&&!sample.querySelector('input,select,textarea');
+    const txt='↔ 표가 화면보다 넓습니다 — 옆으로 밀어서 나머지 열 보기'+(detail?' · 품목을 누르면 행 전체 보기':'');
+    if(hint.textContent!==txt)hint.textContent=txt;
     if(!box.dataset.xh){box.dataset.xh='1';box.addEventListener('scroll',()=>box.classList.toggle('x-end',box.scrollLeft+box.clientWidth>=box.scrollWidth-2),{passive:true});}
     const ths=t.tHead?[...t.tHead.rows[0].cells]:[];if(!ths.length)return;
     const withSel=!!ths[0].querySelector('input[type=checkbox]');
@@ -5750,8 +5757,13 @@ function openRowDetail(td){
 document.addEventListener('click',e=>{
   const td=e.target.closest('td.stk-item[role=button]');
   if(td&&mqMobile.matches&&!e.target.closest('button,a,input,select,textarea,label')){openRowDetail(td);return;}
-  // 행 상세 안의 처리 버튼을 누르면 결과는 표·되돌리기 안내에 반영되므로 상세 창은 닫음(옛 내용이 남지 않게)
-  if(e.target.closest('#dlgRowBody button,#dlgRowBody input'))setTimeout(()=>document.getElementById('dlgRow').close(),0);
+  // 행 상세 안의 처리 버튼을 누르면 결과는 표·되돌리기 안내에 반영되므로 상세 창은 닫음(옛 내용이 남지 않게).
+  // 단 삭제(두 번 탭 확인)는 첫 탭에서 닫으면 확인을 끝낼 수 없으므로, 확인 대기 중이면 창을 유지하고 문구만 바꿈.
+  const ctl=e.target.closest('#dlgRowBody button,#dlgRowBody input');
+  if(ctl)setTimeout(()=>{
+    if(ctl.tagName==='BUTTON'&&/^del/.test(ctl.getAttribute('onclick')||'')&&_arm){ctl.textContent='정말 삭제?';return;}
+    document.getElementById('dlgRow').close();
+  },0);
 });
 /* role=button으로 만든 요소(요약 타일·정렬 머리글·행 상세 칸)는 Enter/Space로도 누를 수 있게 */
 document.addEventListener('keydown',e=>{
@@ -5765,7 +5777,12 @@ function enhanceUI(){
 }
 let enhanceQueued=false;
 function queueEnhance(){if(enhanceQueued)return;enhanceQueued=true;setTimeout(()=>{enhanceQueued=false;enhanceObs.disconnect();try{enhanceUI();}finally{enhanceObs.observe(document.body,{childList:true,subtree:true});}},16);}   // rAF는 백그라운드 탭에서 멈춰서 setTimeout 사용
-const enhanceObs=new MutationObserver(queueEnhance);
+// 토스트·되돌리기 안내·저장 상태 문구처럼 표와 무관한 곳의 변경(저장할 때마다 생김)은 무시 — 매번 전체 표 레이아웃을 다시 재지 않게
+const ENHANCE_IGNORE='#toast,#undoBar,#saveBox,#connBanner';
+const enhanceObs=new MutationObserver(recs=>{
+  if(recs.every(r=>{const el=r.target.nodeType===1?r.target:r.target.parentElement;return el&&el.closest(ENHANCE_IGNORE);}))return;
+  queueEnhance();
+});
 enhanceObs.observe(document.body,{childList:true,subtree:true});
 window.addEventListener('resize',queueEnhance);
 mqMobile.addEventListener?.('change',queueEnhance);

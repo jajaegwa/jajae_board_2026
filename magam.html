@@ -17,6 +17,7 @@
 <!-- 이번달 마감대상 업로드(더존 엑셀 리포트 파싱)용 — 로드 실패 시 업로드 버튼에서 안내. 이미 정확한
      버전(0.18.5)으로 고정돼 있어 그대로 둠. -->
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script src="ui-helpers.js"></script>
 <style>
 /* jajae-board-erp 디자인 시스템(DESIGN.md) 준수 — 밝은 크롬, 시스템 한글 폰트, 2px 모서리,
    전체 셀 테두리 그리드, 아웃라인 칩. 다크 크롬은 토스트에만 허용. */
@@ -125,7 +126,7 @@ td input[type=date],td select{background:var(--card);border:1px solid var(--line
 .hbar .tr{flex:1;height:11px;background:var(--line2);border:1px solid var(--line);border-radius:2px;overflow:hidden}
 .hbar .tr i{display:block;height:100%;background:var(--amber)}
 .hbar .n{width:32px;font-size:11px;color:var(--mut)}
-dialog{border:1px solid var(--line);border-radius:3px;background:var(--card);color:var(--ink);padding:18px;min-width:340px;max-width:94vw;box-shadow:0 8px 24px rgba(0,0,0,.2)}
+dialog{margin:auto;border:1px solid var(--line);border-radius:3px;background:var(--card);color:var(--ink);padding:18px;min-width:min(340px,94vw);max-width:94vw;box-shadow:0 8px 24px rgba(0,0,0,.2)}
 dialog::backdrop{background:rgba(10,16,22,.4)}
 dialog h3{font-size:14px;margin-bottom:10px}
 dialog label{display:block;font-size:11px;font-weight:600;color:var(--mut);margin:7px 0 2px}
@@ -200,10 +201,31 @@ const SIDE_LB={sales:'사급(매각) 매출마감',purchase:'매입 마감'};
 const VIAS=['','이메일','카카오톡','팩스','전화','기타'];
 const today=new Date(),pad=n=>String(n).padStart(2,'0');
 const curDate=`${today.getFullYear()}-${pad(today.getMonth()+1)}-${pad(today.getDate())}`;
-/* 마감월 기본값 = 지난달. AR/AP 마감은 이번달 초에 지난달 것을 처리하는 작업이라
-   (예: 9월 초에 8월 마감) 기본을 이번달로 두면 매달 초마다 엉뚱한 달에 체크하게 됨 */
-const prevMonD=new Date(today.getFullYear(),today.getMonth()-1,1);
-let mon=`${prevMonD.getFullYear()}-${pad(prevMonD.getMonth()+1)}`;
+/* 마감월 기본값: 매월 20일부터 익월 19일까지는 "그 달"이 마감 대상.
+   (예: 9/20~10/19 → 9월, 10/20~11/19 → 10월) 자재과 마감은 20일경 시작해 다음 달 초·중순에
+   끝나는 작업이라, 단순히 "지난달"로 두면 20일 이후엔 한 달 전 것이 떠서 엉뚱한 달에 체크하게 됨 */
+const MON_START_DAY=20;
+const YM_RE=/^\d{4}-(0[1-9]|1[0-2])$/;
+function autoMon(d){
+  const base=new Date(d.getFullYear(),d.getMonth()-(d.getDate()<MON_START_DAY?1:0),1);
+  return `${base.getFullYear()}-${pad(base.getMonth()+1)}`;
+}
+/* 사용자가 상단에서 마감월을 직접 고르면 그 선택을 (이 브라우저에) 기억해 새로고침·재접속 후에도 유지.
+   고를 당시의 자동 기본월을 같이 저장해두고, 그 기본월이 바뀐 뒤(매월 20일 경과)에는 기억을 버리고 새 달로 자동 전환.
+   창을 며칠째 열어둔 채 고를 수도 있으니 페이지 로드 시각(today)이 아니라 고르는 시점의 날짜로 계산 */
+const MON_PICK_KEY='magamMonPick';
+function loadMon(){
+  const auto=autoMon(new Date());
+  try{
+    const v=JSON.parse(localStorage.getItem(MON_PICK_KEY));
+    if(v&&v.auto===auto&&YM_RE.test(v.mon||''))return v.mon;
+  }catch(e){}
+  return auto;
+}
+function rememberMon(m){
+  try{localStorage.setItem(MON_PICK_KEY,JSON.stringify({mon:m,auto:autoMon(new Date())}));}catch(e){}
+}
+let mon=loadMon();
 
 /* ===== 상태 ===== */
 function emptyState(){return{ver:1,vendors:{sales:[],purchase:[]},months:{}};}
@@ -859,13 +881,23 @@ function listHTML(side){
   <div class="tbl scroll frz"><table>
     <tr><th><input type="checkbox" class="ck" id="vSelAll_${side}" onchange="toggleAllVendorFromDom(this)"></th><th>업체명</th><th>유형·품목</th><th>${side==='sales'?'처리자':'처리자·구매팀'}</th><th>발주↔입고</th><th>보낸날짜</th><th>방식</th>${short.map((s,i)=>{const bulk=BULK_STEPS.has(STEPS[side][i]);return`<th style="text-align:center;border-top:2.5px solid var(--ink);${stepBorder(side,i)}${bulk?'cursor:pointer':''}"${bulk?` onclick="bulkCheckStep('${side}','${STEPS[side][i]}')" title="클릭하면 지금 보이는 업체 전체를 한 번에 체크합니다"`:''}>${s}${bulk?' ⚡':''}</th>`;}).join('')}<th>비고</th>${side==='purchase'?'<th title="금액 불일치 — 구매팀이 월말에 직접 마감 처리">구매팀행</th>':''}<th>진행률</th><th>상태</th><th></th></tr>
     ${rows.length?rows.map((v,idx)=>rowHTML(side,v,idx===rows.length-1)).join('')
-      :`<tr><td colspan="23" style="padding:14px;text-align:left;white-space:normal"><div class="mut" style="font-size:13px">
-        표시할 업체가 없습니다 — 저장이 안 된 게 아니라 <b>필터 때문에 안 보이는</b> 경우가 대부분입니다.
-        ${[sc.applyTgt?'마감대상만 보기':'',f.q?`검색 "${esc(f.q)}"`:'',f.st?(f.st==='done'?'완료만':'미완만'):'',f.who?`처리자 ${esc(f.who)}`:'',f.buyer?`구매팀 ${esc(f.buyer)}`:'',f.ty?`유형 ${esc(f.ty)}`:'',excluded.length?`이번달 제외 ${excluded.length}곳`:''].filter(Boolean).map(x=>`<span class="pill m">${x}</span>`).join(' ')||''}
-        </div><button class="btn sm" style="margin-top:8px" onclick="clearFilters('${side}')">필터 모두 해제</button></td></tr>`}
+      :emptyVendorsHTML(side,[sc.applyTgt?'마감대상만 보기':'',f.q?`검색 "${esc(f.q)}"`:'',f.st?(f.st==='done'?'완료만':'미완만'):'',f.who?`처리자 ${esc(f.who)}`:'',f.buyer?`구매팀 ${esc(f.buyer)}`:'',f.ty?`유형 ${esc(f.ty)}`:'',excluded.length?`이번달 제외 ${excluded.length}곳`:''].filter(Boolean))}
   </table></div>
   <div class="hint" style="margin-top:8px">업체명 클릭 → 연락처·미입고 상세. 발주↔입고는 자재과 작업판 데이터와 실시간 대사(사급=사급처 출고분, 매입=매입처 발주분). 체크박스로 여러 곳을 선택해 "선택 제외"하면 이번달 목록에서만 빠지고(완전 삭제 아님), 다음달엔 다시 보입니다.</div>
   </div>`;
+}
+/* 표가 비었을 때 — 업체가 아예 0개인 경우(목록을 먼저 불러와야 함)와, 업체는 있는데 필터에 걸려
+   안 보이는 경우를 구분해서 안내(예전엔 0/0개 업체에도 "필터 때문"이라고 안내했음). 판단은 ui-helpers.js emptyReason. */
+function emptyVendorsHTML(side,filters){
+  const total=S.vendors[side].length;
+  const why=(window.UiHelpers?UiHelpers.emptyReason(total,0,filters):(total?(filters.length?'filtered':'noMatch'):'noData'));
+  const pills=filters.map(x=>`<span class="pill m">${x}</span>`).join(' ');
+  const body=why==='noData'
+    ?`<b>등록된 ${SIDE_LB[side]} 업체가 없습니다(0개).</b> 필터 문제가 아니라 업체 목록이 비어 있는 상태입니다 — <b>데이터·설정</b> 탭에서 업체 목록(마감-시드.json)을 가져오거나, 위 [+ 업체 추가]로 등록하세요.`
+    :why==='filtered'
+      ?`업체 ${total}곳 중 지금 필터 조건에 맞는 곳이 없습니다 — 저장이 안 된 게 아니라 <b>아래 필터 때문에 안 보이는</b> 상태입니다.<div style="margin-top:6px">${pills}</div>`
+      :`업체 ${total}곳 중 이번 달 마감 범위에 해당하는 곳이 없습니다.${pills?`<div style="margin-top:6px">${pills}</div>`:''}`;
+  return`<tr><td colspan="23" style="padding:14px;text-align:left;white-space:normal"><div class="mut" style="font-size:13px" role="status">${body}</div>${why==='filtered'?`<button class="btn sm" style="margin-top:8px" onclick="clearFilters('${side}')">필터 모두 해제</button>`:(why==='noData'?`<button class="btn sm pri" style="margin-top:8px" onclick="setView('setup')">데이터·설정 열기</button>`:'')}</td></tr>`;
 }
 function rowHTML(side,v,isLast){
   const e=entryRO(side,v.id);
@@ -1077,7 +1109,7 @@ on conflict (id) do nothing;`;
     </div>
   </div>
   <div class="card"><h2>월 관리</h2>
-    <div class="hint">상단의 <b>마감월</b>을 바꾸면 해당 월 체크리스트로 전환됩니다. 새 달은 빈 체크리스트로 자동 시작되고, 지난 달 기록은 그대로 보존됩니다.<br>마감월 기본값은 <b>지난달</b>입니다(예: 9월엔 8월 마감이 기본으로 뜸) — 엉뚱한 달에 체크했다면 아래에서 옮길 수 있습니다.</div>
+    <div class="hint">상단의 <b>마감월</b>을 바꾸면 해당 월 체크리스트로 전환됩니다. 새 달은 빈 체크리스트로 자동 시작되고, 지난 달 기록은 그대로 보존됩니다.<br>마감월 기본값은 <b>매월 20일부터 다음 달 19일까지 그 달</b>입니다(예: 9/20~10/19엔 9월 마감이 기본으로 뜸). 직접 고른 달은 이 브라우저에서 새로고침 후에도 유지되다가 다음 20일이 되면 새 달로 자동 전환됩니다(다른 기기에는 적용되지 않음) — 엉뚱한 달에 체크했다면 아래에서 옮길 수 있습니다.</div>
     <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px">
       <button class="btn" onclick="moveMonthData()">월 데이터 이동…</button>
     </div>
@@ -1091,7 +1123,7 @@ function moveMonthData(){
   if(!/^\d{4}-\d{2}$/.test(from)||!S.months[from]){toast(`"${from}" 마감 데이터가 없습니다`);return;}
   const to=prompt(`"${from}" 데이터를 어느 달로 옮길까요? (YYYY-MM)`);
   if(to==null)return;
-  if(!/^\d{4}-\d{2}$/.test(to)){toast('YYYY-MM 형식으로 입력해주세요 (예: 2026-08)');return;}
+  if(!YM_RE.test(to)){toast('YYYY-MM 형식으로 입력해주세요 (예: 2026-08)');return;}
   if(to===from){toast('같은 달입니다');return;}
   const hasData=m=>m&&(Object.keys(m.sales||{}).length||Object.keys(m.purchase||{}).length);
   if(hasData(S.months[to])){
@@ -1099,7 +1131,7 @@ function moveMonthData(){
   }else if(!confirm(`"${from}" 마감 데이터를 "${to}"로 옮길까요? (${from}은 비워집니다)`))return;
   S.months[to]=S.months[from];
   delete S.months[from];
-  if(mon===from)mon=to;
+  if(mon===from){mon=to;rememberMon(mon);}
   document.getElementById('monPick').value=mon;
   saveDB();refreshAll();
   toast(`${from} → ${to}로 옮겼습니다`);
@@ -1153,7 +1185,7 @@ function resetSide(side){
 let toastT=null;
 function toast(m){const t=document.getElementById('toast');t.textContent=m;t.classList.add('on');clearTimeout(toastT);toastT=setTimeout(()=>t.classList.remove('on'),2600);}
 document.getElementById('monPick').value=mon;
-document.getElementById('monPick').onchange=e=>{if(e.target.value){mon=e.target.value;refreshAll();}};
+document.getElementById('monPick').onchange=e=>{if(e.target.value){mon=e.target.value;rememberMon(mon);refreshAll();}};
 document.getElementById('saveBox').style.cursor='pointer';
 document.getElementById('saveBox').onclick=()=>{if(!sbOK)askConnect();};
 /* 체크박스 사이 방향키 이동 — 스페이스바 체크/해제는 브라우저 기본 동작이라 손댈 필요 없음.

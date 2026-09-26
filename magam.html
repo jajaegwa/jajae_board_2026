@@ -17,6 +17,7 @@
 <!-- 이번달 마감대상 업로드(더존 엑셀 리포트 파싱)용 — 로드 실패 시 업로드 버튼에서 안내. 이미 정확한
      버전(0.18.5)으로 고정돼 있어 그대로 둠. -->
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script src="ui-helpers.js"></script>
 <style>
 /* jajae-board-erp 디자인 시스템(DESIGN.md) 준수 — 밝은 크롬, 시스템 한글 폰트, 2px 모서리,
    전체 셀 테두리 그리드, 아웃라인 칩. 다크 크롬은 토스트에만 허용. */
@@ -125,7 +126,7 @@ td input[type=date],td select{background:var(--card);border:1px solid var(--line
 .hbar .tr{flex:1;height:11px;background:var(--line2);border:1px solid var(--line);border-radius:2px;overflow:hidden}
 .hbar .tr i{display:block;height:100%;background:var(--amber)}
 .hbar .n{width:32px;font-size:11px;color:var(--mut)}
-dialog{border:1px solid var(--line);border-radius:3px;background:var(--card);color:var(--ink);padding:18px;min-width:340px;max-width:94vw;box-shadow:0 8px 24px rgba(0,0,0,.2)}
+dialog{margin:auto;border:1px solid var(--line);border-radius:3px;background:var(--card);color:var(--ink);padding:18px;min-width:min(340px,94vw);max-width:94vw;box-shadow:0 8px 24px rgba(0,0,0,.2)}
 dialog::backdrop{background:rgba(10,16,22,.4)}
 dialog h3{font-size:14px;margin-bottom:10px}
 dialog label{display:block;font-size:11px;font-weight:600;color:var(--mut);margin:7px 0 2px}
@@ -880,13 +881,23 @@ function listHTML(side){
   <div class="tbl scroll frz"><table>
     <tr><th><input type="checkbox" class="ck" id="vSelAll_${side}" onchange="toggleAllVendorFromDom(this)"></th><th>업체명</th><th>유형·품목</th><th>${side==='sales'?'처리자':'처리자·구매팀'}</th><th>발주↔입고</th><th>보낸날짜</th><th>방식</th>${short.map((s,i)=>{const bulk=BULK_STEPS.has(STEPS[side][i]);return`<th style="text-align:center;border-top:2.5px solid var(--ink);${stepBorder(side,i)}${bulk?'cursor:pointer':''}"${bulk?` onclick="bulkCheckStep('${side}','${STEPS[side][i]}')" title="클릭하면 지금 보이는 업체 전체를 한 번에 체크합니다"`:''}>${s}${bulk?' ⚡':''}</th>`;}).join('')}<th>비고</th>${side==='purchase'?'<th title="금액 불일치 — 구매팀이 월말에 직접 마감 처리">구매팀행</th>':''}<th>진행률</th><th>상태</th><th></th></tr>
     ${rows.length?rows.map((v,idx)=>rowHTML(side,v,idx===rows.length-1)).join('')
-      :`<tr><td colspan="23" style="padding:14px;text-align:left;white-space:normal"><div class="mut" style="font-size:13px">
-        표시할 업체가 없습니다 — 저장이 안 된 게 아니라 <b>필터 때문에 안 보이는</b> 경우가 대부분입니다.
-        ${[sc.applyTgt?'마감대상만 보기':'',f.q?`검색 "${esc(f.q)}"`:'',f.st?(f.st==='done'?'완료만':'미완만'):'',f.who?`처리자 ${esc(f.who)}`:'',f.buyer?`구매팀 ${esc(f.buyer)}`:'',f.ty?`유형 ${esc(f.ty)}`:'',excluded.length?`이번달 제외 ${excluded.length}곳`:''].filter(Boolean).map(x=>`<span class="pill m">${x}</span>`).join(' ')||''}
-        </div><button class="btn sm" style="margin-top:8px" onclick="clearFilters('${side}')">필터 모두 해제</button></td></tr>`}
+      :emptyVendorsHTML(side,[sc.applyTgt?'마감대상만 보기':'',f.q?`검색 "${esc(f.q)}"`:'',f.st?(f.st==='done'?'완료만':'미완만'):'',f.who?`처리자 ${esc(f.who)}`:'',f.buyer?`구매팀 ${esc(f.buyer)}`:'',f.ty?`유형 ${esc(f.ty)}`:'',excluded.length?`이번달 제외 ${excluded.length}곳`:''].filter(Boolean))}
   </table></div>
   <div class="hint" style="margin-top:8px">업체명 클릭 → 연락처·미입고 상세. 발주↔입고는 자재과 작업판 데이터와 실시간 대사(사급=사급처 출고분, 매입=매입처 발주분). 체크박스로 여러 곳을 선택해 "선택 제외"하면 이번달 목록에서만 빠지고(완전 삭제 아님), 다음달엔 다시 보입니다.</div>
   </div>`;
+}
+/* 표가 비었을 때 — 업체가 아예 0개인 경우(목록을 먼저 불러와야 함)와, 업체는 있는데 필터에 걸려
+   안 보이는 경우를 구분해서 안내(예전엔 0/0개 업체에도 "필터 때문"이라고 안내했음). 판단은 ui-helpers.js emptyReason. */
+function emptyVendorsHTML(side,filters){
+  const total=S.vendors[side].length;
+  const why=(window.UiHelpers?UiHelpers.emptyReason(total,0,filters):(total?(filters.length?'filtered':'noMatch'):'noData'));
+  const pills=filters.map(x=>`<span class="pill m">${x}</span>`).join(' ');
+  const body=why==='noData'
+    ?`<b>등록된 ${SIDE_LB[side]} 업체가 없습니다(0개).</b> 필터 문제가 아니라 업체 목록이 비어 있는 상태입니다 — <b>데이터·설정</b> 탭에서 업체 목록(마감-시드.json)을 가져오거나, 위 [+ 업체 추가]로 등록하세요.`
+    :why==='filtered'
+      ?`업체 ${total}곳 중 지금 필터 조건에 맞는 곳이 없습니다 — 저장이 안 된 게 아니라 <b>아래 필터 때문에 안 보이는</b> 상태입니다.<div style="margin-top:6px">${pills}</div>`
+      :`업체 ${total}곳 중 이번 달 마감 범위에 해당하는 곳이 없습니다.${pills?`<div style="margin-top:6px">${pills}</div>`:''}`;
+  return`<tr><td colspan="23" style="padding:14px;text-align:left;white-space:normal"><div class="mut" style="font-size:13px" role="status">${body}</div>${why==='filtered'?`<button class="btn sm" style="margin-top:8px" onclick="clearFilters('${side}')">필터 모두 해제</button>`:(why==='noData'?`<button class="btn sm pri" style="margin-top:8px" onclick="setView('setup')">데이터·설정 열기</button>`:'')}</td></tr>`;
 }
 function rowHTML(side,v,isLast){
   const e=entryRO(side,v.id);

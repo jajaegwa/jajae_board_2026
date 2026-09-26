@@ -176,7 +176,7 @@ body.driver #drvNotif,body.driver #curWarn{display:none!important}
 .drv .banner b{font-size:21px}
 .drv .banner .drv-date{margin-left:10px;background:transparent;color:var(--navy-ink);border:1px solid #4a5b6c;border-radius:2px;padding:4px 8px;font-family:inherit;font-size:13px;color-scheme:dark}
 .drv .grp{font-size:12.5px;font-weight:700;color:var(--mut);margin:12px 0 6px;letter-spacing:.02em}
-dialog{border:1px solid var(--line);border-radius:3px;padding:0;max-width:620px;width:94%;box-shadow:0 8px 24px rgba(0,0,0,.2);background:var(--card);color:var(--ink)}
+dialog{margin:auto;border:1px solid var(--line);border-radius:3px;padding:0;max-width:620px;width:94%;box-shadow:0 8px 24px rgba(0,0,0,.2);background:var(--card);color:var(--ink)}
 dialog::backdrop{background:rgba(10,18,26,.5)}
 .dlg{padding:18px}.dlg h3{font-size:14.5px;margin-bottom:12px;padding-bottom:8px;border-bottom:1px solid var(--line2)}
 .dlg .grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
@@ -230,6 +230,113 @@ details.card summary .cnt{font-size:11.5px;color:var(--mut);font-weight:500}
 .drvCal .calDayNum{font-size:14.5px}
 .drvCal .calChips .chip{font-size:11px;padding:1px 5px}
 .drvCal .btn{font-size:14px;padding:8px 14px}
+/* ══ 2026-09 반응형·오조작 방지·접근성 정리 (DESIGN.md "Responsive/Status" 참고) ══
+   원칙: 기존 토큰·2px 모서리·외곽선 칩 유지. 상태는 색 + 기호 + 글자로 함께 표시. */
+.sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
+:focus-visible{outline:2px solid var(--acc);outline-offset:1px}
+/* 상태 칩 — .st를 붙인 칩은 색 말고도 기호로 구분(대기 ○ · 완료 ✓ · 지연/위험 ! · 진행 →) */
+.chip.st::before{margin-right:3px;font-weight:700}
+.chip.st.c-wait::before{content:"○"}.chip.st.c-done::before{content:"✓"}.chip.st.c-late::before{content:"!"}.chip.st.c-ord::before{content:"→"}.chip.st.c-mut::before{content:"–"}
+/* 연결·저장 상태 — 모드 글자를 항상 보이게(색만으로 구분하지 않음) */
+.savebox b{font-weight:700}
+.savebox.sample,.savebox.local,.savebox.error,.savebox.pending{border-color:var(--amber);color:var(--amber);background:var(--amber-soft)}
+.savebox.error i,.savebox.sample i{background:var(--red)}
+.savebox.shared{border-color:var(--green)}
+#connBanner{display:none;align-items:center;gap:8px;flex-wrap:wrap;padding:6px 16px;background:var(--amber-soft);color:var(--amber);border-bottom:1px solid var(--amber);font-size:12.5px;font-weight:700}
+#connBanner.show{display:flex}
+#connBanner.sample{background:var(--red-soft);color:var(--red);border-bottom-color:var(--red)}
+#connBanner .btn{font-weight:600}
+/* 헤더 보조 메뉴(공유·백업·복원) — 자주 안 쓰는 기능을 한 곳에 묶음 */
+.hdr-more{position:relative}
+.hdr-more>summary{list-style:none;cursor:pointer;display:inline-block}
+.hdr-more>summary::-webkit-details-marker{display:none}
+.hdr-menu{position:absolute;right:0;top:calc(100% + 4px);z-index:30;display:flex;flex-direction:column;gap:4px;min-width:190px;background:var(--card);border:1px solid var(--line);padding:6px;box-shadow:0 8px 24px rgba(0,0,0,.2)}
+.hdr-menu .btn{text-align:left}
+.hdr-menu .tag{padding:2px 4px}
+body.driver .hdr-more,body.driver #btnMagam{display:none}
+/* 되돌리기 바 — 상태를 바꾼 직후 대상·결과를 보여주고 6초간 되돌릴 수 있게 함 */
+#undoBar{position:fixed;left:50%;bottom:16px;transform:translateX(-50%);z-index:60;background:var(--navy);color:var(--navy-ink);display:none;gap:10px;align-items:center;padding:8px 8px 8px 14px;border-radius:2px;max-width:calc(100vw - 24px);font-size:13px;box-shadow:0 8px 24px rgba(0,0,0,.25)}
+#undoBar.show{display:flex}
+#undoBar .btn{background:transparent;color:var(--navy-ink);border-color:#8ea3b7;min-height:34px}
+#undoBar .btn:hover{color:#fff}
+#undoBar.show~.toast{bottom:74px}
+/* 원터치 등록 — 누르기 전에 무엇이 등록되는지, 누른 뒤 무엇이 등록됐는지 */
+.qm-summary{border:1px solid var(--acc);background:var(--acc-soft);padding:7px 10px;border-radius:2px;font-size:13px;margin:6px 0;line-height:1.5}
+.qm-summary b{font-size:14px}
+.qm-last{display:flex;gap:8px;align-items:center;flex-wrap:wrap;border:1px dashed var(--line);padding:6px 10px;margin-top:6px;font-size:12.5px}
+.qm-last:empty{display:none}
+.drv .qm-summary{font-size:15px}
+/* 프리셋 자동 입력칸 vs 직접 채울 칸 */
+input.autofill,select.autofill{background:var(--acc-soft);border-color:var(--acc)}
+input.need{border-color:var(--amber);box-shadow:inset 3px 0 0 var(--amber)}
+.legend-af{display:inline-flex;gap:10px;flex-wrap:wrap;font-size:11.5px;color:var(--mut);margin-bottom:8px}
+.legend-af i{display:inline-block;width:14px;height:10px;border:1px solid var(--acc);background:var(--acc-soft);vertical-align:middle;margin-right:3px}
+.legend-af i.need{border-color:var(--amber);background:var(--card);box-shadow:inset 3px 0 0 var(--amber)}
+/* 기준정보 즉시 저장 칸 — 입력 중(미저장)·저장됨 표시, 삭제는 편집 칸과 떨어진 별도 열 */
+td input.dirty{border-color:var(--amber);background:var(--amber-soft)}
+td input.saved{border-color:var(--green);box-shadow:inset 0 0 0 1px var(--green)}
+td.del-col,th.del-col{border-left:3px double var(--line);padding-left:12px;text-align:center}
+.cell-hint{font-size:11px;color:var(--mut);margin:0 0 6px}
+/* 사급 발주 단계 표시 */
+.steps{display:flex;gap:4px;flex-wrap:wrap;margin:0 0 10px;counter-reset:st}
+.steps span{border:1px solid var(--line);padding:3px 9px;font-size:12px;border-radius:2px;color:var(--mut);background:var(--head)}
+.steps span.on{border-color:var(--acc);color:#fff;background:var(--acc);font-weight:700}
+.steps span.done{border-color:var(--green);color:var(--green);background:var(--card)}
+.steps span.done::before{content:"✓ "}
+.cs-sum{display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-top:8px;font-size:12.5px}
+/* 표 가로 스크롤 안내 */
+.xhint{display:none;font-size:11.5px;color:var(--mut);margin:0 0 4px;font-weight:500}
+.tbl.has-x{box-shadow:inset -14px 0 10px -12px rgba(0,0,0,.35)}
+.tbl.has-x.x-end{box-shadow:none}
+.xhint.show{display:block}
+/* 모바일 행 상세 창 */
+.row-kv{display:grid;grid-template-columns:96px 1fr;gap:8px;padding:7px 0;border-bottom:1px solid var(--line2);align-items:start}
+.row-kv .k{font-size:12px;color:var(--mut);font-weight:700}
+.row-kv .v{font-size:13.5px;min-width:0;overflow-wrap:anywhere}
+.row-kv .v b{white-space:normal}
+.inl{margin:0;align-self:center;font-size:12px;color:var(--ink)}
+/* 캘린더 날짜 칸 = 버튼(키보드 조작 가능) */
+button.calCell .calDayNum,button.calCell .calPreview{display:block}
+button.calCell{font:inherit;color:inherit;text-align:left;border:0;width:100%;display:block;border-radius:0}
+button.calCell:focus-visible{outline:2px solid var(--acc);outline-offset:-2px}
+/* 모바일(≈390px) — 메뉴는 숨기지 않고 3열 격자로 전부 노출, 터치 대상 키움 */
+@media(max-width:760px){
+  header{padding:8px 12px;gap:6px 8px}
+  header .sub{display:none}
+  header .sp{display:none}
+  header h1{flex:1 1 auto}
+  header .date{flex:1 1 100%;order:3}
+  header .date input[type=date]{flex:1;min-height:36px}
+  header .date .btn{min-width:40px;min-height:36px}
+  .savebox{order:4;flex:1 1 auto;min-height:30px}
+  nav{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:4px;padding:6px 12px 8px;overflow:visible}
+  nav button{margin:0;border:1px solid var(--line);border-radius:2px;font-size:13.5px;font-weight:600;padding:8px 4px;min-height:44px;color:var(--ink);background:var(--card);white-space:normal;line-height:1.2}
+  nav button[data-t="master"]{margin-left:0;padding-left:4px;border-left:1px solid var(--line)}
+  nav button.on{color:#fff;background:var(--acc)}
+  main{padding:0 12px 90px;margin-top:10px}
+  #connBanner{padding:6px 12px}
+  .btn.sm{min-height:34px;padding:5px 10px;font-size:12.5px}
+  .btn{min-height:38px}
+  .quick button{min-height:40px;padding:7px 12px;font-size:13px}
+  .tag,.card .hint{font-weight:400}
+  td input[type=checkbox],th input[type=checkbox]{width:20px;height:20px}
+  .xhint.show{display:block}
+  .card h2{font-size:15px;flex-wrap:wrap}
+  /* 핵심 열 고정: 왼쪽 = 품목(선택칸이 있으면 선택칸+품목), 오른쪽 = 처리 버튼 열 */
+  .tbl table[data-stick] tr>*:nth-child(1){position:sticky;left:0;z-index:1;background:var(--card)}
+  .tbl table[data-stick="2"] tr>*:nth-child(2){position:sticky;left:var(--stk1,32px);z-index:1;background:var(--card)}
+  .tbl table[data-stick] thead th:nth-child(-n+2){z-index:3;background:var(--head)}
+  .tbl table[data-stick] td.stk-item{max-width:44vw;min-width:7.5em;white-space:normal;box-shadow:3px 0 4px -3px rgba(0,0,0,.25)}
+  .tbl table[data-stick] td.stk-item b{white-space:normal}
+  .tbl table[data-stick] td:last-child{white-space:normal;min-width:6.5em}
+  .tbl table[data-stick] td:last-child .btn{margin:2px 0}
+  .tbl table[data-act] tr>*:last-child{position:sticky;right:0;z-index:1;background:var(--card);box-shadow:-3px 0 4px -3px rgba(0,0,0,.25);max-width:40vw}
+  .tbl table[data-act] thead th:last-child{z-index:3;background:var(--head)}
+  td.stk-item[role=button]{cursor:pointer}
+  td.stk-item[role=button]::after{content:" ›";color:var(--acc);font-weight:700}
+  .qm-dept button{min-width:70px;padding:10px 0}
+  button.calCell .calPreview{display:none}
+}
 </style>
 
 <header>
@@ -237,11 +344,10 @@ details.card summary .cnt{font-size:11.5px;color:var(--mut);font-weight:500}
   <span class="sub">입고 · 창고이동 · 발주 · 사급 한 화면</span>
   <!-- 화면이 최신 버전인지 바로 확인할 수 있게 표시 — 이 값이 다르면 브라우저가
        예전 파일을 캐시해 둔 것이므로 강력 새로고침(Ctrl+F5 / 아이폰은 Safari 재실행) 필요 -->
-  <span class="sub" id="buildStamp" title="화면 버전 — 최신이 아니면 Ctrl+F5로 강력 새로고침">v2026-09-08b</span>
   <span class="sp"></span>
-  <span class="date">기준일 <button class="btn sm" onclick="setDate(addDays(cur,-1))" title="하루 전 (기준일 −1)">◀</button><input type="date" id="curDate" onchange="setDate(this.value)"><button class="btn sm" onclick="setDate(addDays(cur,1))" title="하루 뒤 (기준일 +1)">▶</button></span>
+  <span class="date"><label for="curDate" style="font-size:12.5px;color:var(--ink);margin:0">기준일</label> <button class="btn sm" onclick="setDate(addDays(cur,-1))" title="하루 전 (기준일 −1)" aria-label="기준일 하루 전으로">◀</button><input type="date" id="curDate" onchange="setDate(this.value)"><button class="btn sm" onclick="setDate(addDays(cur,1))" title="하루 뒤 (기준일 +1)" aria-label="기준일 하루 뒤로">▶</button></span>
   <span id="curWarn" class="tag" style="display:none;background:var(--amber-soft);color:var(--amber);border:1px solid var(--amber);padding:3px 8px;border-radius:2px;font-weight:700;cursor:pointer" title="기준일이 오늘이 아니면 등록·체크가 이 날짜로 기록됩니다" onclick="setDate(realToday())">⚠ 기준일이 오늘이 아님 — 오늘로</span>
-  <span class="savebox" id="saveBox"><i></i><span id="saveTxt">불러오는 중</span></span>
+  <span class="savebox" id="saveBox" role="status" aria-live="polite" title=""><i aria-hidden="true"></i><b id="connMode">확인 중</b><span id="saveTxt">불러오는 중</span></span>
   <!-- 새로고침·탭종료 전에 서버로 못 보낸 편집이 남아 있으면(로컬 스냅샷 ≠ 마지막으로 확인된
        저장 성공 시점 스냅샷) 서버 최신 데이터로 조용히 덮어쓰지 않고 사용자가 직접 고르게 함. -->
   <span class="tag" id="unsyncedBanner" style="display:none;background:var(--amber-soft);color:var(--amber);border:1px solid var(--amber);padding:3px 8px;border-radius:2px;font-weight:700">
@@ -255,21 +361,31 @@ details.card summary .cnt{font-size:11.5px;color:var(--mut);font-weight:500}
   <!-- a가 아니라 button으로 만듦 — 지게차 화면 잠금(body.driver)이 header button만 숨기므로
        a 링크였다면 기사 화면에서도 그대로 눌려 비밀번호 없이 월마감 관리 화면으로 새어나갈 수
        있었음(코드리뷰로 발견) -->
-  <button class="btn sm" onclick="location.href='magam.html'" title="자재과 마감관리 화면으로 이동">월마감 →</button>
-  <button class="btn sm" onclick="openShare()">공유·바로가기</button>
-  <button class="btn sm" onclick="exportJSON()">백업</button>
-  <button class="btn sm" onclick="impFile.click()">복원</button>
-  <input type="file" id="impFile" accept=".json" style="display:none" onchange="importJSON(event)">
+  <button class="btn sm" id="btnMagam" onclick="location.href='magam.html'" title="자재과 마감관리 화면으로 이동">월마감 →</button>
+  <!-- 공유·백업·복원은 가끔 쓰는 보조 기능이라 한 메뉴로 묶음 — summary는 button이 아니라서
+       body.driver 규칙 대신 .hdr-more를 따로 숨김(기사 화면에서 백업·복원 노출 방지). -->
+  <details class="hdr-more" id="hdrMore">
+    <summary class="btn sm" aria-label="보조 기능 메뉴 (공유·백업·복원)">더보기 ▾</summary>
+    <div class="hdr-menu">
+      <button class="btn sm" onclick="hdrMore.open=false;openShare()">공유·바로가기</button>
+      <button class="btn sm" onclick="hdrMore.open=false;exportJSON()">백업 (클립보드 복사)</button>
+      <button class="btn sm" onclick="hdrMore.open=false;impFile.click()">복원 (백업 파일 불러오기)</button>
+      <span class="tag" id="buildStamp" title="화면 버전 — 최신이 아니면 Ctrl+F5로 강력 새로고침">화면 버전 v2026-09-26a</span>
+    </div>
+  </details>
+  <input type="file" id="impFile" accept=".json" style="display:none" onchange="importJSON(event)" aria-label="백업 파일 선택">
 </header>
-<nav id="nav">
-  <button data-t="board" class="on" onclick="showTab('board')">현황</button>
+<!-- 이 기기에만 저장되는 상태·샘플 데이터 상태를 실시간 공유로 오해하지 않게 항상 보이는 안내(연결되면 숨김) -->
+<div id="connBanner" role="status"><span id="connBannerTxt"></span></div>
+<nav id="nav" aria-label="주요 화면">
+  <button data-t="board" class="on" aria-current="page" onclick="showTab('board')">현황</button>
   <button data-t="cal" onclick="showTab('cal')">캘린더</button>
-  <button data-t="move" onclick="showTab('move')">배합실요청<span class="b" id="bMove" hidden></span></button>
+  <button data-t="move" onclick="showTab('move')">배합실 요청<span class="b" id="bMove" hidden></span></button>
   <button data-t="order" onclick="showTab('order')">발주 · 입고<span class="b" id="bOrder" hidden></span></button>
   <button data-t="consign" onclick="showTab('consign')">사급발주<span class="b" id="bCons" hidden></span></button>
   <button data-t="master" onclick="showTab('master')">기준정보</button>
   <button data-t="stats" onclick="showTab('stats')">통계</button>
-  <button data-t="fc" onclick="showTab('fc')">원료예측</button>
+  <button data-t="fc" onclick="showTab('fc')">원료 예측</button>
   <button data-t="trash" onclick="showTab('trash')">삭제기록<span class="b" id="bTrash" hidden></span></button>
 </nav>
 <main>
@@ -280,7 +396,7 @@ details.card summary .cnt{font-size:11.5px;color:var(--mut);font-weight:500}
   <div class="stat" id="stats"></div>
   <div class="card" id="mvErpAlertBoard" style="display:none;border-color:var(--amber);cursor:pointer" onclick="showTab('move')">
     <h2 style="color:var(--amber)">⚠ 전산이동 미완료(이전 날짜) <span class="cnt" id="cntMvErpAlertBoard"></span></h2>
-    <div class="hint">기준일이 지났는데 전산이동완료 처리가 안 된 건이 있습니다 — 탭하면 배합실요청 화면에서 바로 처리할 수 있어요.</div>
+    <div class="hint">기준일이 지났는데 전산이동완료 처리가 안 된 건이 있습니다 — 탭하면 배합실 요청 화면에서 바로 처리할 수 있어요.</div>
   </div>
   <div class="grid g2" id="boardCards">
     <div class="card" id="inCard">
@@ -288,7 +404,8 @@ details.card summary .cnt{font-size:11.5px;color:var(--mut);font-weight:500}
       <div class="tbl scroll"><table><thead><tr><th>품목</th><th>업체</th><th>창고</th><th class="num">수량</th><th>부서</th><th>비고</th><th></th></tr></thead><tbody id="boardIn"></tbody></table></div>
     </div>
     <div class="card">
-      <h2>창고이동 요청 (생산라인 → 창고) <span class="cnt" id="cntMv"></span></h2>
+      <h2>창고 → 라인 이동 요청 <span class="cnt" id="cntMv"></span></h2>
+      <div class="hint" style="margin-bottom:6px">배합실(생산라인)이 요청 → 지게차가 출고창고에서 해당 부서 라인으로 이동. 숫자: 전체 = 기준일 등록 건 전부 · 실물 대기 = 아직 안 옮긴 건 · 전산 대기 = 옮겼지만 ERP 이동 입력 전.</div>
       <div class="tbl scroll"><table><thead><tr><th>품목</th><th>부서</th><th>출고창고</th><th class="num">수량</th><th>비고</th><th></th></tr></thead><tbody id="boardMv"></tbody></table></div>
     </div>
     <div class="card" id="dueCard">
@@ -298,7 +415,7 @@ details.card summary .cnt{font-size:11.5px;color:var(--mut);font-weight:500}
         <input type="file" id="invFile" accept=".xlsx,.xls,.csv" style="display:none" onchange="readInv(this.files[0]);this.value=''">
         <span class="tag" id="invInfo" style="flex:1;min-width:160px"></span>
         <button class="btn sm ghost" id="invClear" style="display:none" onclick="clearInv()">재고 지우기</button>
-        <select id="invRestoreSel" style="display:none" title="날짜별로 쌓인 이전 재고 스냅샷 중 하나를 골라 지금 재고로 되돌릴 수 있음 — 잘못된 파일을 올렸을 때 사용"></select>
+        <select id="invRestoreSel" aria-label="되돌릴 재고 스냅샷 날짜" style="display:none" title="날짜별로 쌓인 이전 재고 스냅샷 중 하나를 골라 지금 재고로 되돌릴 수 있음 — 잘못된 파일을 올렸을 때 사용"></select>
         <button class="btn sm ghost" id="invRestoreBtn" style="display:none" onclick="restoreInvSnapshot()">선택 날짜로 복원</button>
       </div>
       <div id="ropWrap" style="display:none">
@@ -326,7 +443,7 @@ details.card summary .cnt{font-size:11.5px;color:var(--mut);font-weight:500}
     <div class="grp-lbl" style="margin-top:12px">자유 메모 <span class="cnt" id="cntNote"></span></div>
     <div class="hint" style="margin-bottom:8px">부서와 상관없는 전달사항을 자유롭게 적으세요. 지게차 화면에 크게 표시되고, 기사가 [완료] 체크할 수 있습니다.<br>예) 31동 창고에 PMS-1803 800kg(배합실 사용분) 올려둠 — 가져다 주세요</div>
     <form class="row" onsubmit="event.preventDefault();addNote()" onkeydown="imeSafeEnter(event)">
-      <input id="noteTxt" placeholder="예) 31동 창고 PMS-1803 800kg 가져다 주세요" style="flex:1;min-width:220px" maxlength="300">
+      <label for="noteTxt" class="inl">자유 메모</label><input id="noteTxt" placeholder="예) 31동 창고 PMS-1803 800kg 가져다 주세요" style="flex:1;min-width:220px" maxlength="300">
       <button class="btn sm pri" type="submit">메모 추가</button>
     </form>
     <div class="tbl scroll" style="margin-top:8px"><table><thead><tr><th>메모</th><th>등록</th><th>상태</th><th></th></tr></thead><tbody id="noteBody"></tbody></table></div>
@@ -339,7 +456,7 @@ details.card summary .cnt{font-size:11.5px;color:var(--mut);font-weight:500}
     <h2>📞 전화 모드 <span class="cnt">부서 먼저 탭 → 이동 요청 또는 벌크·라인 직납 발주 품목 탭</span></h2>
     <div class="qm-dept" id="qmDeptBox"></div>
     <div class="row" style="align-items:center;margin:8px 0 4px">
-      <input id="qmMemoTxt" placeholder="메모 (예: 신규 원료 OOO 추가 필요, 특이사항 등)" style="flex:1;min-width:220px" maxlength="200" onkeydown="if(event.key==='Enter'){imeSafeEnter(event);if(!event.defaultPrevented){event.preventDefault();qmAddMemo();}}">
+      <label for="qmMemoTxt" class="inl">부서 메모</label><input id="qmMemoTxt" placeholder="메모 (예: 신규 원료 OOO 추가 필요, 특이사항 등)" style="flex:1;min-width:220px" maxlength="200" onkeydown="if(event.key==='Enter'){imeSafeEnter(event);if(!event.defaultPrevented){event.preventDefault();qmAddMemo();}}">
       <button class="btn sm pri" onclick="qmAddMemo()">메모 추가</button>
     </div>
     <div class="tag" id="qmMemoCur" style="margin-bottom:8px"></div>
@@ -349,9 +466,11 @@ details.card summary .cnt{font-size:11.5px;color:var(--mut);font-weight:500}
       <div id="sp2Extra" style="display:none">
         <div class="tag" style="margin-bottom:4px">납품 날짜(선택 · 주말 포함) → 수량 탭 = 기록</div>
         <div class="quick" id="sp2When" style="margin:0 0 8px"></div>
-        <div class="quick qm-qty" id="sp2Qty" style="margin:0 0 10px"></div>
-        <input id="sp2Note" placeholder="비고 (선택)" style="width:100%;margin-bottom:8px">
-        <label style="display:flex;align-items:center;gap:5px;font-size:12.5px;color:var(--ink)"><input type="checkbox" id="sp2Ord" checked>발주도 같이 등록</label>
+        <label for="sp2Note">비고 (선택 — 수량 누르기 전에 입력)</label>
+        <input id="sp2Note" style="width:100%;margin-bottom:8px">
+        <label style="display:flex;align-items:center;gap:5px;font-size:12.5px;color:var(--ink);margin-bottom:6px"><input type="checkbox" id="sp2Ord" checked onchange="renderSpQuick()">발주도 같이 등록</label>
+        <div class="qm-summary" id="sp2Summary" aria-live="polite"></div>
+        <div class="quick qm-qty" id="sp2Qty" style="margin:0 0 10px" role="group" aria-label="수량 — 누르면 바로 기록"></div>
         <div id="sp2Undo" class="row" style="align-items:center;margin-top:6px"></div>
       </div>
     </div>
@@ -361,16 +480,19 @@ details.card summary .cnt{font-size:11.5px;color:var(--mut);font-weight:500}
       <div id="qmQtyBox" style="display:none">
         <div class="row" style="align-items:center;margin-top:6px">
           <b id="qmSelName" style="font-size:16px"></b>
-          <select id="qmUnit" onchange="qmUnitSel=this.value"><option>kg</option><option>Bag</option><option>PLT</option><option>드럼</option><option>Box</option><option>대</option></select>
+          <label for="qmUnit" style="margin:0;font-size:12px">단위</label>
+          <select id="qmUnit" onchange="qmUnitSel=this.value;renderQm()"><option>kg</option><option>Bag</option><option>PLT</option><option>드럼</option><option>Box</option><option>대</option></select>
           <span class="tag" id="qmLoc"></span>
         </div>
-        <div class="quick qm-qty" id="qmQty" style="margin:8px 0 4px"></div>
+        <div class="qm-summary" id="qmSummary" aria-live="polite"></div>
+        <div class="quick qm-qty" id="qmQty" style="margin:8px 0 4px" role="group" aria-label="수량 — 누르면 바로 등록"></div>
         <form class="row" onsubmit="event.preventDefault();qmAdd(+qmCustom.value)" onkeydown="imeSafeEnter(event)">
-          <input id="qmCustom" type="number" step="any" placeholder="직접 수량" style="width:110px;text-align:right">
-          <button class="btn pri sm" type="submit">추가</button>
-          <span class="tag">숫자를 탭하면 바로 등록됨 · 같은 품목 연속 등록 가능</span>
+          <div><label for="qmCustom">직접 수량</label><input id="qmCustom" type="number" step="any" inputmode="decimal" style="width:110px;text-align:right"></div>
+          <div><label>&nbsp;</label><button class="btn pri sm" type="submit">이 수량으로 등록</button></div>
+          <span class="tag" style="align-self:center">숫자 버튼을 누르면 바로 등록됩니다 · 같은 품목 연속 등록 가능 · 잘못 누르면 아래 [되돌리기]</span>
         </form>
       </div>
+      <div class="qm-last" id="qmLast" aria-live="polite"></div>
     </div>
   </div>
   <div class="card" id="mvErpAlertCard" style="display:none;border-color:var(--amber)">
@@ -379,8 +501,9 @@ details.card summary .cnt{font-size:11.5px;color:var(--mut);font-weight:500}
     <div class="tbl scroll"><table><thead><tr><th>날짜</th><th>부서</th><th>품목</th><th class="num">수량</th><th>출고창고</th><th></th></tr></thead><tbody id="mvErpAlertBody"></tbody></table></div>
   </div>
   <div class="card">
-    <h2>기준일 요청 목록 <span class="cnt" id="cntMv2"></span><span style="margin-left:auto;display:flex;gap:8px;align-items:center;flex-wrap:wrap"><span class="tag" id="mvSelCnt"></span><button class="btn sm pri" onclick="bulkDoneMv()">실물이동완료</button><button class="btn sm" onclick="bulkErpMv()">전산이동완료</button></span></h2>
-    <div class="tbl scroll"><table><thead><tr><th><input type="checkbox" id="mvSelAll" onchange="toggleAllMv(this.checked)" title="전체 선택"></th><th>품목</th><th>부서</th><th>출고창고</th><th class="num">수량</th><th>비고</th><th>실물</th><th>전산이동</th></tr></thead><tbody id="mvBody"></tbody></table></div>
+    <h2>기준일 창고 → 라인 이동 요청 <span class="cnt" id="cntMv2"></span><span style="margin-left:auto;display:flex;gap:8px;align-items:center;flex-wrap:wrap"><span class="tag" id="mvSelCnt"></span><button class="btn sm pri" onclick="bulkDoneMv()">선택 건 실물 이동 완료</button><button class="btn sm" onclick="bulkErpMv()">선택 건 전산 이동 완료</button></span></h2>
+    <div class="hint" style="margin-bottom:6px">실물 이동 = 지게차가 창고에서 생산라인(배합실)으로 옮김 · 전산 이동 = ERP 창고이동 입력. 두 처리는 서로 독립이며, 처리 직후 아래에 뜨는 [되돌리기]로 취소할 수 있습니다.</div>
+    <div class="tbl scroll"><table><thead><tr><th><input type="checkbox" id="mvSelAll" onchange="toggleAllMv(this.checked)" aria-label="기준일 요청 전체 선택"></th><th>품목</th><th>부서(도착 라인)</th><th>출고창고</th><th class="num">수량</th><th>비고</th><th>실물 이동</th><th>전산 이동 · 관리</th></tr></thead><tbody id="mvBody"></tbody></table></div>
   </div>
   <details class="card">
     <summary>상세 등록 <span class="cnt">전 품목 자동완성 · 단위·창고·비고 직접 입력</span></summary>
@@ -402,8 +525,9 @@ details.card summary .cnt{font-size:11.5px;color:var(--mut);font-weight:500}
 <section id="tab-order" style="display:none">
   <div class="card">
     <h2>발주 등록</h2>
-    <div class="hint">빠른선택(프리셋)을 고르면 매입처·품목·수량·착일이 자동 입력됨.<br>프리셋 외 품목은 직접 입력.<br>착일 = 발주일 + 리드타임(기준표, 없으면 국산 2일).</div>
-    <form onsubmit="event.preventDefault();addOrder()" onkeydown="imeSafeEnter(event)">
+    <div class="hint">빠른선택(프리셋)을 고르면 매입처·품목·수량·입고예정일(착일)이 자동 입력됨. 프리셋 외 품목은 직접 입력.<br>입고예정일(착일) = 발주일 + 리드타임(기준표, 없으면 국산 2일).</div>
+    <div class="legend-af" aria-hidden="true"><span><i></i>자동 입력됨 — 확인 후 필요하면 수정</span><span><i class="need"></i>직접 채워야 하는 필수 칸</span></div>
+    <form id="odForm" onsubmit="event.preventDefault();addOrder()" onkeydown="imeSafeEnter(event)" oninput="odFieldTouched(event)" onchange="odFieldTouched(event)">
     <div class="row">
       <div style="flex:2;min-width:260px"><label>빠른선택</label><select id="odPreset" onchange="applyPreset()"><option value="">— 프리셋 선택 —</option></select><div id="presetGate" style="display:none;margin-top:4px"></div></div>
       <div><label>구분</label><select id="odType"><option value="self">자가(부강 입고)</option><option value="consign">사급(업체 직납)</option></select></div>
@@ -415,7 +539,7 @@ details.card summary .cnt{font-size:11.5px;color:var(--mut);font-weight:500}
       <div style="min-width:120px"><label>납품처</label><input id="odDest" list="destList" value="자가(세종·부강)"></div>
       <div><label>수량</label><input id="odQty" type="number" step="any" style="width:90px;text-align:right"></div>
       <div><label>단위</label><select id="odUnit"><option>kg</option><option>Bag</option><option>드럼</option><option>대</option><option>PLT</option></select></div>
-      <div><label>착일(입고예정)</label><input id="odEta" type="date" onchange="odEtaTouched=!!this.value"></div>
+      <div><label>입고예정일(착일)</label><input id="odEta" type="date" onchange="odEtaTouched=!!this.value"></div>
       <div><label>창고</label><input id="odLoc" style="width:110px"></div>
       <div><label>부서</label><select id="odDept"><option>경질</option><option>창호</option><option>타일</option><option>DBP</option><option>전사</option><option>사급</option></select></div>
       <div style="flex:1;min-width:120px"><label>비고</label><input id="odNote" placeholder="도착시간, 2대 등"></div>
@@ -426,29 +550,30 @@ details.card summary .cnt{font-size:11.5px;color:var(--mut);font-weight:500}
   <div class="card">
     <h2>발주 · 입고 추적 <span class="cnt" id="cntOd"></span></h2>
     <div class="row" style="margin-bottom:10px">
-      <select id="odFlt" onchange="renderOrders()"><option value="">상태 전체</option><option value="발주완료">발주완료(입고대기)</option><option value="입고지연">입고지연</option><option value="입고완료">입고완료</option><option value="취소">취소</option></select>
-      <input id="odSearch" placeholder="품목·업체 검색" oninput="renderOrders()" style="flex:1;min-width:140px">
-      <div><label>착일 날짜</label><input type="date" id="odEtaDateFlt" onchange="renderOrders()"></div>
-      <div><label>착일 월</label><input type="month" id="odEtaMonthFlt" onchange="renderOrders()"></div>
+      <select id="odFlt" aria-label="발주 상태 필터" onchange="renderOrders()"><option value="">상태 전체</option><option value="발주완료">발주완료(입고대기)</option><option value="입고지연">입고지연</option><option value="입고완료">입고완료</option><option value="취소">취소</option></select>
+      <label for="odSearch" class="inl">검색</label><input id="odSearch" type="search" placeholder="품목·업체 검색" oninput="renderOrders()" style="flex:1;min-width:140px">
+      <div><label>입고예정일</label><input type="date" id="odEtaDateFlt" onchange="renderOrders()"></div>
+      <div><label>입고예정 월</label><input type="month" id="odEtaMonthFlt" onchange="renderOrders()"></div>
       <button class="btn sm ghost" onclick="odFlt.value='';odSearch.value='';odEtaDateFlt.value='';odEtaMonthFlt.value='';odHide.checked=true;renderOrders()">필터 전체 초기화</button>
       <label style="display:flex;align-items:center;gap:5px;margin:0"><input type="checkbox" id="odHide" checked onchange="renderOrders()">입고완료 7일 지난 건 숨김</label>
-      <button class="btn sm pri" onclick="bulkMarkIn()">입고처리</button>
-      <button class="btn sm" id="odBulkDelBtn" style="color:var(--red)" onclick="bulkDelOrder()">삭제</button>
+      <button class="btn sm pri" onclick="bulkMarkIn()">선택 건 입고 완료 처리</button>
+      <button class="btn sm" id="odBulkDelBtn" style="color:var(--red)" onclick="bulkDelOrder()">선택 건 삭제</button>
       <span class="tag" id="odSelCnt"></span>
     </div>
-    <div class="tbl scroll"><table><thead><tr><th><input type="checkbox" id="odSelAll" onchange="toggleAllOd(this.checked)" title="전체 선택"></th><th>품목</th><th>매입처</th><th>납품처</th><th>창고</th><th class="num">수량</th><th class="due-hl" id="odEtaTh" style="cursor:pointer" onclick="odSortByEta()" title="클릭하면 착일 기준 정렬">착일</th><th>상태</th><th>구분</th><th>발주일</th><th>D-day</th><th></th></tr></thead><tbody id="odBody"></tbody></table></div>
+    <div class="tbl scroll"><table><thead><tr><th><input type="checkbox" id="odSelAll" onchange="toggleAllOd(this.checked)" aria-label="표시된 건 전체 선택"></th><th>품목</th><th>매입처</th><th>납품처</th><th>창고</th><th class="num">수량</th><th class="due-hl" id="odEtaTh" tabindex="0" role="button" style="cursor:pointer" onclick="odSortByEta()" title="클릭하면 입고예정일 기준 정렬">입고예정(착일)</th><th>상태</th><th>구분</th><th>발주일</th><th>D-day</th><th></th></tr></thead><tbody id="odBody"></tbody></table></div>
   </div>
 </section>
 
 <!-- ═══════ 사급 발주서 ═══════ -->
 <section id="tab-consign" style="display:none">
+  <div class="steps" id="csSteps" aria-label="사급 발주서 처리 단계"><span data-s="1">① 발주서 올리기·붙여넣기</span><span data-s="2">② 인식 결과 검토·수정</span><span data-s="3">③ 등록 → 발주 메일·출고 지시서</span></div>
   <div class="grid g2">
     <div class="card">
       <h2>① 사급 발주서 올리기</h2>
       <div class="hint">사급업체가 보낸 발주서 엑셀(.xlsx)을 끌어다 놓거나, PDF·메일 본문 텍스트를 붙여넣고 [자동 인식].<br>사급처·품목을 인식한 뒤 <b>발주 대응 / 14동 직접출고</b>를 자동 판정함.</div>
       <div class="dropzone" id="drop" onclick="xlsFile.click()">여기에 발주서 엑셀 파일을 끌어다 놓기 (또는 클릭해서 선택)</div>
       <input type="file" id="xlsFile" accept=".xlsx,.xls,.csv" style="display:none" onchange="readXls(this.files[0])">
-      <textarea id="csPaste" style="margin-top:10px" placeholder="또는 발주서 텍스트 붙여넣기&#10;예) 발 신  ○○엔지니어링㈜ ...&#10;1  IF-850  25  1500  08월18일"></textarea>
+      <label for="csPaste" style="margin-top:10px">또는 발주서 텍스트 붙여넣기</label><textarea id="csPaste" placeholder="또는 발주서 텍스트 붙여넣기&#10;예) 발 신  ○○엔지니어링㈜ ...&#10;1  IF-850  25  1500  08월18일"></textarea>
       <div class="row" style="margin-top:8px">
         <button class="btn sm pri" onclick="parseCs()">자동 인식</button>
         <span class="tag" id="csMsg"></span>
@@ -457,14 +582,15 @@ details.card summary .cnt{font-size:11.5px;color:var(--mut);font-weight:500}
     <div class="card">
       <h2>② 인식 결과, 수동입력</h2>
       <div class="row" style="margin-bottom:10px">
-        <div><label>사급처</label><input id="csVendor" list="consList" placeholder="예: ○○엔지니어링" onchange="judgeAll()"></div>
+        <div><label>사급처</label><input id="csVendor" list="consList" placeholder="예: ○○엔지니어링" onchange="judgeAll()" oninput="renderCsSummary()"></div>
         <div><label>의뢰일</label><input id="csDate" type="date"></div>
         <div><label>공통 요청납기</label><input id="csDue" type="date" onchange="applyCommonDue()"></div>
         <div><label>&nbsp;</label><button class="btn sm" onclick="addCsLine()">+ 수동 행</button></div>
       </div>
       <div class="tbl scroll"><table><thead><tr><th>품목</th><th class="num">수량(kg)</th><th>요청납기</th><th>처리</th><th>공급사</th><th></th></tr></thead><tbody id="csDraft"></tbody></table></div>
       <div class="hint" style="margin-top:10px"><span class="act-order">발주</span> = 공급사에 대리발주(사급처 직납)<br><span class="act-direct">직접출고</span> = 14동 재고 까대기 → 지게차 출고<br><span class="act-check">확인</span> = 과거 이력 없음, 직접 판단<br><span class="act-none">제외</span> = 우리 대응 아님(필요 시 수동 선택 — 등록 시 자동 제외)</div>
-      <div class="row" style="justify-content:flex-end;margin-top:8px"><button class="btn sm pri" onclick="commitCs()">등록 (발주 메일·출고지시 생성)</button></div>
+      <div class="cs-sum" id="csSum" aria-live="polite"></div>
+      <div class="row" style="justify-content:flex-end;margin-top:8px"><button class="btn sm pri" id="csCommitBtn" onclick="commitCs()">등록 (발주 메일·출고지시 생성)</button></div>
     </div>
   </div>
   <div class="card" id="csMailCard" style="display:none">
@@ -486,42 +612,43 @@ details.card summary .cnt{font-size:11.5px;color:var(--mut);font-weight:500}
     <h2>사급 요청 추적 <span class="cnt" id="cntCs2"></span></h2>
     <div class="hint">운영 규칙<br>· 전산 재고 차감은 <b>배차완료(실물 출고)</b> 시점<br>· 찢어진 지대는 사급 출고 금지(협의 후 자사 투입)<br>· 업체→업체 이동은 <b>거래명세서 수령 전 입고완료 금지</b><br>· 당월 사용분은 이월 불가(익월분만 승인 후 이월)<br>· M-210 월1회 입항분은 행선지 건별 확인 전 배차 금지</div>
     <div class="row" style="margin-bottom:10px">
-      <select id="csFlt" onchange="renderCs()"><option value="">전체</option><option value="대기">대기(발주/출고 전)</option><option value="진행">진행(입고/출고 대기)</option><option value="완료">완료</option></select>
-      <select id="csActionFlt" onchange="renderCs()"><option value="">처리 전체</option><option value="발주">발주</option><option value="직접출고">직접출고</option><option value="확인">확인</option><option value="제외">제외</option></select>
-      <input id="csSearch" placeholder="사급처·품목 검색" oninput="renderCs()" style="flex:1;min-width:140px">
-      <select id="csUnitFlt" onchange="renderCs()" title="매각대조는 발주·직접출고 건의 단위가 있어야 반영됨"><option value="">단위 전체</option><option value="없음">단위 미입력</option><option value="있음">단위 있음</option></select>
+      <select id="csFlt" aria-label="사급 진행 상태 필터" onchange="renderCs()"><option value="">전체</option><option value="대기">대기(발주/출고 전)</option><option value="진행">진행(입고/출고 대기)</option><option value="완료">완료</option></select>
+      <select id="csActionFlt" aria-label="처리 구분 필터" onchange="renderCs()"><option value="">처리 전체</option><option value="발주">발주</option><option value="직접출고">직접출고</option><option value="확인">확인</option><option value="제외">제외</option></select>
+      <label for="csSearch" class="inl">검색</label><input id="csSearch" type="search" placeholder="사급처·품목 검색" oninput="renderCs()" style="flex:1;min-width:140px">
+      <select id="csUnitFlt" aria-label="단위 입력 여부 필터" onchange="renderCs()" title="매각대조는 발주·직접출고 건의 단위가 있어야 반영됨"><option value="">단위 전체</option><option value="없음">단위 미입력</option><option value="있음">단위 있음</option></select>
       <div><label>납기 날짜</label><input type="date" id="csDueDateFlt" onchange="renderCs()"></div>
       <div><label>납기 월</label><input type="month" id="csDueMonthFlt" onchange="renderCs()"></div>
       <button class="btn sm ghost" onclick="csFlt.value='';csActionFlt.value='';csSearch.value='';csDueDateFlt.value='';csDueMonthFlt.value='';csUnitFlt.value='';renderCs()">필터 전체 초기화</button>
       <button class="btn sm" onclick="mailForSelected()">선택 건 메일 다시 만들기</button>
       <button class="btn sm" onclick="csBulkSetUnit()" title="선택한 건 중 단위가 비어 있는 것만 kg로 채움 — 매각대조에서 '단위 보완 필요'로 막힐 때 사용. 롤·BOX 등 kg가 아닌 건은 [수정]에서 단위를 고르세요">선택 항목 단위(kg) 일괄 지정</button>
       <span class="tag" id="csUnitEmptyCnt" title="발주·직접출고 건 중 단위가 비어 있어 매각대조에 쓸 수 없는 건수"></span>
-      <button class="btn sm pri" onclick="csBulkMark()">선택 입고완료 처리</button>
+      <button class="btn sm pri" onclick="csBulkMark()">선택 건 입고 완료 처리</button>
       <span class="tag" id="csSelCnt"></span>
     </div>
-    <div class="tbl scroll"><table><thead><tr><th><input type="checkbox" id="csSelAll" onchange="toggleAllCs(this.checked)" title="전체 선택"></th><th>품목</th><th>사급처</th><th>공급사</th><th class="num">수량</th><th>처리</th><th class="due-hl" id="csDueTh" style="cursor:pointer" onclick="csSortByDue()" title="클릭하면 요청납기 기준 정렬">요청납기</th><th>접수일</th><th>발주일</th><th>출고/입고일</th><th>상태</th><th></th></tr></thead><tbody id="csBody"></tbody></table></div>
+    <div class="tbl scroll"><table><thead><tr><th><input type="checkbox" id="csSelAll" onchange="toggleAllCs(this.checked)" aria-label="표시된 건 전체 선택"></th><th>품목</th><th>사급처</th><th>공급사</th><th class="num">수량</th><th>처리</th><th class="due-hl" id="csDueTh" tabindex="0" role="button" style="cursor:pointer" onclick="csSortByDue()" title="클릭하면 요청납기 기준 정렬">요청납기</th><th>접수일</th><th>발주일</th><th>출고/입고일</th><th>상태</th><th></th></tr></thead><tbody id="csBody"></tbody></table></div>
   </div>
 </section>
 
 <!-- ═══════ 기준정보 ═══════ -->
 <section id="tab-master" style="display:none">
+  <div class="card" style="padding:8px 14px;margin-bottom:12px;border-color:var(--acc)"><div class="hint" style="margin:0;color:var(--ink)"><b>표 안 칸은 즉시 저장됩니다.</b> 값을 고치고 칸을 벗어나면(Enter·Tab) 저장 — 입력 중에는 <span style="background:var(--amber-soft);border:1px solid var(--amber);padding:0 4px">주황(미저장)</span>, 저장되면 <span style="border:1px solid var(--green);padding:0 4px">초록 테두리</span>. 입력 중 <b>Esc</b> = 입력 취소, 저장 직후 아래 [되돌리기] = 이전 값으로. 삭제는 맨 오른쪽 열(두 번 눌러 확인).</div></div>
   <div class="card">
     <h2>원료 마스터 (창고 위치 · 매입처) <span class="cnt" id="cntMat"></span></h2>
-    <input id="matSearch" placeholder="품목·업체·창고 검색" oninput="renderMaster()" style="width:100%;margin-bottom:10px">
+    <label for="matSearch">원료 검색</label><input id="matSearch" type="search" placeholder="품목·업체·창고 검색" oninput="renderMaster()" style="width:100%;margin-bottom:10px">
     <div class="tbl scroll"><table><thead><tr><th>품목</th><th>종류</th><th>포장</th><th class="num">단위kg</th><th>매입처</th><th>사용</th><th>창고</th><th>비고</th></tr></thead><tbody id="matBody"></tbody></table></div>
   </div>
   <div class="card">
     <h2>발주 기준 (재고 임계치) <span class="cnt" id="cntRopMat"></span></h2>
     <div class="hint">현황 화면 "오늘 발주할 것 → 재고 기준" 표에서 이 목록의 품목만 발주점 계산 대상이 됩니다. 값을 바꾸면 바로 저장됩니다 — 품목명은 재고파일·발주 등록에서 쓰는 이름과 정확히 같아야 매칭됩니다.</div>
-    <div class="row" style="margin:10px 0"><input id="ropSearch" placeholder="품목·매입처·위치 검색" oninput="renderRopMat()" style="flex:1;min-width:160px"><button class="btn sm pri" onclick="addRopRow()">+ 품목 추가</button><button class="btn sm" onclick="exportRopXlsx()">엑셀로 내보내기</button></div>
+    <div class="row" style="margin:10px 0"><label for="ropSearch" class="inl">검색</label><input id="ropSearch" type="search" placeholder="품목·매입처·위치 검색" oninput="renderRopMat()" style="flex:1;min-width:160px"><button class="btn sm pri" onclick="addRopRow()">+ 품목 추가</button><button class="btn sm" onclick="exportRopXlsx()">엑셀로 내보내기</button></div>
     <datalist id="ropCatList"><option value="가소제"><option value="안료"><option value="충격보강제"><option value="안정제"><option value="충전제"><option value="활제"><option value="기재수지"><option value="기타"></datalist>
-    <div class="tbl scroll"><table><thead><tr><th>품목</th><th>분류</th><th class="num">발주점(kg)</th><th class="num">1회 발주량</th><th class="num">리드타임(일)</th><th>매입처</th><th>위치</th><th></th></tr></thead><tbody id="ropMatBody"></tbody></table></div>
+    <div class="tbl scroll"><table><thead><tr><th>품목</th><th>분류</th><th class="num">발주점(kg)</th><th class="num">1회 발주량</th><th class="num">리드타임(일)</th><th>매입처</th><th>위치</th><th class="del-col">삭제</th></tr></thead><tbody id="ropMatBody"></tbody></table></div>
   </div>
   <div class="card">
     <h2>주기 기준 대상 (자가 발주) <span class="cnt" id="cntCycMat"></span></h2>
     <div class="hint">"자가 아님"에 체크하면 현황 화면 "주기 기준" 표에서 빠집니다. 주기·1회 발주량도 여기서 바로 수정됩니다.</div>
-    <div class="row" style="margin:10px 0"><input id="cycSearch" placeholder="품목 검색" oninput="renderCycMat()" style="flex:1;min-width:160px"><button class="btn sm pri" onclick="addCycRow()">+ 품목 추가</button></div>
-    <div class="tbl scroll"><table><thead><tr><th>품목</th><th>주기</th><th class="num">1회 발주량</th><th>단위</th><th>자가 아님(제외)</th><th></th></tr></thead><tbody id="cycMatBody"></tbody></table></div>
+    <div class="row" style="margin:10px 0"><label for="cycSearch" class="inl">검색</label><input id="cycSearch" type="search" placeholder="품목 검색" oninput="renderCycMat()" style="flex:1;min-width:160px"><button class="btn sm pri" onclick="addCycRow()">+ 품목 추가</button></div>
+    <div class="tbl scroll"><table><thead><tr><th>품목</th><th>주기</th><th class="num">1회 발주량</th><th>단위</th><th>자가 아님(제외)</th><th class="del-col">삭제</th></tr></thead><tbody id="cycMatBody"></tbody></table></div>
   </div>
   <div class="card">
     <h2>사급처별 요청 대응 이력 (발주 대응 vs 14동 직접출고)</h2>
@@ -531,7 +658,7 @@ details.card summary .cnt{font-size:11.5px;color:var(--mut);font-weight:500}
     <h2>거래처 담당자 연락처 <span class="cnt" id="cntContacts"></span></h2>
     <div class="hint">매입처(발주 메일 인사말)·납품처(발주 메일 주소·사급 출고 지시서 수신 담당) 모두 여기 등록한 회사명으로 자동 매칭됩니다 — 단, 실제로 밖에 나가는 문서라 회사명이 발주·사급 등록에서 쓰는 이름과 정확히 같아야만(㈜·주식회사·공백 등 표기 차이는 무시) 매칭됩니다. 일부만 비슷하면 매칭되지 않습니다.</div>
     <div class="row" style="margin:10px 0"><button class="btn sm pri" onclick="addContactRow()">+ 거래처 추가</button></div>
-    <div class="tbl scroll"><table><thead><tr><th>회사명</th><th>담당자</th><th>전화</th><th>주소</th><th></th></tr></thead><tbody id="contactBody"></tbody></table></div>
+    <div class="tbl scroll"><table><thead><tr><th>회사명</th><th>담당자</th><th>전화</th><th>주소</th><th class="del-col">삭제</th></tr></thead><tbody id="contactBody"></tbody></table></div>
   </div>
 </section>
 
@@ -540,14 +667,14 @@ details.card summary .cnt{font-size:11.5px;color:var(--mut);font-weight:500}
   <div class="card">
     <h2>캘린더 <span class="cnt">입고 · 창고이동 · 출고 한눈에 보기</span></h2>
     <div class="row" style="align-items:center;margin-bottom:8px;flex-wrap:wrap">
-      <button class="btn sm ghost" onclick="calShift(-1)">◀</button>
-      <b id="calLabel" style="min-width:110px;text-align:center"></b>
-      <button class="btn sm ghost" onclick="calShift(1)">▶</button>
+      <button class="btn sm ghost" id="calPrev" onclick="calShift(-1)" aria-label="이전 달 보기">◀</button>
+      <b id="calLabel" style="min-width:110px;text-align:center" aria-live="polite"></b>
+      <button class="btn sm ghost" id="calNext" onclick="calShift(1)" aria-label="다음 달 보기">▶</button>
       <button class="btn sm" onclick="calToday()">오늘</button>
       <span style="flex:1;min-width:8px"></span>
-      <span id="calViewToggle" style="display:inline-flex;gap:4px;flex:none"></span>   <!-- .row>div는 세로 배치 규칙이 있어 span으로 -->
+      <span id="calViewToggle" role="group" aria-label="보기 방식" style="display:inline-flex;gap:4px;flex:none"></span>   <!-- .row>div는 세로 배치 규칙이 있어 span으로 -->
     </div>
-    <div class="hint" style="margin-bottom:8px"><span class="chip c-ord">■</span> 입고&nbsp; <span class="chip c-mut">■</span> 창고이동&nbsp; <span class="chip c-wait">■</span> 출고 — 날짜를 누르면 아래에 자세히 표시됩니다</div>
+    <div class="hint" style="margin-bottom:8px">칸 안 글자: <span class="chip c-ord">입고 N</span> 입고예정(착일) 건 · <span class="chip c-mut">이동 N</span> 창고→라인 이동 요청 <b>전체</b>(완료 포함) · <span class="chip c-wait">출고 N</span> 사급 직접출고 — 날짜를 누르면(또는 Tab으로 이동 후 Enter) 아래에 실물/전산 대기까지 자세히 표시됩니다</div>
     <div id="calGrid"></div>
   </div>
   <div class="card" id="calDayCard" style="display:none">
@@ -561,9 +688,9 @@ details.card summary .cnt{font-size:11.5px;color:var(--mut);font-weight:500}
   <div class="card">
     <h2>월간 발주 통계</h2>
     <div class="row" style="align-items:center;margin-bottom:8px">
-      <button class="btn sm ghost" onclick="stShift(-1)">◀</button>
-      <input type="month" id="stMon" onchange="stMonth=this.value;renderStats()" style="width:150px">
-      <button class="btn sm ghost" onclick="stShift(1)">▶</button>
+      <button class="btn sm ghost" onclick="stShift(-1)" aria-label="통계 이전 달">◀</button>
+      <input type="month" id="stMon" onchange="stMonth=this.value;renderStats()" style="width:150px" aria-label="통계 기준 월">
+      <button class="btn sm ghost" onclick="stShift(1)" aria-label="통계 다음 달">▶</button>
       <span class="hint" id="stMonHint" style="flex:1;min-width:160px"></span>
     </div>
     <div class="stat" id="stTiles"></div>
@@ -587,7 +714,7 @@ details.card summary .cnt{font-size:11.5px;color:var(--mut);font-weight:500}
   <div class="card">
     <h2>재고 추이 <span class="cnt" id="stInvCnt"></span></h2>
     <div class="row" style="align-items:center;margin-bottom:8px">
-      <select id="stItemSel" onchange="stItem=this.value;renderStats()" style="min-width:220px"></select>
+      <select id="stItemSel" aria-label="재고 추이 품목" onchange="stItem=this.value;renderStats()" style="min-width:220px"></select>
       <span class="tag" id="stInvInfo" style="flex:1;min-width:160px"></span>
     </div>
     <div id="stTrend"></div>
@@ -608,7 +735,7 @@ details.card summary .cnt{font-size:11.5px;color:var(--mut);font-weight:500}
       <h2>② 생산계획 업로드</h2>
       <div class="dropzone" id="fcPlanDrop" onclick="fcPlanFile.click()">생산계획 엑셀/CSV 끌어다 놓기 (또는 클릭)</div>
       <input type="file" id="fcPlanFile" accept=".xlsx,.xls,.csv" style="display:none" onchange="readPlanFile(this.files[0]);this.value=''">
-      <label style="display:block;margin-top:10px">또는 붙여넣기 — 제품코드 [탭] 수량 [탭] 날짜(선택)</label>
+      <label for="fcPaste" style="display:block;margin-top:10px">또는 붙여넣기 — 제품코드 [탭] 수량 [탭] 날짜(선택)</label>
       <textarea id="fcPaste" rows="3" style="width:100%"></textarea>
       <div class="row" style="margin-top:6px">
         <button class="btn sm" onclick="fcParsePaste()">붙여넣기 인식</button>
@@ -624,8 +751,8 @@ details.card summary .cnt{font-size:11.5px;color:var(--mut);font-weight:500}
   <div class="card">
     <h2>예측 대시보드</h2>
     <div class="row" style="align-items:center;margin-bottom:8px">
-      <button class="btn sm pri" onclick="fcCalc()">예측 계산</button>
-      <input id="fcSearch" placeholder="자재 검색…" oninput="renderFcResult()" style="min-width:200px">
+      <button class="btn sm pri" id="fcCalcBtn" onclick="fcCalc()">예측 계산</button>
+      <label for="fcSearch" style="margin:0;align-self:center">자재 검색</label><input id="fcSearch" type="search" placeholder="코드·품목명" oninput="renderFcResult()" style="min-width:180px">
       <span class="hint" id="fcCalcHint" style="flex:1;min-width:160px"></span>
     </div>
     <div class="stat" id="fcTiles"></div>
@@ -648,8 +775,8 @@ details.card summary .cnt{font-size:11.5px;color:var(--mut);font-weight:500}
     <h2>휴지통 <span class="cnt" id="cntTrash"></span></h2>
     <div class="hint">지워진 항목이 보관됩니다(최근 500건). 개별로 되살릴 수 있습니다.</div>
     <div class="row" style="margin-bottom:10px">
-      <input id="trashSearch" placeholder="품목·내용 검색" oninput="renderTrash()" style="flex:1;min-width:160px">
-      <select id="trashKind" onchange="renderTrash()">
+      <label for="trashSearch" class="inl">검색</label><input id="trashSearch" type="search" placeholder="품목·내용 검색" oninput="renderTrash()" style="flex:1;min-width:160px">
+      <select id="trashKind" aria-label="삭제 종류 필터" onchange="renderTrash()">
         <option value="">종류 전체</option><option value="move">창고이동</option>
         <option value="order">발주</option><option value="cons">사급</option><option value="note">전달사항</option>
       </select>
@@ -673,22 +800,26 @@ details.card summary .cnt{font-size:11.5px;color:var(--mut);font-weight:500}
 </main>
 
 <datalist id="itemList"></datalist><datalist id="vendorList"></datalist><datalist id="destList"></datalist><datalist id="consList"></datalist><datalist id="matKindList"><option value="PVC"><option value="PP"><option value="ABS"><option value="PC"></datalist>
-<div class="toast" id="toast"></div>
+<div id="undoBar" role="status" aria-live="polite"><span id="undoTxt"></span><button class="btn sm" id="undoBtn" onclick="runUndo()">되돌리기</button><button class="btn sm" onclick="hideUndo()" aria-label="처리 결과 안내 닫기">✕</button></div>
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
 
 <dialog id="dlg"><div class="dlg"><h3 id="dlgTitle">수정</h3><div class="grid2" id="dlgBody"></div></div>
 <div class="dlg-foot"><button class="btn" id="dlgDelBtn" style="margin-right:auto;color:var(--red)" onclick="dlgDelete()">삭제</button><button class="btn" onclick="dlg.close()">취소</button><button class="btn pri" onclick="dlgSave()">저장</button></div></dialog>
 
+<dialog id="dlgRow" aria-labelledby="dlgRowTitle"><div class="dlg"><h3 id="dlgRowTitle">행 상세</h3><div id="dlgRowBody"></div></div>
+<div class="dlg-foot"><button class="btn pri" onclick="dlgRow.close()">닫기</button></div></dialog>
+
 <dialog id="dlgShare"><div class="dlg">
   <h3>링크 공유 · 핸드폰 바로가기</h3>
   <div class="sec">
-    <label>① 자재과 관리 화면 (본인용) — 이 링크로 열면 항상 관리 화면</label>
+    <label for="lnkAdmin">① 자재과 관리 화면 (본인용) — 이 링크로 열면 항상 관리 화면</label>
     <div class="row" style="align-items:center;flex-wrap:nowrap">
       <input id="lnkAdmin" readonly style="flex:1;min-width:0;font-family:Consolas,'Courier New',monospace;font-size:12px">
       <button class="btn sm pri" onclick="copyText(lnkAdmin.value)">복사</button>
     </div>
   </div>
   <div class="sec">
-    <label>② 지게차 기사 화면 (기사님께 이 링크만 전달)</label>
+    <label for="lnkDriver">② 지게차 기사 화면 (기사님께 이 링크만 전달)</label>
     <div class="row" style="align-items:center;flex-wrap:nowrap">
       <input id="lnkDriver" readonly style="flex:1;min-width:0;font-family:Consolas,'Courier New',monospace;font-size:12px">
       <button class="btn sm pri" onclick="copyText(lnkDriver.value)">복사</button>
@@ -707,8 +838,8 @@ details.card summary .cnt{font-size:11.5px;color:var(--mut);font-weight:500}
     <label>이 판 쓰는 법 (처음 보는 분용)</label>
     <div class="hint" style="line-height:1.8">
       <b>현황</b> : 아침에 여기만 보면 됨 — 오늘 입고 예정 · 창고이동 요청 · 발주할 것 · 사급 대기 한 화면. ③에 DW 재고 파일을 끌어다 놓으면 발주점 기준으로 발주할 품목이 자동 계산됨.<br>
-      <b>배합실요청</b> : 전화 모드에서 부서 → 품목 → 수량 탭 세 번으로 등록 → 기사 화면에 자동 표시.<br>
-      <b>발주 · 입고</b> : 프리셋 골라 발주 등록 → 착일(입고예정일) 자동 계산 → 입고 체크로 마감.<br>
+      <b>배합실 요청</b> : 전화 모드에서 부서 → 품목 → 수량 탭 세 번으로 등록 → 기사 화면에 자동 표시.<br>
+      <b>발주 · 입고</b> : 프리셋 골라 발주 등록 → 입고예정일(착일) 자동 계산 → [입고 완료 처리]로 마감.<br>
       <b>사급발주</b> : 업체가 보낸 발주서 엑셀을 끌어다 놓으면 자동 인식 → 발주/직접출고 판정 → 발주 메일 자동 작성(복사해서 발송).
     </div>
   </div>
@@ -754,6 +885,7 @@ var o=((a=s[17])==null?void 0:a[0])?Ob(e,e[_b(s[17][0].data)][0]):[];var l=vb(s[
 var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.s.r;c<=n.e.r;++c){i=Ta(c);for(f=n.s.c;f<=n.e.c;++f){r=s[f]+i;t=l?(e[c]||[])[f]:e[r];a="";if(t===undefined)continue;else if(t.F!=null){r=t.F;if(!t.f)continue;a=t.f;if(r.indexOf(":")==-1)r=r+":"+r}if(t.f!=null)a=t.f;else if(t.t=="z")continue;else if(t.t=="n"&&t.v!=null)a=""+t.v;else if(t.t=="b")a=t.v?"TRUE":"FALSE";else if(t.w!==undefined)a="'"+t.w;else if(t.v===undefined)continue;else if(t.t=="s")a="'"+t.v;else a=""+t.v;o[o.length]=r+"="+a}}return o}function xw(e,r,t){var a=t||{};var n=+!a.skipHeader;var i=e||{};var s=0,f=0;if(i&&a.origin!=null){if(typeof a.origin=="number")s=a.origin;else{var o=typeof a.origin=="string"?Oa(a.origin):a.origin;s=o.r;f=o.c}}var l;var c={s:{c:0,r:0},e:{c:f,r:s+r.length-1+n}};if(i["!ref"]){var h=Da(i["!ref"]);c.e.c=Math.max(c.e.c,h.e.c);c.e.r=Math.max(c.e.r,h.e.r);if(s==-1){s=h.e.r+1;c.e.r=s+r.length-1+n}}else{if(s==-1){s=0;c.e.r=r.length-1+n}}var u=a.header||[],d=0;r.forEach(function(e,r){rr(e).forEach(function(t){if((d=u.indexOf(t))==-1)u[d=u.length]=t;var o=e[t];var c="z";var h="";var v=Ra({c:f+d,r:s+r+n});l=Rw(i,v);if(o&&typeof o==="object"&&!(o instanceof Date)){i[v]=o}else{if(typeof o=="number")c="n";else if(typeof o=="boolean")c="b";else if(typeof o=="string")c="s";else if(o instanceof Date){c="d";if(!a.cellDates){c="n";o=fr(o)}h=a.dateNF||X[14]}else if(o===null&&a.nullError){c="e";o=0}if(!l)i[v]=l={t:c,v:o};else{l.t=c;l.v=o;delete l.w;delete l.R;if(h)l.z=h}if(h)l.z=h}})});c.e.c=Math.max(c.e.c,f+u.length-1);var v=Ta(s);if(n)for(d=0;d<u.length;++d)i[ya(d+f)+v]={t:"s",v:u[d]};i["!ref"]=Na(c);return i}function Ow(e,r){return xw(null,e,r)}function Rw(e,r,t){if(typeof r=="string"){if(Array.isArray(e)){var a=Oa(r);if(!e[a.r])e[a.r]=[];return e[a.r][a.c]||(e[a.r][a.c]={t:"z"})}return e[r]||(e[r]={t:"z"})}if(typeof r!="number")return Rw(e,Ra(r));return Rw(e,Ra({r:r,c:t||0}))}function Iw(e,r){if(typeof r=="number"){if(r>=0&&e.SheetNames.length>r)return r;throw new Error("Cannot find sheet # "+r)}else if(typeof r=="string"){var t=e.SheetNames.indexOf(r);if(t>-1)return t;throw new Error("Cannot find sheet name |"+r+"|")}else throw new Error("Cannot find sheet |"+r+"|")}function Nw(){return{SheetNames:[],Sheets:{}}}function Dw(e,r,t,a){var n=1;if(!t)for(;n<=65535;++n,t=undefined)if(e.SheetNames.indexOf(t="Sheet"+n)==-1)break;if(!t||e.SheetNames.length>=65535)throw new Error("Too many worksheets");if(a&&e.SheetNames.indexOf(t)>=0){var i=t.match(/(^.*?)(\d+)$/);n=i&&+i[2]||0;var s=i&&i[1]||t;for(++n;n<=65535;++n)if(e.SheetNames.indexOf(t=s+n)==-1)break}Jp(t);if(e.SheetNames.indexOf(t)>=0)throw new Error("Worksheet with name |"+t+"| already exists!");e.SheetNames.push(t);e.Sheets[t]=r;return t}function Fw(e,r,t){if(!e.Workbook)e.Workbook={};if(!e.Workbook.Sheets)e.Workbook.Sheets=[];var a=Iw(e,r);if(!e.Workbook.Sheets[a])e.Workbook.Sheets[a]={};switch(t){case 0:;case 1:;case 2:break;default:throw new Error("Bad sheet visibility setting "+t);}e.Workbook.Sheets[a].Hidden=t}function Pw(e,r){e.z=r;return e}function Lw(e,r,t){if(!r){delete e.l}else{e.l={Target:r};if(t)e.l.Tooltip=t}return e}function Mw(e,r,t){return Lw(e,"#"+r,t)}function Uw(e,r,t){if(!e.c)e.c=[];e.c.push({t:r,a:t||"SheetJS"})}function Bw(e,r,t,a){var n=typeof r!="string"?r:Da(r);var i=typeof r=="string"?r:Na(r);for(var s=n.s.r;s<=n.e.r;++s)for(var f=n.s.c;f<=n.e.c;++f){var o=Rw(e,s,f);o.t="n";o.F=i;delete o.v;if(s==n.s.r&&f==n.s.c){o.f=t;if(a)o.D=true}}return e}var Ww={encode_col:ya,encode_row:Ta,encode_cell:Ra,encode_range:Na,decode_col:Ca,decode_row:ka,split_cell:xa,decode_cell:Oa,decode_range:Ia,format_cell:Pa,sheet_add_aoa:Ma,sheet_add_json:xw,sheet_add_dom:Gm,aoa_to_sheet:Ua,json_to_sheet:Ow,table_to_sheet:jm,table_to_book:Xm,sheet_to_csv:yw,sheet_to_txt:Sw,sheet_to_json:Aw,sheet_to_html:Vm,sheet_to_formulae:_w,sheet_to_row_object_array:Aw,sheet_get_cell:Rw,book_new:Nw,book_append_sheet:Dw,book_set_sheet_visibility:Fw,cell_set_number_format:Pw,cell_set_hyperlink:Lw,cell_set_internal_link:Mw,cell_add_comment:Uw,sheet_set_array_formula:Bw,consts:{SHEET_VISIBLE:0,SHEET_HIDDEN:1,SHEET_VERY_HIDDEN:2}};var Hw;function zw(e){Hw=e}function Vw(e,r){var t=Hw();var a=r==null?{}:r;if(e==null||e["!ref"]==null){t.push(null);return t}var n=Da(e["!ref"]);var i=a.FS!==undefined?a.FS:",",s=i.charCodeAt(0);var f=a.RS!==undefined?a.RS:"\n",o=f.charCodeAt(0);var l=new RegExp((i=="|"?"\\|":i)+"+$");var c="",h=[];a.dense=Array.isArray(e);var u=a.skipHidden&&e["!cols"]||[];var d=a.skipHidden&&e["!rows"]||[];for(var v=n.s.c;v<=n.e.c;++v)if(!(u[v]||{}).hidden)h[v]=ya(v);var p=n.s.r;var g=false,m=0;t._read=function(){if(!g){g=true;return t.push("\ufeff")}while(p<=n.e.r){++p;if((d[p-1]||{}).hidden)continue;c=Cw(e,n,p-1,h,s,o,i,a);if(c!=null){if(a.strip)c=c.replace(l,"");if(c||a.blankrows!==false)return t.push((m++?f:"")+c)}}return t.push(null)};return t}function Gw(e,r){var t=Hw();var a=r||{};var n=a.header!=null?a.header:Bm;var i=a.footer!=null?a.footer:Wm;t.push(n);var s=Ia(e["!ref"]);a.dense=Array.isArray(e);t.push(zm(e,s,a));var f=s.s.r;var o=false;t._read=function(){if(f>s.e.r){if(!o){o=true;t.push("</table>"+i)}return t.push(null)}while(f<=s.e.r){t.push(Um(e,s,f,a));++f;break}};return t}function jw(e,r){var t=Hw({objectMode:true});if(e==null||e["!ref"]==null){t.push(null);return t}var a={t:"n",v:0},n=0,i=1,s=[],f=0,o="";var l={s:{r:0,c:0},e:{r:0,c:0}};var c=r||{};var h=c.range!=null?c.range:e["!ref"];if(c.header===1)n=1;else if(c.header==="A")n=2;else if(Array.isArray(c.header))n=3;switch(typeof h){case"string":l=Da(h);break;case"number":l=Da(e["!ref"]);l.s.r=h;break;default:l=h;}if(n>0)i=0;var u=Ta(l.s.r);var d=[];var v=0;var p=Array.isArray(e);var g=l.s.r,m=0;var b={};if(p&&!e[g])e[g]=[];var w=c.skipHidden&&e["!cols"]||[];var k=c.skipHidden&&e["!rows"]||[];for(m=l.s.c;m<=l.e.c;++m){if((w[m]||{}).hidden)continue;d[m]=ya(m);a=p?e[g][m]:e[d[m]+u];switch(n){case 1:s[m]=m-l.s.c;break;case 2:s[m]=d[m];break;case 3:s[m]=c.header[m-l.s.c];break;default:if(a==null)a={w:"__EMPTY",t:"s"};o=f=Pa(a,null,c);v=b[f]||0;if(!v)b[f]=1;else{do{o=f+"_"+v++}while(b[o]);b[f]=v;b[o]=1}s[m]=o;}}g=l.s.r+i;t._read=function(){while(g<=l.e.r){if((k[g-1]||{}).hidden)continue;var r=Tw(e,l,g,d,n,s,p,c);++g;if(r.isempty===false||(n===1?c.blankrows!==false:!!c.blankrows)){t.push(r.row);return}}return t.push(null)};return t}var Xw={to_json:jw,to_html:Gw,to_csv:Vw,set_readable:zw};if(typeof vm!=="undefined")e.parse_xlscfb=vm;e.parse_zip=Xb;e.read=iw;e.readFile=sw;e.readFileSync=sw;e.write=gw;e.writeFile=bw;e.writeFileSync=bw;e.writeFileAsync=kw;e.utils=Ww;e.writeXLSX=pw;e.writeFileXLSX=ww;e.SSF=Ve;if(typeof Xw!=="undefined")e.stream=Xw;if(typeof Ke!=="undefined")e.CFB=Ke;if(typeof require!=="undefined"){var $w=undefined;if(($w||{}).Readable)zw($w.Readable)}}if(typeof exports!=="undefined")make_xlsx_lib(exports);else if(typeof module!=="undefined"&&module.exports)make_xlsx_lib(module.exports);else if(typeof define==="function"&&define.amd)define("xlsx",function(){if(!XLSX.version)make_xlsx_lib(XLSX);return XLSX});else make_xlsx_lib(XLSX);if(typeof window!=="undefined"&&!window.XLSX)try{window.XLSX=XLSX}catch(e){}
 </script>
 <script src="sales-match-engine.js"></script>
+<script src="ui-helpers.js"></script>
 <script>
 /* ═════════ 기준정보 ═════════ */
 const M=JSON.parse(document.getElementById('masterData').textContent);
@@ -1039,7 +1171,33 @@ const escJs=s=>String(s??'').replace(/\\/g,'\\\\').replace(/'/g,"\\'");
 function imeSafeEnter(e){if(e.key==='Enter'&&(e.isComposing||e.keyCode===229))e.preventDefault();}
 const KDAY=['일','월','화','수','목','금','토'];
 const fmtK=d=>d?`${d.slice(5,7)}/${d.slice(8,10)}(${KDAY[new Date(d+'T00:00:00').getDay()]})`:'';
-function setSave(cls,txt){const b=document.getElementById('saveBox');b.className='savebox '+cls;document.getElementById('saveTxt').textContent=txt;}
+let saveCls='';
+function setSave(cls,txt){saveCls=cls;document.getElementById('saveTxt').textContent=txt;updateConn();}
+/* 연결 상태 표시 — 저장 문구(saveTxt)와 별개로 "지금 어디에 저장되는지"를 항상 글자로 보여주고,
+   공유가 아닌 상태(샘플·이 기기에만·실패)에서는 헤더 아래 안내줄을 계속 띄움. 판단 기준은
+   ui-helpers.js connState() — 저장 동작 자체는 바꾸지 않음. */
+function updateConn(){
+  let st;
+  try{st=UiHelpers.connState({sample:!!(S&&S._sample),readOnly,pending:sbUnsyncedPending,sbOK,saveFailed:sbSaveFailed,gaveUp:sbGaveUp,cap:!!cap,sbAvailable:!!sb});}
+  catch(e){return;}   // 스크립트 초기화 중(변수 선언 전)에는 건너뜀 — 다음 setSave/refreshAll에서 반영
+  const b=document.getElementById('saveBox');
+  b.className='savebox '+saveCls+' '+st.mode;
+  b.title=st.detail;
+  document.getElementById('connMode').textContent=st.label;
+  const bn=document.getElementById('connBanner');
+  bn.className=(st.warn?'show ':'')+st.mode;
+  if(st.warn){
+    const canConnect=!!sb&&!sbOK&&(st.mode==='local'||st.mode==='sample');
+    const key=st.mode+'|'+st.detail+'|'+canConnect;
+    if(bn.dataset.key!==key){   // 20초 동기화마다 같은 내용을 다시 그리지 않게(포커스 유지)
+      bn.dataset.key=key;
+      bn.innerHTML=`<span>${st.mode==='sample'?'⚠ 샘플 데이터 표시 중':'⚠ '+esc(st.label)}</span><span style="font-weight:500">${esc(st.detail)}</span>${canConnect?'<button class="btn sm" onclick="sbAskPass()">실시간 공유 연결</button>':''}`;
+    }
+  }else{bn.dataset.key='';bn.innerHTML='';}
+  // 안내줄에 [실시간 공유 연결]이 있으면 헤더의 같은 버튼은 숨김(좁은 화면에서 헤더가 길어지지 않게)
+  const gate=document.getElementById('sbGateBtn');
+  if(gate)gate.style.display=bn.querySelector('button')?'none':'';
+}
 /* 실시간 공유 비밀번호를 아직 확인하지 못한 상태에서는(이 기기에 예전에 캐시된
    실제 데이터가 있어도) 진짜 값 대신 샘플 데이터만 보여줌 — sbConnect가 성공하면
    sbApply()가 이 값을 실제 데이터로 교체함. _sample 플래그로 표시해 최초 접속 시
@@ -1066,7 +1224,7 @@ async function loadDB(){
   if(cap){
     mode='shared';
     try{const r=await fetch('data/state.json',{cache:'no-store'});if(r.ok){const d=await r.json();if(d&&d.moves){S=d;loaded=true;}}}catch(e){}
-    setSave('ok','공유 저장 연결');
+    setSave('ok','· 연결됨');
     if(!loaded){try{const l=localStorage.getItem(KEY);if(l){const d=JSON.parse(l);if(d&&d.moves)S=d;}}catch(e){}}
   }else{
     // 실시간 공유(Supabase) 연결 전 잠깐 보여줄 초기 화면 — 이 기기에 예전에 저장해 둔 실제
@@ -1074,8 +1232,8 @@ async function loadDB(){
     // 전혀 없을 때만 샘플 데이터를 보여줌. sbConnect()가 연결되면 서버 데이터와 맞춰봄 —
     // 이 기기에 서버로 못 보낸 편집이 남아 있으면 조용히 덮어쓰지 않고 물어봄.
     let localS=null;try{const l=localStorage.getItem(KEY);if(l){const d=JSON.parse(l);if(d&&d.moves)localS=d;}}catch(e){}
-    if(localS){S=localS;setSave('local','저장된 내용 불러옴 — 실시간 공유 연결 필요');}
-    else{S=makeDummyState();setSave('local','샘플 데이터 — 실시간 공유 연결 필요');}
+    if(localS){S=localS;setSave('local','· 이 기기에 저장된 내용');}
+    else{S=makeDummyState();setSave('local','· 연결 전');}
   }
   refreshAll();
   sbInit();
@@ -1105,10 +1263,10 @@ function saveDB(){
   if(sbUnsyncedPending)return;
   setSave('','저장 중…');clearTimeout(saveT);
   saveT=setTimeout(async()=>{
-    try{await cap.publish({'data/state.json':{content:JSON.stringify(S),contentType:'application/json'}});setSave('ok','공유 저장됨 '+new Date().toTimeString().slice(0,5));}
+    try{await cap.publish({'data/state.json':{content:JSON.stringify(S),contentType:'application/json'}});setSave('ok','· 저장됨 '+new Date().toTimeString().slice(0,5));}
     catch(e){const c=e&&e.code;
-      if(c==='not_writer'||c==='not_granted'||c==='consent_required'){readOnly=true;setSave('ro','읽기 전용');document.getElementById('roBanner').style.display='';}
-      else if(c==='capability_disabled'||c==='capability_removed'){cap=null;setSave('local','이 브라우저에만 저장');}
+      if(c==='not_writer'||c==='not_granted'||c==='consent_required'){readOnly=true;setSave('ro','· 저장 안 됨');document.getElementById('roBanner').style.display='';}
+      else if(c==='capability_disabled'||c==='capability_removed'){cap=null;setSave('local','· 공유 저장 꺼짐');}
       else if(c==='conflict'){setSave('','다른 사용자가 저장함 — 새로고침');}
       else{setSave('ro','저장 실패: '+(e.message||c));}
     }
@@ -1203,7 +1361,7 @@ function resolveUnsynced(choice){
     document.getElementById('unsyncedBanner').style.display='none';
     sbUnsyncedPending=false;
     if(pendingServerData&&!sbApply(pendingServerData))toast('서버 데이터 형식이 올바르지 않아 로컬 데이터를 유지합니다');
-    else setSave('ok','실시간 공유 연결됨');
+    else setSave('ok','· 연결됨');
   }else{
     // 이 기기가 그 사이 또 편집했는지만 볼 게 아니라, 서버 쪽도 이 기기가 마지막으로 알던
     // 동기화 시점(KEY_SYNCED)과 달라졌는지 확인해야 함 — 그 사이 다른 기기가 실제로 저장한
@@ -1229,6 +1387,7 @@ function sbShowGate(){
   if(document.getElementById('sbGateBtn'))return;
   const b=document.getElementById('saveBox');if(!b)return;
   b.insertAdjacentHTML('afterend','<button class="btn sm" id="sbGateBtn" onclick="sbAskPass()">실시간 공유 연결</button>');
+  updateConn();
 }
 function sbAskPass(){
   const p=prompt('부서 공유 비밀번호를 입력하세요');
@@ -1331,7 +1490,7 @@ async function sbConnect(pass){
   // sbUnsyncedPending으로 막아서, 고르기도 전에 다른 기기 변경으로 조용히 덮이지 않게 함
   // (자체 검토에서 발견 — 배너만 띄우고 그대로 두면 20초 폴링·브로드캐스트가 곧바로 덮어씀).
   if(!sbUnsyncedPending){
-    setSave('ok','실시간 공유 연결됨');
+    setSave('ok','· 연결됨');
     toast('실시간 공유 연결됨 — 다른 사람 변경이 자동 반영됩니다');
   }
   sbSubscribe();
@@ -1399,7 +1558,7 @@ async function sbDoSave(){
     sbSaveFailed=false;sbSaveFails=0;sbGaveUp=false;
     sbLastJson=sentJson;
     try{localStorage.setItem(KEY_SYNCED,sentJson);}catch(e){}   // 이 스냅샷까지는 서버에 확실히 반영됨(그 뒤 편집분은 아님)
-    setSave('ok','실시간 저장됨 '+new Date().toTimeString().slice(0,5));
+    setSave('ok','· 저장됨 '+new Date().toTimeString().slice(0,5));
     try{sbCh?.send({type:'broadcast',event:'update',payload:{by:sbClientId,ts:Date.now()}});}catch(e){}
     sendServerPush();   // 앱을 꺼둔 기사에게도 알림
   }finally{
@@ -1430,13 +1589,16 @@ async function sbSaveMasterMaterials(){
 /* 원료 마스터 '종류' 편집 저장 — 예: PVC로 표시해 두면 지게차 화면 입고 목록에서 자동 제외됨(isPvcItem 참고). */
 async function matField(idx,key,val){
   const m=M.materials[idx];if(!m)return;
+  const old=m[key]||'';
   m[key]=val.trim();
+  const undoMat=()=>{if(M.materials[idx]!==m&&norm((M.materials[idx]||{}).name)!==norm(m.name)){notifyGone();return;}matField(idx,key,old);};
+  const matMsg=`${m.name} 종류: ${old||'(빈칸)'} → ${m[key]||'(빈칸)'}`;
   fillLists();refreshAll();
   // refreshAll()은 백그라운드 재렌더(bg=true)로 renderMaster를 부르므로, 지금 막 이 칸에서
   // 커밋한 값이라도 activeElement가 아직 이 입력칸이면 표가 안 갱신될 수 있음 — 방금 커밋한
   // 값은 항상 반영돼야 하므로 bg 없이 한 번 더(무조건) 그려서 보정 — 코드리뷰로 발견된 문제.
   renderMaster();
-  if(!sb||!sbOK){toast(`${m.name} 저장됨 (이 기기에만 — 공유 연결 시 전체 반영)`);return;}
+  if(!sb||!sbOK){cellSaved(`matField(${idx},'${key}'`,matMsg,undoMat);return;}
   try{
     const{data:cur3}=await sb.rpc('get_board',{p_id:'jajae-master',p_passcode:sbPass});
     const base=(cur3&&typeof cur3==='object'&&!Array.isArray(cur3))?cur3:{};
@@ -1445,7 +1607,7 @@ async function matField(idx,key,val){
     M.materials=merged;fillLists();renderMaster();
     const payload={...base,materials:merged};
     const res=await sb.rpc('set_board',{p_id:'jajae-master',p_passcode:sbPass,p_data:payload});
-    if(res&&res.error)toast('저장 실패 — 네트워크 확인');else toast(`${m.name} 저장됨`);
+    if(res&&res.error)toast('저장 실패 — 네트워크 확인');else cellSaved(`matField(${idx},'${key}'`,matMsg,undoMat);
   }catch(e){toast('저장 실패 — 네트워크 확인');}
 }
 function materialExists(name){return M.materials.some(m=>norm(m.name)===norm(name));}
@@ -1462,6 +1624,40 @@ function ensureMaterial(item,extra){
   return true;
 }
 function toast(m){const t=document.getElementById('toast');t.textContent=m;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),1800);}
+/* ═════════ 처리 결과 안내 + 되돌리기 ═════════
+   확인창을 늘리지 않는 대신, 상태를 바꾼 직후 "무엇이 어떻게 됐는지"를 7초간 보여주고 한 번에
+   되돌릴 수 있게 함. 되돌리기는 바꾼 필드만 바꾸기 전 값으로 복원(undoFields)하거나, 방금 만든
+   건을 휴지통으로 옮김(undoCreate) — 그 사이 다른 기기에서 지워진 건은 건드리지 않음. */
+let undoT=null,undoFn=null;
+function showUndo(msg,fn){
+  undoFn=fn||null;
+  document.getElementById('undoTxt').textContent=msg;
+  document.getElementById('undoBtn').style.display=fn?'':'none';
+  document.getElementById('undoBar').classList.add('show');
+  clearTimeout(undoT);undoT=setTimeout(hideUndo,7000);
+}
+function hideUndo(){document.getElementById('undoBar').classList.remove('show');undoFn=null;clearTimeout(undoT);}
+function runUndo(){const f=undoFn;hideUndo();if(f)f();}
+function undoFields(kind,ids,fields,doneMsg){
+  const snaps=ids.map(id=>{const x=S[kind].find(o=>o.id===id);return x?{id,s:UiHelpers.snapshot(x,fields)}:null;}).filter(Boolean);
+  return()=>{
+    let n=0;
+    snaps.forEach(({id,s})=>{const x=S[kind].find(o=>o.id===id);if(x){UiHelpers.restore(x,s);n++;}});
+    if(!n){notifyGone();return;}
+    saveDB();refreshAll();toast(doneMsg||'되돌렸습니다');
+  };
+}
+const TRASH_KIND={moves:'move',orders:'order',cons:'cons'};
+function undoCreate(kind,ids,doneMsg){
+  return()=>{
+    const gone=S[kind].filter(x=>ids.includes(x.id));
+    if(!gone.length){notifyGone();return;}
+    toTrash(TRASH_KIND[kind],gone);
+    S[kind]=S[kind].filter(x=>!ids.includes(x.id));
+    saveDB();refreshAll();toast(doneMsg||'등록을 취소했습니다 (휴지통에 보관)');
+  };
+}
+const qtyTxt=(q,u)=>(q==null||q===''||isNaN(+q))?'':`${fmtN(+q)} ${u||''}`.trim();   // 수량 없는 프리셋은 "대"만 덩그러니 나오지 않게 비움
 /* 공유 링크 — 지금 열려 있는 주소 기준(클로드 아티팩트/GitHub Pages 어디서 열어도 자동으로 맞는 링크 표시) */
 function curUrl(){return location.origin+location.pathname;}
 function openShare(){document.getElementById('lnkAdmin').value=curUrl()+'#admin';document.getElementById('lnkDriver').value=curUrl()+'#driver';document.getElementById('dlgShare').showModal();}
@@ -1479,7 +1675,7 @@ function showTab(t){
   // 삭제기록은 자재과 전용 — 비밀번호를 통과하기 전에는 열지 않음
   if(t==='trash'&&!trashUnlocked){askTrashPin();return;}
   document.querySelectorAll('main section').forEach(s=>s.style.display=(s.id==='tab-'+t)?'':'none');
-  document.querySelectorAll('nav button').forEach(b=>b.classList.toggle('on',b.dataset.t===t));
+  document.querySelectorAll('nav button').forEach(b=>{const on=b.dataset.t===t;b.classList.toggle('on',on);if(on)b.setAttribute('aria-current','page');else b.removeAttribute('aria-current');});
   if(t==='driver')renderDriver();
   if(t==='trash')markLogSeen();   // 열어본 시점에만 경고 해제
   if(TAB_RENDER[t])TAB_RENDER[t]();   // refreshAll()이 이 탭을 그동안 건너뛰었을 수 있어 전환 시 한 번 최신화
@@ -1579,11 +1775,12 @@ function refreshAll(){
   const odN=S.orders.filter(o=>!o.skip&&!o.inDate).length, mvN=S.moves.filter(m=>m.date===cur&&!m.done).length, csN=S.cons.filter(c=>!c.done&&!c.ordDate&&!c.outDate).length;
   badge('bMove',mvN);badge('bOrder',odN);badge('bCons',csN);
   updateDrvNotif();
+  updateConn();   // 샘플→실데이터 전환(sbApply) 등 저장 문구 없이 상태가 바뀌는 경우도 반영
   updateDelAlert();
   renderTrashTab();
   pushDrvNotif();   // 기사 기기: 새로 생긴 입고·이동·전달사항을 폰 알림으로
 }
-function badge(id,n){const b=document.getElementById(id);b.hidden=!n;b.textContent=n;}
+function badge(id,n){const b=document.getElementById(id);b.hidden=!n;b.textContent=n;b.setAttribute('aria-label',n+'건 대기');}
 /* 우측 상단 알림 — 지게차 기사가 새로 등록했거나(품목/수량) 실출고를 보정한 건이
    있으면 자재과 화면에 표시. 액션 하나당 고유 키를 만들어 '이미 본 것' 목록과
    비교 — 같은 건을 여러 번 고쳐도(actKgAt이 매번 바뀜) 새 보정마다 다시 알림됨. */
@@ -1632,9 +1829,9 @@ function fillLists(){
     sel.querySelectorAll('optgroup').forEach(g=>g.remove());
     const cur=sel.value;
     const g1=document.createElement('optgroup');g1.label='자가(부강 입고)';
-    M.presetSelf.forEach((p,i)=>{const o=document.createElement('option');o.value='s'+i;o.textContent=p.label;g1.appendChild(o);});
+    M.presetSelf.forEach((p,i)=>{const o=document.createElement('option');o.value='s'+i;o.textContent=UiHelpers.cycleText(p.label);g1.appendChild(o);});
     const g2=document.createElement('optgroup');g2.label='사급(업체 직납)';
-    M.presetConsign.forEach((p,i)=>{const o=document.createElement('option');o.value='c'+i;o.textContent=p.label;g2.appendChild(o);});
+    M.presetConsign.forEach((p,i)=>{const o=document.createElement('option');o.value='c'+i;o.textContent=UiHelpers.cycleText(p.label);g2.appendChild(o);});
     sel.append(g1,g2);
     if([...sel.options].some(o=>o.value===cur))sel.value=cur;
   }
@@ -1742,15 +1939,16 @@ function renderBoard(){
   const late=S.orders.filter(o=>!o.inDate&&o.eta&&o.eta<cur&&o.type==='self');
   const tb=document.getElementById('boardIn');
   const rows=[...late.map(o=>({...o,_late:true})),...ins];
-  tb.innerHTML=rows.length?rows.map(o=>`<tr class="${o.inDate?'done':''}"><td><b>${esc(o.item)}</b>${o._late?` <span class="chip c-late">지연 ${fmtK(o.eta)}</span>`:''}</td><td><b>${esc(o.vendor)}</b></td><td><span class="loc">${esc(o.loc||'?')}</span></td><td class="num">${fmtN(o.qty)} ${esc(o.unit)}</td><td>${deptChip(o.dept)}</td><td class="tag">${esc(o.note)}</td><td>${o.inDate?`<span class="chip c-done">입고${isThird(o.inBy)?' ✋'+esc(o.inBy):''}</span>`:`<button class="btn sm" onclick="markIn(${o.id})">입고 체크</button>`}</td></tr>`).join(''):'<tr><td colspan="7" class="empty">오늘 입고 예정 없음 — [발주·입고] 탭에서 발주를 등록하면 착일 기준으로 표시됨</td></tr>';
+  tb.innerHTML=rows.length?rows.map(o=>`<tr class="${o.inDate?'done':''}"><td><b>${esc(o.item)}</b>${o._late?` <span class="chip st c-late">지연 · 입고예정 ${fmtK(o.eta)}</span>`:''}</td><td><b>${esc(o.vendor)}</b></td><td><span class="loc">${esc(o.loc||'?')}</span></td><td class="num">${fmtN(o.qty)} ${esc(o.unit)}</td><td>${deptChip(o.dept)}</td><td class="tag">${esc(o.note)}</td><td>${o.inDate?`<span class="chip st c-done">입고 완료${isThird(o.inBy)?' ✋'+esc(o.inBy):''}</span> <button class="btn sm ghost" onclick="cancelIn(${o.id})" aria-label="${esc(o.item)} 입고 완료 취소">취소</button>`:`<button class="btn sm pri" onclick="markIn(${o.id})" aria-label="${esc(o.item)} ${esc(qtyTxt(o.qty,o.unit))} 입고 완료 처리">입고 완료 처리</button>`}</td></tr>`).join(''):'<tr><td colspan="7" class="empty">오늘 입고 예정 없음 — [발주·입고] 탭에서 발주를 등록하면 입고예정일(착일) 기준으로 표시됨</td></tr>';
   document.getElementById('cntIn').textContent=rows.length?`${rows.filter(o=>!o.inDate).length}건 대기`:'';
   // 창고이동
   const mv=S.moves.filter(m=>m.date===cur);
   const order={'경질':0,'창호':1,'타일':2,'DBP':3};
   mv.sort((a,b)=>(order[a.dept]??9)-(order[b.dept]??9));
   document.getElementById('boardMv').innerHTML=mv.length?mv.map(m=>{const cv=convInfo(m.item,m.qty,m.unit);
-    return`<tr class="${m.done&&m.erp?'done':''}"><td><b>${esc(m.item)}</b>${r696Badge(m,true)}${isThird(m.addedBy)?` <span class="chip c-ord">✋ ${esc(m.addedBy)} 등록</span>`:''}${m.done?byBadge(m.doneBy):''}</td><td>${deptChip(m.dept)}</td><td><span class="loc">${esc(m.loc||'?')}</span></td><td class="num">${fmtN(m.qty)} ${esc(m.unit)}${cv?`<div class="tag">${esc(cv)}</div>`:''}</td><td class="tag">${esc(m.note)}</td><td>${!m.done?`<button class="btn sm" onclick="toggleMove(${m.id})">실물완료</button>`:(!m.erp?`<span class="chip c-wait">전산 대기</span> <button class="btn sm pri" onclick="toggleErp(${m.id})">전산완료</button> <button class="btn sm ghost" onclick="toggleMove(${m.id})" title="실물 완료 취소">↩</button>`:`<span class="chip c-done">전산완료</span> <button class="btn sm ghost" onclick="toggleErp(${m.id})" title="전산 완료 취소">↩</button>`)}</td></tr>`;}).join(''):'<tr><td colspan="6" class="empty">요청 없음 — [배합실요청] 탭에서 입력</td></tr>';
-  document.getElementById('cntMv').textContent=mv.length?`실물 ${mv.filter(m=>!m.done).length} · 전산 ${mv.filter(m=>m.done&&!m.erp).length}건 남음`:'';
+    return`<tr class="${m.done&&m.erp?'done':''}"><td><b>${esc(m.item)}</b>${r696Badge(m,true)}${isThird(m.addedBy)?` <span class="chip c-ord">✋ ${esc(m.addedBy)} 등록</span>`:''}${m.done?byBadge(m.doneBy):''}</td><td>${deptChip(m.dept)}</td><td><span class="loc">${esc(m.loc||'?')}</span></td><td class="num">${fmtN(m.qty)} ${esc(m.unit)}${cv?`<div class="tag">${esc(cv)}</div>`:''}</td><td class="tag">${esc(m.note)}</td><td>${!m.done?`<span class="chip st c-wait">실물 대기</span> <button class="btn sm pri" onclick="toggleMove(${m.id})" aria-label="${esc(m.item)} ${esc(qtyTxt(m.qty,m.unit))} 실물 이동 완료">실물 이동 완료</button>`:(!m.erp?`<span class="chip st c-wait">전산 대기</span> <button class="btn sm pri" onclick="toggleErp(${m.id})" aria-label="${esc(m.item)} 전산 이동 완료">전산 이동 완료</button> <button class="btn sm ghost" onclick="toggleMove(${m.id})" aria-label="${esc(m.item)} 실물 이동 완료 취소">실물 완료 취소</button>`:`<span class="chip st c-done">실물·전산 완료</span> <button class="btn sm ghost" onclick="toggleErp(${m.id})" aria-label="${esc(m.item)} 전산 이동 완료 취소">전산 완료 취소</button>`)}</td></tr>`;}).join(''):'<tr><td colspan="6" class="empty">요청 없음 — [배합실 요청] 탭에서 입력</td></tr>';
+  const mvc=UiHelpers.moveCounts(mv);
+  document.getElementById('cntMv').textContent=UiHelpers.moveCountText(mvc);
   // 발주할 것 — 재고(ROP) 기준 + 주기 기준
   const rop=ropDue();
   const hasInv=!!(S.inv&&S.inv.stock);
@@ -1761,16 +1959,16 @@ function renderBoard(){
   document.getElementById('invClear').style.display=hasInv?'':'none';
   renderInvRestoreOptions();
   document.getElementById('ropWrap').style.display=hasInv?'':'none';
-  document.getElementById('cycLbl').textContent=hasInv?'주기 기준 (자가 — 벌크·직납 등 재고 파일에 없는 품목)':'주기 기준 (자가) — 권장 주기와 마지막 발주일로 계산. [발주 체크] 시 착일 자동 생성.';
+  document.getElementById('cycLbl').textContent=hasInv?'주기 기준 (자가 — 벌크·직납 등 재고 파일에 없는 품목)':'주기 기준 (자가) — 권장 주기와 마지막 발주일로 계산. [발주 등록]을 누르면 발주가 바로 등록되고 입고예정일(착일)이 자동으로 잡힘.';
   if(hasInv){
     const ordered=it=>S.orders.some(o=>!o.skip&&!o.inDate&&norm(o.item)===norm(it));
     document.getElementById('boardRop').innerHTML=rop.length?rop.map(r=>{
       const shortStk=r.stk<=r.rop;
-      return `<tr><td><b>${esc(ITEM_DISPLAY_LABEL[r.item]||r.item)}</b> ${shortStk?'<span class="chip c-late">부족 '+fmtN(Math.max(0,Math.round(r.rop-r.stk)))+'kg</span>':'<span class="chip c-wait">임박</span>'}${r.zeroGap?' <span class="chip c-late" title="바로 전 재고 파일에는 있었는데 이번 파일에는 행 자체가 없음 — 품절로 보고 0으로 처리">품절 추정</span>':''}${r.flag?' <span class="tag">'+esc(r.flag)+'</span>':''}${r.gpps?'<div class="tag">⚠ '+esc(r.gpps)+' · 발주 여부는 검토 후 확정</div>':''}</td><td><b>${esc(r.vendor)}</b></td><td class="num">${fmtN(Math.round(r.stk))}</td><td class="num">${fmtN(r.rop)}</td><td class="num">${fmtN(r.qty)} kg</td><td>${r.lt}일</td><td>${ordered(r.item)?'<span class="chip c-ord">발주됨</span>':`<button class="btn sm warn" onclick="ropOrder('${escJs(esc(r.item))}')">발주 체크</button>`}</td></tr>`;
+      return `<tr><td><b>${esc(ITEM_DISPLAY_LABEL[r.item]||r.item)}</b> ${shortStk?'<span class="chip c-late">부족 '+fmtN(Math.max(0,Math.round(r.rop-r.stk)))+'kg</span>':'<span class="chip c-wait">임박</span>'}${r.zeroGap?' <span class="chip c-late" title="바로 전 재고 파일에는 있었는데 이번 파일에는 행 자체가 없음 — 품절로 보고 0으로 처리">품절 추정</span>':''}${r.flag?' <span class="tag">'+esc(r.flag)+'</span>':''}${r.gpps?'<div class="tag">⚠ '+esc(r.gpps)+' · 발주 여부는 검토 후 확정</div>':''}</td><td><b>${esc(r.vendor)}</b></td><td class="num">${fmtN(Math.round(r.stk))}</td><td class="num">${fmtN(r.rop)}</td><td class="num">${fmtN(r.qty)} kg</td><td>${r.lt}일</td><td>${ordered(r.item)?'<span class="chip st c-ord">발주됨(입고 대기)</span>':`<button class="btn sm warn" onclick="ropOrder('${escJs(esc(r.item))}')" aria-label="${esc(r.item)} ${fmtN(r.qty)}kg 발주 등록">발주 등록</button>`}</td></tr>`;
     }).join(''):'<tr><td colspan="7" class="empty">발주점 도달 품목 없음 — 전 품목 재고 여유</td></tr>';
     document.getElementById('cntRop').textContent=rop.length?`부족 ${rop.filter(r=>r.stk<=r.rop).length} · 임박 ${rop.filter(r=>r.stk>r.rop).length}`:'';
   }
-  document.getElementById('boardDue').innerHTML=due.length?due.map((p,i)=>{const rp=ropOf(p.item);return`<tr><td><b>${esc(short(p.item))}</b>${rp&&rp.loc?` <span class="loc">${esc(rp.loc)}</span>`:''}</td><td>${p.type==='self'?'<span class="chip c-mut">자가</span>':'<span class="chip c-ord">'+esc(p.dest)+'</span>'}</td><td class="num">${p.qty?fmtN(p.qty)+' '+esc(p.unit):'—'}</td><td>${esc(p.cycle)}</td><td>${p.last?fmtK(p.last):'<span class="tag">이력 없음</span>'}</td><td class="dday ${p.gap!=null&&p.gap>p.cyc+1?'late':'soon'}">${p.gap!=null?`+${p.gap}일`:'—'}</td><td><button class="btn sm warn" onclick="quickOrder('${p.type}',${p.type==='self'?M.presetSelf.indexOf(M.presetSelf.find(x=>x.label===p.label)):M.presetConsign.indexOf(M.presetConsign.find(x=>x.label===p.label))})">발주 체크</button> <button class="btn sm ghost" onclick="skipOrder('${p.type}',${p.type==='self'?M.presetSelf.indexOf(M.presetSelf.find(x=>x.label===p.label)):M.presetConsign.indexOf(M.presetConsign.find(x=>x.label===p.label))})" title="오늘은 발주 안 함 (주기 리셋)">건너뜀</button></td></tr>`;}).join(''):'<tr><td colspan="7" class="empty">오늘 주기 도래 품목 없음</td></tr>';
+  document.getElementById('boardDue').innerHTML=due.length?due.map((p,i)=>{const rp=ropOf(p.item);return`<tr><td><b>${esc(short(p.item))}</b>${rp&&rp.loc?` <span class="loc">${esc(rp.loc)}</span>`:''}</td><td>${p.type==='self'?'<span class="chip c-mut">자가</span>':'<span class="chip c-ord">'+esc(p.dest)+'</span>'}</td><td class="num">${p.qty?fmtN(p.qty)+' '+esc(p.unit):'—'}</td><td>${esc(UiHelpers.cycleLabel(p.cycle))}</td><td>${p.last?fmtK(p.last):'<span class="tag">이력 없음</span>'}</td><td class="dday ${p.gap!=null&&p.gap>p.cyc+1?'late':'soon'}">${p.gap!=null?`+${p.gap}일`:'—'}</td><td>${(()=>{const pi=p.type==='self'?M.presetSelf.indexOf(M.presetSelf.find(x=>x.label===p.label)):M.presetConsign.indexOf(M.presetConsign.find(x=>x.label===p.label));const nm=esc(short(p.item));return`<button class="btn sm warn" onclick="quickOrder('${p.type}',${pi})" aria-label="${nm} 발주 등록">발주 등록</button> <button class="btn sm ghost" onclick="skipOrder('${p.type}',${pi})" title="오늘은 발주 안 함 — 주기를 오늘부터 다시 셈" aria-label="${nm} 이번 주기 건너뛰기">이번 주기 건너뛰기</button>`;})()}</td></tr>`;}).join(''):'<tr><td colspan="7" class="empty">오늘 주기 도래 품목 없음</td></tr>';
   document.getElementById('cntDue').textContent=dueN?(hasInv?`재고부족 ${rop.filter(r=>r.stk<=r.rop).length} · 주기 ${due.length}건`:`${due.length}건`):'';
   const cycSug=cycleSuggestions();
   document.getElementById('cycSugLbl').style.display=cycSug.length?'':'none';
@@ -1793,7 +1991,7 @@ function renderBoard(){
   // 있는 이 현황 화면 안의 해당 카드로 스크롤 이동 — 숫자와 보이는 목록이 항상 정확히 일치함.
   document.getElementById('stats').innerHTML=`
     <div class="s acc" onclick="document.getElementById('inCard').scrollIntoView({behavior:'smooth',block:'start'})"><div class="v">${rows.filter(o=>!o.inDate).length}</div><div class="l">오늘 입고 예정</div></div>
-    <div class="s" onclick="showTab('move')"><div class="v">${mv.filter(m=>!m.done).length}</div><div class="l">창고이동 남은 건</div></div>
+    <div class="s" onclick="showTab('move')"><div class="v">${mvc.physPending}</div><div class="l">창고→라인 실물 대기</div><div class="tag">전체 ${mvc.total} · 전산 대기 ${mvc.erpPending}</div></div>
     <div class="s amber" onclick="document.getElementById('dueCard').scrollIntoView({behavior:'smooth',block:'start'})"><div class="v">${dueN}</div><div class="l">오늘 발주할 것</div></div>
     <div class="s red" onclick="odFlt.value='입고지연';showTab('order');renderOrders()"><div class="v">${lateN}</div><div class="l">입고 지연(전체)</div></div>
     <div class="s" onclick="document.getElementById('csCard').scrollIntoView({behavior:'smooth',block:'start'})"><div class="v">${cs.length}</div><div class="l">사급 대기</div></div>`;
@@ -1809,11 +2007,15 @@ function quickOrder(type,i){
   // 등록됐음(코드리뷰로 발견 — 처음엔 spRegisterOrder만 고쳤는데, 실제로 이 이름들이 지나가는
   // 경로는 quickOrder였음).
   const loc=qmLocOverride(p.item)||(m?m.loc.replace('(경질창고)',''):(type==='consign'?'직납':''));
-  S.orders.push({id:S.seq++,type,ordDate:cur,vendor,item:p.item,dest,qty:p.qty,unit:p.unit,kg:p.kg,eta:addDays(cur,leadOf(p.item)),inDate:'',loc,dept:type==='consign'?'사급':deptOf(m)||'전사',note:''});
-  saveDB();refreshAll();toast(`${short(p.item)} 발주 등록 — 착일 ${fmtK(addDays(cur,leadOf(p.item)))}`);
+  const id=S.seq++;
+  S.orders.push({id,type,ordDate:cur,vendor,item:p.item,dest,qty:p.qty,unit:p.unit,kg:p.kg,eta:addDays(cur,leadOf(p.item)),inDate:'',loc,dept:type==='consign'?'사급':deptOf(m)||'전사',note:''});
+  saveDB();refreshAll();
+  showUndo(`${short(p.item)} ${qtyTxt(p.qty,p.unit)} 발주 등록됨 — 입고예정 ${fmtK(addDays(cur,leadOf(p.item)))}`,undoCreate('orders',[id],`${short(p.item)} 발주 등록을 취소했습니다 (휴지통에 보관)`));
 }
 function skipOrder(type,i){const p=type==='self'?M.presetSelf[i]:M.presetConsign[i];
-  S.orders.push({id:S.seq++,type,ordDate:cur,vendor:'',item:p.item,dest:type==='self'?'자가(세종·부강)':p.consignee,qty:0,unit:p.unit,eta:'',inDate:cur,loc:'',dept:'',note:'건너뜀(주기 리셋)',skip:true});saveDB();refreshAll();}
+  const id=S.seq++;
+  S.orders.push({id,type,ordDate:cur,vendor:'',item:p.item,dest:type==='self'?'자가(세종·부강)':p.consignee,qty:0,unit:p.unit,eta:'',inDate:cur,loc:'',dept:'',note:'건너뜀(주기 리셋)',skip:true});saveDB();refreshAll();
+  showUndo(`${short(p.item)} 이번 주기 건너뜀 — 오늘부터 주기를 다시 셉니다`,undoCreate('orders',[id],`${short(p.item)} 건너뛰기를 취소했습니다`));}
 
 /* ═════════ DW 재고 → 발주점(ROP) ═════════ */
 function invDeptOf(d){d=d||'';if(d.startsWith('창호'))return'창호';if(d.startsWith('경질'))return'경질';if(/^디럭스|^타일/.test(d))return'타일';if(d.startsWith('데코'))return'DBP';return'전사';}
@@ -1945,8 +2147,10 @@ function ropDue(){
 function ropOrder(item){
   const r=M.rop.find(x=>x.item===item);if(!r)return;
   const m=matchItem(r.item);
-  S.orders.push({id:S.seq++,type:'self',ordDate:cur,vendor:r.vendor,item:r.item,dest:'자가(세종·부강)',qty:r.qty,unit:'kg',eta:addDays(cur,Math.ceil(r.lt)),inDate:'',loc:m?m.loc.replace('(경질창고)',''):(r.loc||''),dept:invDeptOf(r.dept),note:'재고 발주점 도달'});
-  saveDB();refreshAll();toast(`${r.item} ${fmtN(r.qty)}kg 발주 등록 — 착일 ${fmtK(addDays(cur,Math.ceil(r.lt)))}`);
+  const id=S.seq++;
+  S.orders.push({id,type:'self',ordDate:cur,vendor:r.vendor,item:r.item,dest:'자가(세종·부강)',qty:r.qty,unit:'kg',eta:addDays(cur,Math.ceil(r.lt)),inDate:'',loc:m?m.loc.replace('(경질창고)',''):(r.loc||''),dept:invDeptOf(r.dept),note:'재고 발주점 도달'});
+  saveDB();refreshAll();
+  showUndo(`${r.item} ${fmtN(r.qty)}kg 발주 등록됨 — 입고예정 ${fmtK(addDays(cur,Math.ceil(r.lt)))}`,undoCreate('orders',[id],`${r.item} 발주 등록을 취소했습니다 (휴지통에 보관)`));
 }
 
 /* ═════════ 특이사항 · 벌크/직납 발주 원터치 ═════════ */
@@ -1978,12 +2182,15 @@ function renderSpQuick(){
     // 달력 버튼 바로 옆에서 날짜창이 뜨도록 버튼·입력칸을 relative 컨테이너로 묶음
     // (감싸는 요소 없이 그냥 absolute만 주면 더 위에 있는 조상 기준으로 잡혀 화면 왼쪽에 떠버림).
     +`<span style="position:relative;display:inline-block"><button class="${spWhen==='custom'?'sel':''}" onclick="spOpenCustomDate()" title="날짜 직접 선택">📅${spWhen==='custom'&&spCustomDate?' '+fmtK(spCustomDate):''}</button><input type="date" id="sp2CustomDate" value="${esc(spCustomDate)}" style="position:absolute;left:0;top:100%;width:1px;height:1px;opacity:0;pointer-events:none" onchange="spCustomDateSet(this.value)"></span>`;
+  const sw=spWhen==='custom'&&spCustomDate?{label:fmtK(spCustomDate)}:(spWhen>=0?spWhens()[spWhen]:null);
+  const sum=document.getElementById('sp2Summary');
+  if(sum)sum.innerHTML=spSel?`등록 내용: <span class="dept d-${esc(qmDept)}">${esc(qmDept)}</span> 특이사항에 <b>${esc(spSel)}</b> · 납품 ${sw?'<b>'+esc(sw.label)+'</b>':'날짜 미선택'+(SP_BULK.has(spSel)?'(오늘)':'')} · ${document.getElementById('sp2Ord')?.checked?'<b>발주도 함께 등록</b>':'발주 등록 안 함'}<br><span class="tag">아래 수량 버튼을 누르면 바로 기록됩니다</span>`:'';
   document.getElementById('sp2Qty').innerHTML=spSel?(SP_BULK.has(spSel)
-    ?[1,2,3].map(n2=>`<button onclick="spAdd(${n2},true)"><b>${n2}대</b></button>`).join('')
-    :[500,1000,2000,3000,4000,5000,8000,10000].map(n2=>`<button onclick="spAdd(${n2},false)">${n2>=1000?(n2/1000)+'t':n2+'kg'}</button>`).join('')
+    ?[1,2,3].map(n2=>`<button onclick="spAdd(${n2},true)" aria-label="${esc(spSel)} ${n2}대 바로 기록"><b>${n2}대</b></button>`).join('')
+    :[500,1000,2000,3000,4000,5000,8000,10000].map(n2=>`<button onclick="spAdd(${n2},false)" aria-label="${esc(spSel)} ${fmtN(n2)}kg 바로 기록">${n2>=1000?(n2/1000)+'t':n2+'kg'}</button>`).join('')
   ):'<span class="tag">품목을 먼저 탭</span>';
   const ub=document.getElementById('sp2Undo');
-  if(ub)ub.innerHTML=spLast?`<span class="tag">방금 등록: <b>${esc(spLast.entry)}</b>${spLast.orderIds.length?' + 발주':''}</span> <button class="btn sm ghost" onclick="spUndo()">↩ 방금 등록 취소</button>`:'';
+  if(ub)ub.innerHTML=spLast?`<span class="tag">방금 등록: <b>${esc(spLast.entry)}</b>${spLast.orderIds.length?' + 발주':''}</span> <button class="btn sm" onclick="spUndo()" aria-label="방금 등록한 ${esc(spLast.entry)} 취소">되돌리기</button>`:'';
 }
 function spPick(i){spSel=(SP_ITEMS[qmDept]||[])[i];renderSpQuick();}
 function spWhenSet(i){spWhen=spWhen===i?-1:i;spCustomDate='';renderSpQuick();}
@@ -2023,7 +2230,7 @@ function spAdd(n,isDae){
   spLast={sd,d,entry,orderIds:S.orders.filter(o=>o.id>=seqBefore&&o.id<S.seq).map(o=>o.id)};
   spWhen=-1;spCustomDate='';
   const noteEl=document.getElementById('sp2Note');if(noteEl)noteEl.value='';
-  saveDB();refreshAll();toast(`${d}: ${entry}${doOrd?' + 발주 등록':''}`);
+  saveDB();refreshAll();showUndo(`${d} 특이사항: ${entry}${doOrd?' + 발주 등록':''}`,()=>spUndo());
 }
 let spLast=null;
 function spUndo(){
@@ -2172,9 +2379,23 @@ function renderQm(){
     // 연속 등록·20초 동기화 리렌더에도 유지(예전엔 매번 kg으로 되돌아가 2건째부터 잘못 기록됨)
     document.getElementById('qmUnit').value=qmUnitSel;
     const pn=packNote(qmItem);
-    document.getElementById('qmLoc').textContent=(ov.loc||(m?m.loc:'창고 확인'))+(pack?' · '+pack:'')+(pn?'  ⚠ '+pn:'');
-    document.getElementById('qmQty').innerHTML=[1,2,3,4,5,6,8,10,12,16,20].map(n2=>`<button onclick="qmAdd(${n2})">${n2}</button>`).join('');
+    const locTxt=ov.loc||(m?m.loc:'창고 확인');
+    document.getElementById('qmLoc').textContent=locTxt+(pack?' · '+pack:'')+(pn?'  ⚠ '+pn:'');
+    // 누르기 전에 "무엇이 어떻게" 등록될지 한 줄로 — 부서·품목·단위·출고창고·기준일
+    const u=qmUnitSel;
+    document.getElementById('qmSummary').innerHTML=`등록 내용: <span class="dept d-${esc(qmDept)}">${esc(qmDept)}</span> 라인으로 <b>${esc(qmItem)}</b> · 단위 <b>${esc(u)}</b> · 출고창고 ${esc(locTxt)} · 요청일 ${fmtK(cur)}${cur!==realToday()?' <b style="color:var(--amber)">(오늘 아님)</b>':''}<br><span class="tag">아래 수량 버튼을 누르면 바로 등록됩니다</span>`;
+    document.getElementById('qmQty').innerHTML=[1,2,3,4,5,6,8,10,12,16,20].map(n2=>`<button onclick="qmAdd(${n2})" aria-label="${esc(qmDept)} ${esc(qmItem)} ${n2} ${esc(u)} 바로 등록">${n2}<span class="tag" style="font-size:10.5px;margin-left:2px">${esc(u)}</span></button>`).join('');
   }else box.style.display='none';
+  renderQmLast();
+}
+/* 방금 등록한 건 — 버튼 한 번에 바로 등록되는 속도는 유지하고, 잘못 누른 건은 여기서 바로 되돌리거나 고침 */
+/* 방금 등록한 이동 요청 — 전화 모드(qm)·지게차 직접 등록(drv)이 같은 되돌리기 로직을 씀 */
+const lastMove={qm:null,drv:null};
+function undoLastMove(k){const id=lastMove[k];if(!id)return;lastMove[k]=null;undoCreate('moves',[id],'방금 등록한 이동 요청을 취소했습니다 (휴지통에 보관)')();}
+function renderQmLast(){
+  const el=document.getElementById('qmLast');if(!el)return;
+  const m=lastMove.qm&&S.moves.find(x=>x.id===lastMove.qm);
+  el.innerHTML=m?`<span>방금 등록: <span class="dept d-${esc(m.dept)}">${esc(m.dept)}</span> <b>${esc(m.item)}</b> ${esc(qtyTxt(m.qty,m.unit))} (${fmtK(m.date)})</span><button class="btn sm" onclick="undoLastMove('qm')" aria-label="방금 등록한 ${esc(m.item)} ${esc(qtyTxt(m.qty,m.unit))} 등록 취소">되돌리기</button><button class="btn sm ghost" onclick="editMove(${m.id})" aria-label="방금 등록한 ${esc(m.item)} 수정">수정</button>`:'';
 }
 function qmPick(it){qmItem=it;renderQm();document.getElementById('qmCustom')?.focus();}
 /* 전화 모드에서 바로 메모 — 신규 원료 추가 요청·특이사항 등 품목 탭으로는 못 남기는 내용을
@@ -2194,10 +2415,13 @@ function qmAdd(n){
   if(!n||n<=0){toast('수량을 선택하세요');return;}
   const m=matchItem(qmBase(qmItem));
   const ov=QM_OVR[qmItem]||{};
-  S.moves.push({id:S.seq++,date:cur,dept:qmDept,item:qmItem,qty:n,unit:document.getElementById('qmUnit').value,loc:ov.loc||(m?m.loc.replace('(경질창고)',''):''),note:'',done:false});
+  const id=S.seq++;
+  S.moves.push({id,date:cur,dept:qmDept,item:qmItem,qty:n,unit:document.getElementById('qmUnit').value,loc:ov.loc||(m?m.loc.replace('(경질창고)',''):''),note:'',done:false});
   document.getElementById('qmCustom').value='';
   const u=document.getElementById('qmUnit').value,cv=convInfo(qmItem,n,u);
-  saveDB();refreshAll();toast(`${qmDept} ← ${qmItem} ${fmtN(n)} ${u}${cv?' ('+cv+')':''} 등록됨`);
+  lastMove.qm=id;
+  saveDB();refreshAll();
+  showUndo(`${qmDept} 라인 ← ${qmItem} ${fmtN(n)} ${u}${cv?' ('+cv+')':''} 등록됨`,()=>undoLastMove('qm'));
   document.getElementById('qmCustom')?.focus();   // 같은 품목 연속 등록 대비 — 수량 입력창에 커서 유지
 }
 
@@ -2230,15 +2454,19 @@ function notifyGone(){toast('이미 삭제된 건입니다 (다른 기기에서 
 function findLive(list,id){const x=list.find(o=>o.id===id);if(!x)notifyGone();return x;}
 function toggleMove(id){const m=findLive(S.moves,id);if(!m)return;
   if(!m.done&&needName(()=>toggleMove(id)))return;
+  const undo=undoFields('moves',[id],['done','doneBy','doneAt'],`${m.item} 실물 이동 상태를 되돌렸습니다`);
   m.done=!m.done;
   if(m.done){m.doneBy=whoNow();m.doneAt=realToday()+' '+new Date().toTimeString().slice(0,5);}
   else{delete m.doneBy;delete m.doneAt;}
-  saveDB();refreshAll();}
+  saveDB();refreshAll();
+  showUndo(`${m.item} ${qtyTxt(m.qty,m.unit)} → ${m.done?'실물 이동 완료':'실물 이동 대기로 되돌림'}`,undo);}
 /* 전산이동 — 실물이동 여부와 무관하게 자재과가 독립적으로 ERP 이동 입력 처리 가능 */
-function toggleErp(id){const m=S.moves.find(x=>x.id===id);
+function toggleErp(id){const m=findLive(S.moves,id);if(!m)return;
+  const undo=undoFields('moves',[id],['erp','erpBy'],`${m.item} 전산 이동 상태를 되돌렸습니다`);
   if(m.erp){delete m.erp;delete m.erpBy;}
   else{m.erp=realToday()+' '+new Date().toTimeString().slice(0,5);m.erpBy=whoNow();}
-  saveDB();refreshAll();}
+  saveDB();refreshAll();
+  showUndo(`${m.item} ${qtyTxt(m.qty,m.unit)} → ${m.erp?'전산 이동 완료':'전산 이동 대기로 되돌림'}`,undo);}
 
 /* ═════════ R696 규칙 — 창고이동 = 실사용 신호. 실물이동완료(체크박스)와 생산팀 사용량 확인은
    서로 독립적으로, 순서·시점 상관없이 각자 처리됨(예전엔 확인 전엔 완료 체크 자체가 막혀 있었으나
@@ -2355,28 +2583,28 @@ function updateMvSelCnt(){const el=document.getElementById('mvSelCnt');if(el)el.
 function bulkDoneMv(){
   if(!selMv.size){toast('선택된 항목이 없습니다');return;}
   if(needName(()=>bulkDoneMv()))return;
-  let done=0;
-  selMv.forEach(id=>{
+  const ids=[...selMv].filter(id=>{const m=S.moves.find(x=>x.id===id);return m&&!m.done;});
+  const undo=undoFields('moves',ids,['done','doneBy','doneAt'],`${ids.length}건 실물 이동 완료를 취소했습니다`);
+  ids.forEach(id=>{
     const m=S.moves.find(x=>x.id===id);
-    if(!m||m.done)return;
     // 실물이동완료는 R696 사용량 확인과 별개로 바로 처리(확인은 자재과가 배지 클릭으로 나중에도 가능)
-    m.done=true;m.doneBy=whoNow();m.doneAt=realToday()+' '+new Date().toTimeString().slice(0,5);done++;
+    m.done=true;m.doneBy=whoNow();m.doneAt=realToday()+' '+new Date().toTimeString().slice(0,5);
   });
   selMv.clear();saveDB();refreshAll();
-  toast(`${done}건 실물이동완료 처리됨`);
+  showUndo(`선택 ${ids.length}건 → 실물 이동 완료`,ids.length?undo:null);
 }
 /* 전산이동 일괄 처리 — toggleErp와 마찬가지로 실물이동 여부와 무관하게 독립적으로 처리 가능 */
 function bulkErpMv(){
   if(!selMv.size){toast('선택된 항목이 없습니다');return;}
   if(needName(()=>bulkErpMv()))return;
-  let done=0;
-  selMv.forEach(id=>{
+  const ids=[...selMv].filter(id=>{const m=S.moves.find(x=>x.id===id);return m&&!m.erp;});
+  const undo=undoFields('moves',ids,['erp','erpBy'],`${ids.length}건 전산 이동 완료를 취소했습니다`);
+  ids.forEach(id=>{
     const m=S.moves.find(x=>x.id===id);
-    if(!m||m.erp)return;
-    m.erp=realToday()+' '+new Date().toTimeString().slice(0,5);m.erpBy=whoNow();done++;
+    m.erp=realToday()+' '+new Date().toTimeString().slice(0,5);m.erpBy=whoNow();
   });
   selMv.clear();saveDB();refreshAll();
-  toast(`${done}건 전산이동완료 처리됨`);
+  showUndo(`선택 ${ids.length}건 → 전산 이동 완료`,ids.length?undo:null);
 }
 /* 기준일이 지났는데 전산이동완료(erp) 처리가 안 된 건 — 날짜별 요청 목록(date===cur)만
    보면 다음날부터 화면에서 사라져 버려서 깜빡 잊기 쉬우므로, 지난 건이 있으면 따로 보여줌. */
@@ -2387,7 +2615,7 @@ function renderMoves(){
   if(alertCard){
     alertCard.style.display=overdue.length?'':'none';
     document.getElementById('cntMvErpAlert').textContent=overdue.length?`${overdue.length}건`:'';
-    document.getElementById('mvErpAlertBody').innerHTML=overdue.map(m=>`<tr><td>${fmtK(m.date)}</td><td>${deptChip(m.dept)}</td><td><b>${esc(m.item)}</b></td><td class="num">${fmtN(m.qty)} ${esc(m.unit)}</td><td><span class="loc">${esc(m.loc||'?')}</span></td><td><button class="btn sm pri" onclick="toggleErp(${m.id})">전산완료</button> <button class="btn sm" onclick="editMove(${m.id})">수정</button> <button class="btn sm" style="color:var(--red)" onclick="delMove(${m.id})">${armLbl('mv'+m.id)}</button></td></tr>`).join('');
+    document.getElementById('mvErpAlertBody').innerHTML=overdue.map(m=>`<tr><td>${fmtK(m.date)}</td><td>${deptChip(m.dept)}</td><td><b>${esc(m.item)}</b></td><td class="num">${fmtN(m.qty)} ${esc(m.unit)}</td><td><span class="loc">${esc(m.loc||'?')}</span></td><td><button class="btn sm pri" onclick="toggleErp(${m.id})" aria-label="${esc(m.item)} 전산 이동 완료">전산 이동 완료</button> <button class="btn sm" onclick="editMove(${m.id})">수정</button> <button class="btn sm" style="color:var(--red)" onclick="delMove(${m.id})">${armLbl('mv'+m.id)}</button></td></tr>`).join('');
   }
   const mv=S.moves.filter(m=>m.date===cur);
   const order={'경질':0,'창호':1,'타일':2,'DBP':3};
@@ -2395,8 +2623,8 @@ function renderMoves(){
   const allSel=mv.length>0&&mv.every(m=>selMv.has(m.id));
   const selAllEl=document.getElementById('mvSelAll');if(selAllEl)selAllEl.checked=allSel;
   document.getElementById('mvBody').innerHTML=mv.length?mv.map(m=>{const cv=convInfo(m.item,m.qty,m.unit);
-    return`<tr class="${m.done&&m.erp?'done':''}"><td><input type="checkbox" ${selMv.has(m.id)?'checked':''} onchange="toggleSelMv(${m.id},this.checked)" title="선택"></td><td><b>${esc(m.item)}</b>${r696Badge(m,true)}${isThird(m.addedBy)?` <span class="chip c-ord">✋ ${esc(m.addedBy)} 등록</span>`:''}${m.done?byBadge(m.doneBy,'실물이동완료'):''}</td><td>${deptChip(m.dept)}</td><td><span class="loc">${esc(m.loc||'?')}</span></td><td class="num">${fmtN(m.qty)} ${esc(m.unit)}${m.actKg?`<div class="tag" style="color:var(--acc)">전산 ${fmtN(m.actKg)}kg (실출고 보정)${isThird(m.actKgBy)?` <span class="chip c-ord">✋ ${esc(m.actKgBy)} 보정</span>`:''}</div>`:(cv?`<div class="tag">${esc(cv)}</div>`:'')}</td><td class="tag">${esc(m.note)}</td><td><input type="checkbox" ${m.done?'checked':''} onchange="toggleMove(${m.id})" title="실물이동"></td><td>${m.erp?`<span class="chip c-done">전산완료</span> <button class="btn sm ghost" onclick="toggleErp(${m.id})" title="전산 완료 취소">↩</button>`:`<span class="chip c-wait">전산 대기</span> <button class="btn sm pri" onclick="toggleErp(${m.id})">전산완료</button>`} <button class="btn sm" onclick="editMove(${m.id})">수정</button> <button class="btn sm" style="color:var(--red)" onclick="delMove(${m.id})">${armLbl('mv'+m.id)}</button></td></tr>`;}).join(''):'<tr><td colspan="8" class="empty">기준일 요청 없음</td></tr>';
-  document.getElementById('cntMv2').textContent=mv.length?`${mv.length}건`:'';
+    return`<tr class="${m.done&&m.erp?'done':''}"><td><input type="checkbox" ${selMv.has(m.id)?'checked':''} onchange="toggleSelMv(${m.id},this.checked)" aria-label="${esc(m.item)} 선택(일괄 처리용)"></td><td><b>${esc(m.item)}</b>${r696Badge(m,true)}${isThird(m.addedBy)?` <span class="chip c-ord">✋ ${esc(m.addedBy)} 등록</span>`:''}${m.done?byBadge(m.doneBy,'실물이동완료'):''}</td><td>${deptChip(m.dept)}</td><td><span class="loc">${esc(m.loc||'?')}</span></td><td class="num">${fmtN(m.qty)} ${esc(m.unit)}${m.actKg?`<div class="tag" style="color:var(--acc)">전산 ${fmtN(m.actKg)}kg (실출고 보정)${isThird(m.actKgBy)?` <span class="chip c-ord">✋ ${esc(m.actKgBy)} 보정</span>`:''}</div>`:(cv?`<div class="tag">${esc(cv)}</div>`:'')}</td><td class="tag">${esc(m.note)}</td><td><label style="display:flex;align-items:center;gap:4px;margin:0;color:var(--ink);font-size:12px;white-space:nowrap"><input type="checkbox" ${m.done?'checked':''} onchange="toggleMove(${m.id})" aria-label="${esc(m.item)} 실물 이동 완료">${m.done?'완료':'대기'}</label></td><td>${m.erp?`<span class="chip st c-done">전산 완료</span> <button class="btn sm ghost" onclick="toggleErp(${m.id})" aria-label="${esc(m.item)} 전산 이동 완료 취소">완료 취소</button>`:`<span class="chip st c-wait">전산 대기</span> <button class="btn sm pri" onclick="toggleErp(${m.id})" aria-label="${esc(m.item)} 전산 이동 완료">전산 이동 완료</button>`} <button class="btn sm" onclick="editMove(${m.id})" aria-label="${esc(m.item)} 수정">수정</button> <button class="btn sm" style="color:var(--red);margin-left:6px" onclick="delMove(${m.id})" aria-label="${esc(m.item)} 삭제">${armLbl('mv'+m.id)}</button></td></tr>`;}).join(''):'<tr><td colspan="8" class="empty">기준일 요청 없음</td></tr>';
+  document.getElementById('cntMv2').textContent=UiHelpers.moveCountText(UiHelpers.moveCounts(mv));
   updateMvSelCnt();
 }
 function editMove(id){const m=S.moves.find(x=>x.id===id);openDlg('창고이동 수정',[['date','날짜','date'],['dept','부서'],['item','품목'],['qty','수량','number'],['unit','단위'],['loc','출고창고'],['actKg','실출고 합계 kg (파레트 보정 — 예: SL-64 540+465=1,005)','number'],['note','비고']],m,()=>{saveDB();refreshAll();},()=>{toTrash('move',S.moves.filter(x=>x.id===id));S.moves=S.moves.filter(x=>x.id!==id);saveDB();refreshAll();});}
@@ -2410,27 +2638,45 @@ function applyPreset(){
   odVendor.value=p.vendor||(m?m.vendor:'');odItem.value=p.item;odDest.value=v[0]==='s'?'자가(세종·부강)':p.consignee;
   odQty.value=p.qty;odUnit.value=p.unit;odLoc.value=qmLocOverride(p.item)||(m?m.loc.replace('(경질창고)',''):(v[0]==='c'?'직납':''));
   odDept.value=v[0]==='c'?'사급':(deptOf(m)||'전사');odEtaTouched=false;odEtaAuto();
+  // 프리셋이 채운 칸은 파란 배경 + "자동" 표시 — 사람이 고치면 그 칸만 표시가 사라짐
+  OD_AUTO_FIELDS.forEach(id=>{const el=document.getElementById(id);if(el&&String(el.value).trim())el.classList.add('autofill');});
+  updateOdNeed();
+}
+const OD_AUTO_FIELDS=['odType','odVendor','odItem','odDest','odQty','odUnit','odLoc','odDept','odEta'];
+const OD_REQUIRED=['odItem','odQty','odEta'];
+function updateOdNeed(){
+  OD_REQUIRED.forEach(id=>{const el=document.getElementById(id);if(el)el.classList.toggle('need',!String(el.value).trim()||(id==='odQty'&&!(+el.value>0)));});
+}
+function odFieldTouched(e){
+  const t=e&&e.target;
+  if(t&&t.id&&t.id!=='odPreset'&&e.isTrusted)t.classList.remove('autofill');   // 사람이 직접 고친 칸만 "자동" 표시 해제
+  updateOdNeed();
 }
 /* 품목·발주일을 고르면 착일을 발주일+리드타임으로 자동 채움(기준표 없으면 2일). 사용자가 착일을 직접 고친 뒤에는 건드리지 않음 */
 let odEtaTouched=false;
 function odEtaAuto(){
   const it=odItem.value.trim();if(!it||odEtaTouched)return;
   odEta.value=addDays(odDate.value||cur,leadOf(it));
+  odEta.classList.add('autofill');   // 리드타임으로 자동 계산된 값 — 확인 대상
+  updateOdNeed();
 }
 function addOrder(){
   const item=odItem.value.trim();if(!item){toast('품목을 입력하세요');return;}
   // 수량 0·착일 공백으로 등록되면 입고예정·D-day·캘린더 어디에도 안 떠서 "등록했는데 안 보인다"가 됨
   if(!(+odQty.value>0)){toast('수량을 입력하세요');odQty.focus();return;}
-  if(!odEta.value){toast('착일(입고 예정일)을 입력하세요');odEta.focus();return;}
+  if(!odEta.value){toast('입고예정일(착일)을 입력하세요');odEta.focus();return;}
   const isNew=ensureMaterial(item,{vendor:odVendor.value.trim(),loc:odLoc.value.trim()});
   S.orders.push({id:S.seq++,type:odType.value,ordDate:odDate.value||cur,vendor:odVendor.value.trim(),item,dest:odDest.value.trim(),qty:+odQty.value||0,unit:odUnit.value,eta:odEta.value,inDate:'',loc:odLoc.value.trim(),dept:odDept.value,note:odNote.value.trim()});
-  odPreset.value='';odItem.value='';odQty.value='';odNote.value='';odLoc.value='';odEta.value='';odEtaTouched=false;saveDB();refreshAll();
-  toast(isNew?`발주 등록됨 · 신규 품목 '${item}' 기준정보에 추가됨${sbOK?'':' (이 기기에만 — 공유 연결 시 전체 반영)'}`:'발주 등록됨');
+  const newId=S.orders[S.orders.length-1].id,qv=+odQty.value,uv=odUnit.value,ev=odEta.value;
+  odPreset.value='';odItem.value='';odQty.value='';odNote.value='';odLoc.value='';odEta.value='';odEtaTouched=false;
+  OD_AUTO_FIELDS.forEach(id=>document.getElementById(id)?.classList.remove('autofill'));updateOdNeed();
+  saveDB();refreshAll();
+  showUndo(`${item} ${qtyTxt(qv,uv)} 발주 등록됨 — 입고예정 ${fmtK(ev)}${isNew?` · 신규 품목 기준정보에 추가${sbOK?'':'(이 기기에만)'}`:''}`,undoCreate('orders',[newId],`${item} 발주 등록을 취소했습니다 (휴지통에 보관)`));
 }
-function markIn(id){const o=findLive(S.orders,id);if(!o)return;o.inDate=cur;o.inBy=whoNow();saveDB();refreshAll();toast(`입고 처리됨 (${fmtK(cur)}) — 날짜 변경은 [수정]에서`);}
-function cancelIn(id){const o=S.orders.find(x=>x.id===id);if(!o)return;delete o.inDate;delete o.inBy;saveDB();refreshAll();toast('입고 취소됨 — 발주완료 상태로 되돌아감');}
-function cancelOrder(id){const o=S.orders.find(x=>x.id===id);if(!o)return;o.skip=true;saveDB();refreshAll();toast('발주 취소됨 — 상태필터 [취소]에서 다시 볼 수 있음');}
-function restoreOrder(id){const o=S.orders.find(x=>x.id===id);if(!o)return;delete o.skip;saveDB();refreshAll();toast('발주 취소가 복구됨');}
+function markIn(id){const o=findLive(S.orders,id);if(!o)return;const undo=undoFields('orders',[id],['inDate','inBy'],`${o.item} 입고 처리를 취소했습니다`);o.inDate=cur;o.inBy=whoNow();saveDB();refreshAll();showUndo(`${o.item} ${qtyTxt(o.qty,o.unit)} → 입고 완료 (${fmtK(cur)}) · 날짜 변경은 [수정]`,undo);}
+function cancelIn(id){const o=findLive(S.orders,id);if(!o)return;const undo=undoFields('orders',[id],['inDate','inBy'],`${o.item} 입고 완료로 되돌렸습니다`);delete o.inDate;delete o.inBy;saveDB();refreshAll();showUndo(`${o.item} → 입고 대기로 되돌림 (입고 완료 취소)`,undo);}
+function cancelOrder(id){const o=findLive(S.orders,id);if(!o)return;const undo=undoFields('orders',[id],['skip'],`${o.item} 발주 취소를 되돌렸습니다`);o.skip=true;saveDB();refreshAll();showUndo(`${o.item} → 발주 취소 (상태 필터 [취소]에서 다시 볼 수 있음)`,undo);}
+function restoreOrder(id){const o=findLive(S.orders,id);if(!o)return;const undo=undoFields('orders',[id],['skip'],`${o.item} 다시 취소 상태로 되돌렸습니다`);delete o.skip;saveDB();refreshAll();showUndo(`${o.item} → 발주 복구됨`,undo);}
 let selOd=new Set();
 function toggleSelOd(id,checked){checked?selOd.add(id):selOd.delete(id);const el=document.getElementById('odSelAll');if(el)el.checked=false;updateOdSelCnt();}
 let odSort=null;   // null(등록순) → 'asc'(착일 빠른순) → 'desc'(늦은순) → null
@@ -2463,15 +2709,12 @@ function visibleSelection(sel,filteredRows){
 function bulkMarkIn(){
   if(!selOd.size){toast('선택된 항목이 없습니다');return;}
   const{visibleIds,hidden}=visibleSelection(selOd,odFilteredRows());
-  let done=0;
-  selOd.forEach(id=>{
-    if(!visibleIds.has(id))return;
-    const o=S.orders.find(x=>x.id===id);
-    if(!o||o.inDate)return;
-    o.inDate=cur;o.inBy=whoNow();done++;
-  });
+  const ids=[...selOd].filter(id=>{if(!visibleIds.has(id))return false;const o=S.orders.find(x=>x.id===id);return o&&!o.inDate;});
+  const undo=undoFields('orders',ids,['inDate','inBy'],`${ids.length}건 입고 처리를 취소했습니다`);
+  ids.forEach(id=>{const o=S.orders.find(x=>x.id===id);o.inDate=cur;o.inBy=whoNow();});
+  const done=ids.length;
   selOd.clear();saveDB();refreshAll();
-  toast(hidden?`${done}건 입고 처리됨 (필터에 가려 안 보이던 ${hidden}건은 제외 — 다시 선택해 처리하세요)`:`${done}건 입고 처리됨`);
+  showUndo(hidden?`선택 ${done}건 → 입고 완료 (필터에 가려 안 보이던 ${hidden}건은 제외 — 다시 선택해 처리하세요)`:`선택 ${done}건 → 입고 완료 (${fmtK(cur)})`,done?undo:null);
 }
 /* 선택한 발주 건 일괄 삭제 — 다른 삭제와 같은 두 번 탭 방식(아티팩트 뷰어에서 confirm() 팝업이 막혀 있어 armDel 사용).
    확인 키에 선택된 id를 그대로 담아서, 첫 탭과 두 번째 탭 사이에 체크를 바꾸면 다른 키가 되어 다시 확인부터
@@ -2493,14 +2736,15 @@ function renderOrders(){
   const allSel=rows.length>0&&rows.every(o=>selOd.has(o.id));
   const selAllEl=document.getElementById('odSelAll');if(selAllEl)selAllEl.checked=allSel;
   document.getElementById('odBody').innerHTML=rows.length?rows.map(o=>{const st=orderStatus(o),d=o.eta&&!o.inDate?diffDays(o.eta,cur):null;const cls={'발주완료':'c-ord','입고지연':'c-late','입고완료':'c-done','취소':'c-mut'}[st];
-    const actBtns=o.skip?`<button class="btn sm pri" onclick="restoreOrder(${o.id})">복구</button> `:(!o.inDate?`<button class="btn sm" onclick="markIn(${o.id})">입고</button> <button class="btn sm ghost" onclick="cancelOrder(${o.id})">발주취소</button> `:`<button class="btn sm ghost" onclick="cancelIn(${o.id})" title="입고 취소">↩ 입고취소</button> `);
-    return `<tr class="${o.inDate||o.skip?'done':''}"><td><input type="checkbox" ${selOd.has(o.id)?'checked':''} onchange="toggleSelOd(${o.id},this.checked)" title="선택"></td><td><b>${esc(o.item)}</b>${o.note?`<div class="tag">${esc(o.note)}</div>`:''}</td><td><b>${esc(o.vendor)}</b></td><td>${esc(o.dest)}</td><td>${o.loc?`<span class="loc">${esc(o.loc)}</span>`:''}</td><td class="num">${fmtN(o.qty)} ${esc(o.unit)}</td><td class="due-hl"><b>${o.eta||''}</b></td><td><span class="chip ${cls}">${st}</span></td><td>${o.type==='self'?'자가':'사급'}</td><td>${o.ordDate||''}</td><td class="dday ${d!=null&&d<0?'late':(d===0?'soon':'')}">${d==null?(o.inDate?'입고 '+o.inDate:''):(d<0?`D+${-d}`:`D-${d}`)}</td><td>${actBtns}<button class="btn sm" onclick="editOrder(${o.id})">수정</button> <button class="btn sm" style="color:var(--red)" onclick="delOrder(${o.id})">${armLbl('od'+o.id)}</button></td></tr>`;}).join(''):'<tr><td colspan="12" class="empty">발주 건 없음</td></tr>';
+    const nm=esc(o.item);
+    const actBtns=o.skip?`<button class="btn sm pri" onclick="restoreOrder(${o.id})" aria-label="${nm} 발주 복구">발주 복구</button> `:(!o.inDate?`<button class="btn sm pri" onclick="markIn(${o.id})" aria-label="${nm} 입고 완료 처리">입고 완료 처리</button> <button class="btn sm ghost" onclick="cancelOrder(${o.id})" aria-label="${nm} 발주 취소">발주 취소</button> `:`<button class="btn sm ghost" onclick="cancelIn(${o.id})" aria-label="${nm} 입고 완료 취소">입고 완료 취소</button> `);
+    return `<tr class="${o.inDate||o.skip?'done':''}"><td><input type="checkbox" ${selOd.has(o.id)?'checked':''} onchange="toggleSelOd(${o.id},this.checked)" aria-label="${nm} 선택(일괄 처리용)"></td><td><b>${esc(o.item)}</b>${o.note?`<div class="tag">${esc(o.note)}</div>`:''}</td><td><b>${esc(o.vendor)}</b></td><td>${esc(o.dest)}</td><td>${o.loc?`<span class="loc">${esc(o.loc)}</span>`:''}</td><td class="num">${fmtN(o.qty)} ${esc(o.unit)}</td><td class="due-hl"><b>${o.eta||''}</b></td><td><span class="chip st ${cls}">${st}</span></td><td>${o.type==='self'?'자가':'사급'}</td><td>${o.ordDate||''}</td><td class="dday ${d!=null&&d<0?'late':(d===0?'soon':'')}">${d==null?(o.inDate?'입고 '+o.inDate:''):(d<0?`D+${-d}`:`D-${d}`)}</td><td>${actBtns}<button class="btn sm" onclick="editOrder(${o.id})" aria-label="${nm} 수정">수정</button> <button class="btn sm" style="color:var(--red);margin-left:6px" onclick="delOrder(${o.id})" aria-label="${nm} 삭제">${armLbl('od'+o.id)}</button></td></tr>`;}).join(''):'<tr><td colspan="12" class="empty">발주 건 없음</td></tr>';
   document.getElementById('cntOd').textContent=`${rows.length}건`;
-  const bulkDelBtn=document.getElementById('odBulkDelBtn');if(bulkDelBtn)bulkDelBtn.textContent=selOd.size?armLbl(odBulkDelKey()):'삭제';
-  const th=document.getElementById('odEtaTh');if(th)th.textContent='착일'+(odSort==='asc'?' ▲':odSort==='desc'?' ▼':'');
+  const bulkDelBtn=document.getElementById('odBulkDelBtn');if(bulkDelBtn)bulkDelBtn.textContent=selOd.size&&_arm===odBulkDelKey()?'정말 삭제?':'선택 건 삭제';
+  const th=document.getElementById('odEtaTh');if(th)th.textContent='입고예정(착일)'+(odSort==='asc'?' ▲':odSort==='desc'?' ▼':'');
   updateOdSelCnt();
 }
-function editOrder(id){const o=S.orders.find(x=>x.id===id);openDlg('발주 건 수정',[['ordDate','발주일','date'],['vendor','매입처'],['item','품목'],['dest','납품처'],['qty','수량','number'],['unit','단위'],['eta','착일','date'],['inDate','실입고일 (비우면 미입고)','date'],['loc','창고'],['dept','부서'],['note','비고']],o,()=>{saveDB();refreshAll();},()=>{toTrash('order',S.orders.filter(x=>x.id===id));S.orders=S.orders.filter(x=>x.id!==id);saveDB();refreshAll();});}
+function editOrder(id){const o=S.orders.find(x=>x.id===id);openDlg('발주 건 수정',[['ordDate','발주일','date'],['vendor','매입처'],['item','품목'],['dest','납품처'],['qty','수량','number'],['unit','단위'],['eta','입고예정일(착일)','date'],['inDate','실입고일 (비우면 미입고)','date'],['loc','창고'],['dept','부서'],['note','비고']],o,()=>{saveDB();refreshAll();},()=>{toTrash('order',S.orders.filter(x=>x.id===id));S.orders=S.orders.filter(x=>x.id!==id);saveDB();refreshAll();});}
 
 /* ═════════ 사급 발주서 ═════════ */
 let draft=[];
@@ -2655,7 +2899,24 @@ function judge(consignee,item){
 function judgeAll(){const v=csVendor.value.trim();draft.forEach(d=>{const j=judge(v,d.item);if(!d._manual){d.action=j.action;d.supplier=j.supplier;}d.loc=j.loc;});renderDraft();}
 function renderDraft(){
   const tb=document.getElementById('csDraft');
-  tb.innerHTML=draft.length?draft.map((d,i)=>`<tr><td><input value="${esc(d.item)}" list="itemList" oninput="draft[${i}].item=this.value" style="width:150px"><div class="tag">${esc(d.pack)}${d.loc?' · '+esc(d.loc):''}</div></td><td class="num"><input type="number" step="any" value="${d.qty??''}" oninput="draft[${i}].qty=+this.value" style="width:90px;text-align:right"></td><td><input type="date" value="${d.due||''}" oninput="draft[${i}].due=this.value"></td><td><select onchange="draft[${i}].action=this.value;draft[${i}]._manual=true" class="act-${CS_ACTION_CLASS[d.action]}">${CS_ACTIONS.map(a=>`<option ${d.action===a?'selected':''}>${a}</option>`).join('')}</select></td><td><input value="${esc(d.supplier)}" list="vendorList" oninput="draft[${i}].supplier=this.value;draft[${i}]._manual=true" style="width:110px"></td><td><button class="btn sm" onclick="draft.splice(${i},1);renderDraft()">삭제</button></td></tr>`).join(''):'<tr><td colspan="6" class="empty">인식된 품목 없음</td></tr>';
+  tb.innerHTML=draft.length?draft.map((d,i)=>`<tr><td><input value="${esc(d.item)}" list="itemList" oninput="draft[${i}].item=this.value;this.classList.toggle('need',!this.value.trim());renderCsSummary()" style="width:150px" class="${String(d.item||'').trim()?'':'need'}" aria-label="${i+1}행 품목"><div class="tag">${esc(d.pack)}${d.loc?' · '+esc(d.loc):''}</div></td><td class="num"><input type="number" step="any" value="${d.qty??''}" oninput="draft[${i}].qty=+this.value;this.classList.toggle('need',!(+this.value>0));renderCsSummary()" style="width:90px;text-align:right" class="${+d.qty>0?'':'need'}" aria-label="${i+1}행 수량(kg)"></td><td><input type="date" value="${d.due||''}" oninput="draft[${i}].due=this.value" aria-label="${i+1}행 요청납기"></td><td><select onchange="draft[${i}].action=this.value;draft[${i}]._manual=true;renderCsSummary()" class="act-${CS_ACTION_CLASS[d.action]}" aria-label="${i+1}행 처리 판정">${CS_ACTIONS.map(a=>`<option ${d.action===a?'selected':''}>${a}</option>`).join('')}</select></td><td><input value="${esc(d.supplier)}" list="vendorList" oninput="draft[${i}].supplier=this.value;draft[${i}]._manual=true" style="width:110px" aria-label="${i+1}행 공급사"></td><td><button class="btn sm" style="color:var(--red)" onclick="draft.splice(${i},1);renderDraft()" aria-label="${i+1}행 ${esc(d.item)} 인식 결과에서 빼기">행 빼기</button></td></tr>`).join(''):'<tr><td colspan="6" class="empty">인식된 품목 없음</td></tr>';
+  renderCsSummary();
+}
+/* 사급 등록 단계·요약 — 등록 버튼을 누르기 전에 몇 행이 등록되고 무엇이 빠지는지 보여줌.
+   셈 기준은 commitCs()와 같음(ui-helpers consDraftSummary). 입력 중(oninput)에도 갱신. */
+let csCommitted=false;
+function renderCsSummary(){
+  const el=document.getElementById('csSum');if(!el)return;
+  if(draft.length)csCommitted=false;   // 새 발주서를 인식하기 시작하면 이전 등록 완료 표시는 끝
+  const s=UiHelpers.consDraftSummary(draft);
+  const btn=document.getElementById('csCommitBtn');
+  const steps=document.querySelectorAll('#csSteps span');
+  const stage=csCommitted&&!draft.length?3:(draft.length?2:1);
+  steps.forEach(sp=>{const n=+sp.dataset.s;sp.className=n<stage||(stage===3&&n===3)?'done':(n===stage?'on':'');sp.setAttribute('aria-current',n===stage?'step':'false');});
+  if(!draft.length){el.innerHTML=csCommitted?'<span class="chip st c-done">등록 완료 — 아래 ③에서 메일·지시서를 복사하세요</span>':'<span class="tag">발주서를 올리거나 붙여넣고 [자동 인식]을 누르면 여기에서 등록될 행을 미리 확인합니다</span>';
+    if(btn){btn.disabled=true;btn.textContent='등록 (발주 메일·출고지시 생성)';}return;}
+  el.innerHTML=`<span class="chip st c-ord">등록될 행 ${s.valid}</span>${s.check?` <span class="chip st c-late">처리 '확인' ${s.check} — 직접 판단 필요</span>`:''}${s.excluded?` <span class="chip st c-mut">제외 ${s.excluded}</span>`:''}${s.errors.length?` <span class="chip st c-late">등록 안 됨 ${s.errors.length}: ${s.errors.map(e=>`${e.row+1}행 ${e.reason}`).join(', ')}</span>`:''}${!csVendor.value.trim()?' <span class="chip st c-late">사급처 미입력</span>':''}`;
+  if(btn){btn.disabled=!(s.valid||s.excluded);btn.textContent=s.valid?`${s.valid}건 등록 (발주 메일·출고지시 생성)`:(s.excluded?'제외 건 정리':'등록할 행 없음');}
 }
 function addCsLine(){draft.push({item:'',pack:'',qty:null,due:document.getElementById('csDue').value||'',action:'확인',supplier:''});renderDraft();}
 /* 공통 요청납기를 바꾸면 인식된 행들의 요청납기도 한꺼번에 맞춰줌 */
@@ -2698,7 +2959,7 @@ function commitCs(){
     }
   });
   if(newItemCount){fillLists();if(sb&&sbOK)sbSaveMasterMaterials();}
-  draft=[];renderDraft();csPaste.value='';csMsg.textContent='';
+  draft=[];csCommitted=true;renderDraft();csPaste.value='';csMsg.textContent='';
   saveDB();refreshAll();buildMails(ids);
   const newCount=valid.length-mergedCount;
   toast(`${newCount?`${newCount}건 등록`:''}${mergedCount?`${newCount?' · ':''}${mergedCount}건은 기존 미처리 건에 합산됨`:''}${excl.length?` · ${excl.length}건 제외(우리 출고 아님)`:''}${newItemCount?` · 신규 품목 ${newItemCount}건 기준정보에 추가됨`:''}`);
@@ -2791,19 +3052,23 @@ function csBulkMark(){
   if(!selCs.size){toast('선택된 항목이 없습니다');return;}
   if(needName(()=>csBulkMark()))return;
   const{visibleIds,hidden}=visibleSelection(selCs,csFilteredRows());
-  let done=0,skipped=0;
+  let skipped=0;
+  const ids=[];
   selCs.forEach(id=>{
     if(!visibleIds.has(id))return;
     const c=S.cons.find(x=>x.id===id);
     if(!c||c.done||c.action==='제외')return;
     if(isM210(c.item)&&!c.m210by){skipped++;return;}
-    c.done=true;if(c.action==='발주'&&!c.inDate)c.inDate=cur;c.outBy=whoNow();done++;
+    ids.push(id);
   });
+  const undo=undoFields('cons',ids,CS_MARK_FIELDS,`${ids.length}건 입고 완료 처리를 되돌렸습니다`);
+  ids.forEach(id=>{const c=S.cons.find(x=>x.id===id);c.done=true;if(c.action==='발주'&&!c.inDate)c.inDate=cur;c.outBy=whoNow();});
+  const done=ids.length;
   selCs.clear();saveDB();refreshAll();
-  const parts=[`${done}건 입고완료 처리됨`];
+  const parts=[`선택 ${done}건 → 입고 완료`];
   if(skipped)parts.push(`M-210 ${skipped}건은 개별 확인 필요`);
   if(hidden)parts.push(`필터에 가려 안 보이던 ${hidden}건은 제외`);
-  toast(parts.length>1?`${parts[0]} (${parts.slice(1).join(' · ')})`:parts[0]);
+  showUndo(parts.length>1?`${parts[0]} (${parts.slice(1).join(' · ')})`:parts[0],done?undo:null);
 }
 // 사급 등록에는 원래 단위 칸이 없었고 화면·비고 문구가 항상 kg로 다뤄왔음(수량(kg) 표기,
 // "기존 XXXkg + 추가 XXXkg" 비고 등) — 그래서 기존에 등록된 사급 건은 전부 단위가 비어 있고,
@@ -3802,9 +4067,10 @@ function csSalesReverse(eventId){
 function csStatus(c){if(c.action==='제외')return'제외';if(c.done)return'완료';if(c.action==='발주')return c.ordDate?(c.due&&cur>c.due?'입고지연':'입고대기'):'발주대기';if(c.action==='직접출고')return c.outDate?'출고완료':'출고대기';return'확인필요';}
 function csRow(c,board){const st=csStatus(c);const cls={'발주대기':'c-wait','출고대기':'c-wait','확인필요':'c-late','입고지연':'c-late','입고대기':'c-ord','출고완료':'c-done','완료':'c-done','제외':'c-mut'}[st];
   const act=`<span class="act-${CS_ACTION_CLASS[c.action]}">${c.action}</span>`;
-  const btn=c.action==='발주'&&!c.ordDate?`<button class="btn sm warn" onclick="csMark(${c.id},'ordDate')">발주 체크</button>`:(c.action==='직접출고'&&!c.outDate?`<button class="btn sm warn" onclick="csMark(${c.id},'outDate')">출고 체크</button>`:(c.action==='직접출고'&&c.outDate?`<button class="btn sm ghost" onclick="csUndoOut(${c.id})" title="출고 처리를 취소하고 출고 대기로 되돌림">↩ 출고 취소</button>`:(c.action==='발주'&&c.done?`<button class="btn sm ghost" onclick="csUndoIn(${c.id})" title="입고 완료 처리를 취소하고 입고 대기로 되돌림">↩ 입고 취소</button>`:(!c.done?`<button class="btn sm" onclick="csMark(${c.id},'done')">${c.action==='발주'?'입고 완료':'완료'}</button>`:''))));
-  if(board)return`<tr class="${c.done?'done':''}"><td><b>${esc(c.item)}</b></td><td><b>${esc(c.consignee)}</b></td><td class="num">${fmtN(c.qty)}</td><td>${act}</td><td>${c.due?fmtK(c.due):''}</td><td><span class="chip ${cls}">${st}</span></td><td>${btn}</td></tr>`;
-  return`<tr class="${c.done?'done':''}"><td><input type="checkbox" class="csSel" value="${c.id}" ${selCs.has(c.id)?'checked':''} onchange="toggleSelCs(${c.id},this.checked)"></td><td><b>${esc(c.item)}</b>${c.loc?` <span class="loc">${esc(c.loc)}</span>`:''}</td><td><b>${esc(c.consignee)}</b></td><td><b>${esc(c.supplier)}</b></td><td class="num">${fmtN(c.qty)}${c.unit&&c.unit!=='kg'?` <span class="tag">${esc(c.unit)}</span>`:(csUnitMissing(c)?' <span class="tag" style="color:var(--amber)" title="단위 미입력 — 매각대조에 쓰려면 [수정]에서 단위 지정 또는 kg 일괄 지정">단위?</span>':'')}</td><td>${act}</td><td class="due-hl"><b>${c.due||''}</b></td><td>${c.recvDate||''}</td><td>${c.ordDate||''}</td><td>${c.outDate||(c.done?'✓':'')}${isThird(c.outBy)?` <span class="chip c-wait">✋ ${esc(c.outBy)}</span>`:''}</td><td><span class="chip ${cls}">${st}</span></td><td>${btn} <button class="btn sm" onclick="editCs(${c.id})">수정</button> <button class="btn sm" style="color:var(--red)" onclick="delCs(${c.id})">${armLbl('cs'+c.id)}</button></td></tr>`;}
+  const nm=esc(c.item);
+  const btn=c.action==='발주'&&!c.ordDate?`<button class="btn sm warn" onclick="csMark(${c.id},'ordDate')" aria-label="${nm} 공급사 발주 완료 처리">공급사 발주 완료</button>`:(c.action==='직접출고'&&!c.outDate?`<button class="btn sm warn" onclick="csMark(${c.id},'outDate')" aria-label="${nm} 출고 완료 처리">출고 완료 처리</button>`:(c.action==='직접출고'&&c.outDate?`<button class="btn sm ghost" onclick="csUndoOut(${c.id})" title="출고 처리를 취소하고 출고 대기로 되돌림" aria-label="${nm} 출고 완료 취소">출고 완료 취소</button>`:(c.action==='발주'&&c.done?`<button class="btn sm ghost" onclick="csUndoIn(${c.id})" title="입고 완료 처리를 취소하고 입고 대기로 되돌림" aria-label="${nm} 입고 완료 취소">입고 완료 취소</button>`:(!c.done?`<button class="btn sm" onclick="csMark(${c.id},'done')" aria-label="${nm} ${c.action==='발주'?'입고 완료 처리':'완료 처리'}">${c.action==='발주'?'입고 완료 처리':'완료 처리'}</button>`:''))));
+  if(board)return`<tr class="${c.done?'done':''}"><td><b>${esc(c.item)}</b></td><td><b>${esc(c.consignee)}</b></td><td class="num">${fmtN(c.qty)}</td><td>${act}</td><td>${c.due?fmtK(c.due):''}</td><td><span class="chip st ${cls}">${st}</span></td><td>${btn}</td></tr>`;
+  return`<tr class="${c.done?'done':''}"><td><input type="checkbox" class="csSel" value="${c.id}" ${selCs.has(c.id)?'checked':''} onchange="toggleSelCs(${c.id},this.checked)" aria-label="${nm} 선택(일괄 처리용)"></td><td><b>${esc(c.item)}</b>${c.loc?` <span class="loc">${esc(c.loc)}</span>`:''}</td><td><b>${esc(c.consignee)}</b></td><td><b>${esc(c.supplier)}</b></td><td class="num">${fmtN(c.qty)}${c.unit&&c.unit!=='kg'?` <span class="tag">${esc(c.unit)}</span>`:(csUnitMissing(c)?' <span class="tag" style="color:var(--amber)" title="단위 미입력 — 매각대조에 쓰려면 [수정]에서 단위 지정 또는 kg 일괄 지정">단위?</span>':'')}</td><td>${act}</td><td class="due-hl"><b>${c.due||''}</b></td><td>${c.recvDate||''}</td><td>${c.ordDate||''}</td><td>${c.outDate||(c.done?'✓':'')}${isThird(c.outBy)?` <span class="chip c-wait">✋ ${esc(c.outBy)}</span>`:''}</td><td><span class="chip st ${cls}">${st}</span></td><td>${btn} <button class="btn sm" onclick="editCs(${c.id})" aria-label="${nm} 수정">수정</button> <button class="btn sm" style="color:var(--red);margin-left:6px" onclick="delCs(${c.id})">${armLbl('cs'+c.id)}</button></td></tr>`;}
 function csMark(id,f){const c=findLive(S.cons,id);if(!c)return;
   if((f==='outDate'||f==='done')&&needName(()=>csMark(id,f)))return;
   // M-210: 월1회 입항분은 행선지 건별 확인 전 배차·출고·완료 금지
@@ -3826,7 +4092,13 @@ function csApplyMark(c,f){
   if(f==='done'){c.done=true;if(c.action==='발주'&&!c.inDate)c.inDate=cur;}else{c[f]=cur;if(f==='outDate')c.done=true;}
   if(f==='outDate'||f==='done')c.outBy=whoNow();
 }
-function csMarkCore(c,f){csApplyMark(c,f);saveDB();refreshAll();}
+const CS_MARK_FIELDS=['done','inDate','outDate','ordDate','outBy'];
+const CS_MARK_LABEL={ordDate:'공급사 발주 완료',outDate:'출고 완료',done:'완료'};
+function csMarkCore(c,f){
+  const undo=undoFields('cons',[c.id],CS_MARK_FIELDS,`${c.item} 처리를 되돌렸습니다`);
+  csApplyMark(c,f);saveDB();refreshAll();
+  showUndo(`${c.consignee} · ${c.item} ${fmtN(c.qty)}kg → ${f==='done'&&c.action==='발주'?'입고 완료':CS_MARK_LABEL[f]}`,undo);
+}
 /* 지게차 화면에서 동일 품목으로 합쳐 보여준 행 — 체크 한 번으로 묶인 건 전부 완료 처리.
    단, M-210(월1회 입항분) 건이 섞여 있으면 그 건은 csMark로 넘겨 행선지 확인 다이얼로그를
    그대로 거치게 하고, 나머지 건은 이번 체크에서 함께 처리(다음에 다시 누르면 마저 처리됨). */
@@ -3836,9 +4108,11 @@ function csMarkGroup(ids,f){
   const m210Ids=ids.filter(isPendingM210),rest=ids.filter(id=>!isPendingM210(id));
   if(m210Ids.length)csMark(m210Ids[0],f);   // 행선지 확인 다이얼로그부터 — 나머지 M-210 건은 확인 후 다시 눌러 처리
   if(rest.length){
+    const undo=undoFields('cons',rest,CS_MARK_FIELDS,`${rest.length}건 출고 처리를 되돌렸습니다`);
     rest.forEach(id=>{const c=S.cons.find(x=>x.id===id);if(c)csApplyMark(c,f);});
     saveDB();refreshAll();
-    toast(`${rest.length}건 출고 처리됨${m210Ids.length?` · M-210 ${m210Ids.length}건은 행선지 확인 후 처리`:''}`);
+    const first=S.cons.find(x=>x.id===rest[0]);
+    showUndo(`${first?first.item+' ':''}${rest.length}건 → 출고 완료${m210Ids.length?` · M-210 ${m210Ids.length}건은 행선지 확인 후 처리`:''}`,undo);
   }
 }
 /* 발주(사급처 직납) 건 — 입고 완료를 잘못 눌렀거나 아직 실제로 입고 안 됐을 때 입고 대기로 되돌림 */
@@ -3977,7 +4251,7 @@ function renderContacts(bg){
   const box=document.getElementById('contactBody');if(!box)return;
   if(bg&&box.contains(document.activeElement)&&document.activeElement.tagName==='INPUT')return;
   box.innerHTML=M.contacts.length?M.contacts.map((c,idx)=>
-    `<tr><td><input value="${esc(c.name)}" style="width:150px;font-weight:700" onchange="contactField(${idx},'name',this.value)"></td><td><input value="${esc(c.contact||'')}" style="width:110px" onchange="contactField(${idx},'contact',this.value)"></td><td><input value="${esc(c.phone||'')}" style="width:120px" onchange="contactField(${idx},'phone',this.value)"></td><td><input value="${esc(c.addr||'')}" style="width:220px" onchange="contactField(${idx},'addr',this.value)"></td><td><button class="btn sm" style="color:var(--red)" onclick="delContactRow(${idx})">${armLbl('contact'+idx)}</button></td></tr>`
+    `<tr><td><input value="${esc(c.name)}" style="width:150px;font-weight:700" onchange="contactField(${idx},'name',this.value)"></td><td><input value="${esc(c.contact||'')}" style="width:110px" onchange="contactField(${idx},'contact',this.value)"></td><td><input value="${esc(c.phone||'')}" style="width:120px" onchange="contactField(${idx},'phone',this.value)"></td><td><input value="${esc(c.addr||'')}" style="width:220px" onchange="contactField(${idx},'addr',this.value)"></td><td class="del-col"><button class="btn sm" style="color:var(--red)" onclick="delContactRow(${idx})" aria-label="이 행 삭제(두 번 눌러 확인)">${armLbl('contact'+idx)}</button></td></tr>`
   ).join(''):'<tr><td colspan="5" class="empty">등록된 담당자 연락처 없음</td></tr>';
   document.getElementById('cntContacts').textContent=`${M.contacts.length}개`;
 }
@@ -3987,10 +4261,12 @@ function contactField(idx,key,val){
   // 회사명을 비워두면 contactOf()가 그 행을 모든 이름에 매칭시켜(빈 문자열은 뭐든 포함) 다른
   // 거래처 조회까지 다 이 행으로 잘못 붙어버림(코드리뷰로 발견) — 비우는 것 자체를 막음.
   if(key==='name'&&!v){toast('회사명은 비워둘 수 없습니다 — 이 거래처를 지우려면 삭제 버튼을 쓰세요');renderContacts();return;}
+  const old=c[key];
   c[key]=v;
   if(sb&&sbOK)sbSaveMasterContacts();
   renderContacts();
-  toast(`${c.name||'거래처'} 저장됨${sbOK?'':' (이 기기에만 — 공유 연결 시 전체 반영)'}`);
+  const lbl={name:'회사명',contact:'담당자',phone:'전화',addr:'주소'}[key]||key;
+  cellSaved(`contactField(${idx},'${key}'`,`${c.name||'거래처'} ${lbl}: ${old||'(빈칸)'} → ${v||'(빈칸)'}`,()=>{if(M.contacts[idx]!==c){notifyGone();return;}contactField(idx,key,old||'');});
 }
 function addContactRow(){
   const name=(prompt('추가할 거래처(회사)명 — 발주·사급 등록에서 쓰는 이름과 일부만 같아도 매칭되지만, 헷갈리지 않게 정확한 이름으로 입력하세요')||'').trim();
@@ -4038,7 +4314,7 @@ function renderRopMat(bg){
   if(bg&&box.contains(document.activeElement)&&document.activeElement.tagName==='INPUT')return;
   box.innerHTML=rows.length?rows.map(r=>{
     const idx=M.rop.indexOf(r);
-    return `<tr><td><input value="${esc(r.item)}" style="width:150px;font-weight:700" onchange="ropField(${idx},'item',this.value)"></td><td><input value="${esc(r.cat||'')}" list="ropCatList" placeholder="예: 가소제" style="width:100px" onchange="ropField(${idx},'cat',this.value)"></td><td class="num"><input type="number" value="${r.rop??''}" style="width:90px;text-align:right" onchange="ropField(${idx},'rop',this.value,this)"></td><td class="num"><input type="number" value="${r.qty??''}" style="width:90px;text-align:right" onchange="ropField(${idx},'qty',this.value,this)"></td><td class="num"><input type="number" step="any" value="${r.lt??''}" style="width:70px;text-align:right" onchange="ropField(${idx},'lt',this.value,this)"></td><td><input value="${esc(r.vendor||'')}" list="vendorList" style="width:110px" onchange="ropField(${idx},'vendor',this.value)"></td><td><input value="${esc(r.loc||'')}" style="width:90px" onchange="ropField(${idx},'loc',this.value)"></td><td><button class="btn sm" style="color:var(--red)" onclick="delRopRow(${idx})">${armLbl('rop'+idx)}</button></td></tr>`;
+    return `<tr><td><input value="${esc(r.item)}" style="width:150px;font-weight:700" onchange="ropField(${idx},'item',this.value)"></td><td><input value="${esc(r.cat||'')}" list="ropCatList" placeholder="예: 가소제" style="width:100px" onchange="ropField(${idx},'cat',this.value)"></td><td class="num"><input type="number" value="${r.rop??''}" style="width:90px;text-align:right" onchange="ropField(${idx},'rop',this.value,this)"></td><td class="num"><input type="number" value="${r.qty??''}" style="width:90px;text-align:right" onchange="ropField(${idx},'qty',this.value,this)"></td><td class="num"><input type="number" step="any" value="${r.lt??''}" style="width:70px;text-align:right" onchange="ropField(${idx},'lt',this.value,this)"></td><td><input value="${esc(r.vendor||'')}" list="vendorList" style="width:110px" onchange="ropField(${idx},'vendor',this.value)"></td><td><input value="${esc(r.loc||'')}" style="width:90px" onchange="ropField(${idx},'loc',this.value)"></td><td class="del-col"><button class="btn sm" style="color:var(--red)" onclick="delRopRow(${idx})" aria-label="이 행 삭제(두 번 눌러 확인)">${armLbl('rop'+idx)}</button></td></tr>`;
   }).join(''):'<tr><td colspan="8" class="empty">등록된 발주 기준 품목 없음</td></tr>';
   document.getElementById('cntRopMat').textContent=`${M.rop.length}개`;
 }
@@ -4059,6 +4335,7 @@ function exportRopXlsx(){
 }
 function ropField(idx,key,val,el){
   const r=M.rop[idx];if(!r)return;
+  const old=r[key];
   if(key==='item')r.item=val.trim();
   else if(key==='rop'||key==='qty'||key==='lt'){
     // 숫자칸에 글자가 섞이면 브라우저가 value를 ''로 비워버려 "비움(null)"과 구분이 안 됨 → validity.badInput으로 잡음
@@ -4070,8 +4347,20 @@ function ropField(idx,key,val,el){
   else r[key]=val.trim();
   if(sb&&sbOK)sbSaveMasterRop();
   renderRopMat();
-  toast(`${r.item||'품목'} 저장됨${sbOK?'':' (이 기기에만 — 공유 연결 시 전체 반영)'}`);
+  cellSaved(`ropField(${idx},'${key}'`,`${r.item||'품목'} ${ROP_LABEL[key]||key}: ${old??'(빈칸)'} → ${r[key]??'(빈칸)'}`,()=>{if(M.rop[idx]!==r){notifyGone();return;}ropField(idx,key,old==null?'':String(old));});
 }
+const ROP_LABEL={item:'품목명',cat:'분류',rop:'발주점',qty:'1회 발주량',lt:'리드타임',vendor:'매입처',loc:'위치'};
+/* 기준정보 즉시 저장 칸 공통 — 방금 저장한 칸을 초록 테두리로 잠깐 표시하고, 무엇이 어디에 저장됐는지
+   + 이전 값으로 되돌리기를 보여줌. sel은 그 칸의 onchange 속성 앞부분(표를 다시 그려도 같은 칸을 찾기 위함). */
+function cellSaved(sel,msg,undo){
+  const el=document.querySelector(`#tab-master [onchange^="${sel}"]`);
+  if(el){el.classList.add('saved');setTimeout(()=>el.classList.remove('saved'),2500);}
+  showUndo(`${msg} — ${sbOK?'공유 저장됨':'이 기기에만 저장됨(공유 연결 시 반영)'}`,undo);
+}
+/* 입력 중(아직 저장 전) 표시와 Esc 취소 — 기준정보 탭 전체에 위임 */
+// select는 defaultValue가 없고 바꾸는 즉시 저장되므로 입력칸만 대상
+document.getElementById('tab-master').addEventListener('input',e=>{const t=e.target;if(t.matches('td input:not([type=checkbox])'))t.classList.toggle('dirty',t.value!==t.defaultValue);});
+document.getElementById('tab-master').addEventListener('keydown',e=>{const t=e.target;if(e.key==='Escape'&&t.matches('td input.dirty')){t.value=t.defaultValue;t.classList.remove('dirty');toast('입력을 취소했습니다 (저장 안 됨)');}});
 function addRopRow(){
   const name=(prompt('추가할 품목명 — 재고파일·발주 등록에서 쓰는 이름과 정확히 같아야 발주점이 제대로 매칭됩니다')||'').trim();
   if(!name)return;
@@ -4317,7 +4606,7 @@ function fmtWhen(iso){
 function trashDesc(t){
   const d=t.data||{};
   if(t.kind==='move')return `${esc(d.dept||'')} · ${esc(d.item||'')} ${fmtN(d.qty)}${esc(d.unit||'')}${d.date?' · '+d.date:''}`;
-  if(t.kind==='order')return `${esc(d.vendor||'')} · ${esc(d.item||'')} ${fmtN(d.qty)}${esc(d.unit||'')}${d.eta?' · 착일 '+d.eta:''}`;
+  if(t.kind==='order')return `${esc(d.vendor||'')} · ${esc(d.item||'')} ${fmtN(d.qty)}${esc(d.unit||'')}${d.eta?' · 입고예정 '+d.eta:''}`;
   if(t.kind==='cons')return `${esc(d.consignee||'')} · ${esc(d.item||'')} ${fmtN(d.qty)}`;
   if(t.kind==='note')return esc(d.text||'');
   return '';
@@ -4438,25 +4727,35 @@ function renderCycMat(){
   const box=document.getElementById('cycMatBody');if(!box)return;
   const q=(document.getElementById('cycSearch').value||'').trim().toUpperCase();
   const rows=M.presetSelf.filter(p=>!q||(p.item+(p.label||'')).toUpperCase().includes(q));
-  const cycOptsFor=cur2=>Object.keys(CYCLE).filter((v,i,a)=>a.indexOf(v)===i).map(c=>`<option ${cur2===c?'selected':''}>${c}</option>`).join('');
+  // '주 2회'/'주2회'처럼 같은 주기가 두 번 보이지 않게 표준 표기만 — 저장값 호환은 cycField/CYCLE이 처리
+  const cycOptsFor=cur2=>UiHelpers.cycleOptions(cur2).map(o=>`<option ${o.selected?'selected':''}>${esc(o.value)}</option>`).join('');
   box.innerHTML=rows.length?rows.map(p=>{
     const idx=M.presetSelf.indexOf(p);
     // BAG·LOX-203 등 하드 제외 품목은 체크박스를 켠 채 잠금 — 표시와 실제 동작을 일치시킴
     const hard=!p.excluded&&isCycleExcluded(p);
-    return `<tr><td><b>${esc(p.item)}</b>${p.label&&p.label!==p.item?`<div class="tag">${esc(p.label)}</div>`:''}</td><td><select onchange="cycField(${idx},'cycle',this.value)">${cycOptsFor(p.cycle)}</select></td><td class="num"><input type="number" value="${p.qty??''}" style="width:90px;text-align:right" onchange="cycField(${idx},'qty',this.value)"></td><td><input value="${esc(p.unit||'')}" style="width:60px" onchange="cycField(${idx},'unit',this.value)"></td><td style="text-align:center"><input type="checkbox" ${p.excluded||hard?'checked':''} ${hard?'disabled title="사급 품목이라 주기 기준에서 항상 제외됨"':''} onchange="cycField(${idx},'excluded',this.checked)">${hard?'<div class="tag">항상 제외</div>':''}</td><td><button class="btn sm" style="color:var(--red)" onclick="delCycRow(${idx})">${armLbl('cyc'+idx)}</button></td></tr>`;
+    return `<tr><td><b>${esc(p.item)}</b>${p.label&&p.label!==p.item?`<div class="tag">${esc(UiHelpers.cycleText(p.label))}</div>`:''}</td><td><select onchange="cycField(${idx},'cycle',this.value)" aria-label="${esc(p.item)} 발주 주기">${cycOptsFor(p.cycle)}</select></td><td class="num"><input type="number" value="${p.qty??''}" style="width:90px;text-align:right" onchange="cycField(${idx},'qty',this.value)"></td><td><input value="${esc(p.unit||'')}" style="width:60px" onchange="cycField(${idx},'unit',this.value)"></td><td style="text-align:center"><input type="checkbox" ${p.excluded||hard?'checked':''} ${hard?'disabled title="사급 품목이라 주기 기준에서 항상 제외됨"':''} onchange="cycField(${idx},'excluded',this.checked)">${hard?'<div class="tag">항상 제외</div>':''}</td><td class="del-col"><button class="btn sm" style="color:var(--red)" onclick="delCycRow(${idx})" aria-label="이 행 삭제(두 번 눌러 확인)">${armLbl('cyc'+idx)}</button></td></tr>`;
   }).join(''):'<tr><td colspan="6" class="empty">등록된 자가 발주 품목 없음</td></tr>';
   document.getElementById('cntCycMat').textContent=`${M.presetSelf.length}개`;
 }
 function cycField(idx,key,val){
   const p=M.presetSelf[idx];if(!p)return;
+  const had=Object.prototype.hasOwnProperty.call(p,key),old=p[key];
   if(key==='qty')p.qty=val===''?null:+val;
   else if(key==='excluded')p.excluded=val;
   else if(key==='unit')p.unit=val.trim();
+  else if(key==='cycle')p.cycle=UiHelpers.cycleValueToStore(val,p.cycle);   // '주 2회'↔'주2회'처럼 표기만 다르면 저장값 유지
   else p[key]=val;
   if(sb&&sbOK)sbSaveMasterPresetSelfAll();
   renderCycMat();
   refreshAll();
-  toast(`${p.item} 저장됨${sbOK?'':' (이 기기에만 — 공유 연결 시 전체 반영)'}`);
+  const lbl={qty:'1회 발주량',excluded:'자가 아님(제외)',unit:'단위',cycle:'주기'}[key]||key;
+  const show=v=>v===true?'예':v===false?'아니오':(v==null||v===''?'(빈칸)':key==='cycle'?UiHelpers.cycleLabel(v):v);
+  cellSaved(`cycField(${idx},'${key}'`,`${p.item} ${lbl}: ${show(old)} → ${show(p[key])}`,()=>{
+    if(M.presetSelf[idx]!==p){notifyGone();return;}
+    if(had)p[key]=old;else delete p[key];
+    if(sb&&sbOK)sbSaveMasterPresetSelfAll();
+    renderCycMat();refreshAll();toast(`${p.item} ${lbl} 이전 값으로 되돌림`);
+  });
 }
 function addCycRow(){
   const name=(prompt('추가할 품목명 — 발주 등록에서 쓰는 이름과 정확히 같아야 발주 이력이 제대로 매칭됩니다')||'').trim();
@@ -4536,7 +4835,7 @@ function renderDriver(){
   const cb=(fn,done,guardKey)=>`<label><input type="checkbox" ${done?'checked':''} ${ro?'disabled':''} onchange="drvGuardedToggle('${guardKey}',()=>{${fn}})">완료</label>`;
   const meName=localStorage.getItem('jjUser')||'';
   const insLeft=ins.filter(o=>!o.inDate).length;
-  let h=`<div class="banner"><div><b>${fmtK(cur)}</b> 지게차 작업 <span style="opacity:.7;font-size:13px">(${cur})</span><input type="date" class="drv-date" value="${cur}" onchange="setDate(this.value)"></div><div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">입고 ${insLeft} · 창고이동 ${mv.filter(m=>!m.done).length} · 사급출고 ${outsLeft}${drvVisibleNotes().filter(n=>!n.done).length?' · 전달사항 '+drvVisibleNotes().filter(n=>!n.done).length:''}${notifSupported()&&Notification.permission!=='granted'?`<button class="btn sm warn" onclick="askNotifPerm()" title="폰 알림 받기">🔔 알림 켜기</button>`:(notifSupported()?`<span class="chip c-done" title="새 작업이 등록되면 폰 알림이 옵니다">🔔 알림 켜짐</span>`:'')}<button class="btn sm" style="background:transparent;color:var(--navy-ink);border-color:#4a5b6c" onclick="askName()">👤 ${esc(meName)||'이름 입력'}</button><button class="btn sm" style="background:transparent;color:var(--navy-ink);border-color:#4a5b6c" onclick="location.reload()">새로고침</button></div></div>`;
+  let h=`<div class="banner"><div><b>${fmtK(cur)}</b> 지게차 작업 <span style="opacity:.7;font-size:13px">(${cur})</span><input type="date" class="drv-date" value="${cur}" onchange="setDate(this.value)"></div><div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">남은 일: 입고 ${insLeft} · 창고→라인 ${mv.filter(m=>!m.done).length} · 사급출고 ${outsLeft}${drvVisibleNotes().filter(n=>!n.done).length?' · 전달사항 '+drvVisibleNotes().filter(n=>!n.done).length:''}${notifSupported()&&Notification.permission!=='granted'?`<button class="btn sm warn" onclick="askNotifPerm()" title="폰 알림 받기">🔔 알림 켜기</button>`:(notifSupported()?`<span class="chip c-done" title="새 작업이 등록되면 폰 알림이 옵니다">🔔 알림 켜짐</span>`:'')}<button class="btn sm" style="background:transparent;color:var(--navy-ink);border-color:#4a5b6c" onclick="askName()">👤 ${esc(meName)||'이름 입력'}</button><button class="btn sm" style="background:transparent;color:var(--navy-ink);border-color:#4a5b6c" onclick="location.reload()">새로고침</button></div></div>`;
   if(cur!==localISO(new Date()))h+=`<div class="card" style="margin-top:10px;font-size:13px;color:var(--amber)">⚠ 오늘(${fmtK(localISO(new Date()))}) 날짜가 아닙니다 · <b onclick="setDate('${localISO(new Date())}')" style="cursor:pointer;text-decoration:underline">오늘로 돌아가기</b></div>`;
   if(spTxt)h+=`<div class="card" style="margin-top:10px;font-size:15px"><b>특이사항</b> ${esc(spTxt)}</div>`;
   h+=drvCalendarHTML();
@@ -4556,7 +4855,8 @@ function renderDriver(){
   // 지연이라고 뜨지" 헷갈리는 문제가 있었음(실사용 문의로 확인) — 관리 화면 쪽 판정 로직과 따로
   // 놀다 이렇게 어긋난 것이었어서, 로직을 하나로 합쳐야 앞으로 또 갈라지지 않음(코드리뷰로 발견).
   h+=ins.length?ins.map(o=>`<div class="item ${o.inDate?'done':''}"><div><div class="name">${esc(o.item)}${packFormBadge(o.item)} <span class="loc">${esc(o.loc||'창고 확인')}</span></div><div class="meta">${esc(o.vendor)} · ${esc(o.dept)}${orderStatus(o)==='입고지연'?' · <b style="color:var(--red)">'+fmtK(o.eta)+' 예정분 지연</b>':''}${o.note?' · '+esc(o.note):''}</div></div><div><div class="qty">${fmtN(o.qty)} ${esc(o.unit)}</div>${cb(`markInDrv(${o.id})`,!!o.inDate,`in${o.id}`)}</div></div>`).join(''):'<div class="empty">오늘 입고 예정 없음</div>';
-  h+=`<h2>② 창고 → 라인 이동 <span class="cnt">${mv.filter(m=>!m.done).length}건 남음</span></h2>`;
+  const dmc=UiHelpers.moveCounts(mv);
+  h+=`<h2>② 창고 → 라인 이동 <span class="cnt">실물 대기 ${dmc.physPending}건 · 전체 ${dmc.total}건</span></h2>`;
   let lastD='';
   h+=mv.length?mv.map(m=>{let g='';if(m.dept!==lastD){g=`<div class="grp">${esc(m.dept)} 라인으로</div>`;lastD=m.dept;}
     const pn=packNote(m.item);
@@ -4568,13 +4868,15 @@ function renderDriver(){
   // 기사 직접 등록 (ASA 등 1,000kg 단위)
   h+=`<h2>➕ 이동 요청 직접 등록 <span class="cnt">품목 탭 → 톤수 탭 = 등록</span></h2>`;
   h+=`<div class="card" style="font-size:15px">
-    <div class="quick">${DRV_ADD.map((d,i)=>`<button style="font-size:15px;padding:10px 14px;${drvSel===d.item?'background:var(--acc);color:#fff;border-color:var(--acc)':''}" onclick="drvPick(${i})">${d.item}</button>`).join('')}</div>
-    <div class="quick" style="margin-top:8px">${[1,2,3,4,5].map(n2=>`<button style="font-size:16px;font-weight:700;min-width:60px;padding:10px 0" onclick="drvAdd(${n2*1000})">${n2}t</button>`).join('')}</div>
-    <form class="row" style="margin-top:8px" onsubmit="event.preventDefault();drvAddCustom()" onkeydown="imeSafeEnter(event)">
-      <select id="drvDept" style="font-size:15px"><option>창호</option><option>경질</option><option>타일</option><option>DBP</option><option>기타</option></select>
-      <input id="drvItem2" list="itemList" placeholder="다른 부서 품목 직접 입력 (비슷한 품목 자동완성)" style="flex:1;min-width:130px;font-size:15px">
-      <input id="drvQty2" type="number" placeholder="kg" style="width:90px;text-align:right;font-size:15px">
-      <button class="btn pri" type="submit">추가</button>
+    <div class="quick" role="group" aria-label="품목 선택">${DRV_ADD.map((d,i)=>`<button style="font-size:15px;padding:10px 14px;${drvSel===d.item?'background:var(--acc);color:#fff;border-color:var(--acc)':''}" aria-pressed="${drvSel===d.item}" onclick="drvPick(${i})">${d.item}</button>`).join('')}</div>
+    ${(()=>{const p=DRV_ADD.find(d=>d.item===drvSel);return p?`<div class="qm-summary">등록 내용: <span class="dept d-${esc(p.dept)}">${esc(p.dept)}</span> 라인으로 <b>${esc(p.item)}</b> · 출고창고 ${esc(p.loc||locOf(p.item)||'확인')} · 요청일 ${fmtK(cur)}<br><span class="tag">아래 톤 버튼을 누르면 바로 등록됩니다</span></div>`:'<div class="tag" style="margin-top:6px">품목을 먼저 누르세요</div>';})()}
+    <div class="quick" style="margin-top:8px" role="group" aria-label="톤수 — 누르면 바로 등록">${[1,2,3,4,5].map(n2=>`<button style="font-size:16px;font-weight:700;min-width:60px;padding:10px 0" ${drvSel?'':'disabled'} aria-label="${esc(drvSel||'품목')} ${n2}톤(${fmtN(n2*1000)}kg) 바로 등록" onclick="drvAdd(${n2*1000})">${n2}t</button>`).join('')}</div>
+    ${(()=>{const m=lastMove.drv&&S.moves.find(x=>x.id===lastMove.drv);return m?`<div class="qm-last">방금 등록: <b>${esc(m.item)}</b> ${esc(qtyTxt(m.qty,m.unit))} → ${esc(m.dept)} 라인 <button class="btn sm" onclick="undoLastMove('drv')" aria-label="방금 등록한 ${esc(m.item)} 등록 취소">되돌리기</button></div>`:'';})()}
+    <form class="row" style="margin-top:10px" onsubmit="event.preventDefault();drvAddCustom()" onkeydown="imeSafeEnter(event)">
+      <div><label for="drvDept">부서(도착 라인)</label><select id="drvDept" style="font-size:15px"><option>창호</option><option>경질</option><option>타일</option><option>DBP</option><option>기타</option></select></div>
+      <div style="flex:1;min-width:130px"><label for="drvItem2">다른 품목 직접 입력</label><input id="drvItem2" list="itemList" placeholder="비슷한 품목 자동완성" style="font-size:15px"></div>
+      <div><label for="drvQty2">수량(kg)</label><input id="drvQty2" type="number" inputmode="decimal" style="width:90px;text-align:right;font-size:15px"></div>
+      <div><label>&nbsp;</label><button class="btn pri" type="submit">추가</button></div>
     </form>
     <div class="tag" style="margin-top:6px">등록하면 자재과 화면에 ✋ 이름과 함께 표시됩니다.</div>
   </div>`;
@@ -4601,9 +4903,11 @@ function renderDriver(){
 }
 function markInDrv(id){const o=S.orders.find(x=>x.id===id);
   if(!o.inDate&&needName(()=>markInDrv(id)))return;
+  const undo=undoFields('orders',[id],['inDate','inBy'],`${o.item} 입고 체크를 되돌렸습니다`);
   if(o.inDate){delete o.inDate;delete o.inBy;}
   else{o.inDate=cur;o.inBy=whoNow();}
-  saveDB();refreshAll();}
+  saveDB();refreshAll();
+  showUndo(`${o.item} ${qtyTxt(o.qty,o.unit)} → ${o.inDate?'입고 완료':'입고 대기로 되돌림'}`,undo);}
 /* 실출고 보정 — 기사가 실제 나간 파레트 합계로 직접 정정 (예: SL-64 540+465=1,005) */
 function editActKg(id){
   const m=S.moves.find(x=>x.id===id);if(!m)return;
@@ -4633,8 +4937,10 @@ function drvAdd(kg){
   const who=whoNow();
   const preset=DRV_ADD.find(d=>d.item===drvSel);
   const loc=preset.loc||locOf(drvSel);
-  S.moves.push({id:S.seq++,date:cur,dept:preset.dept,item:drvSel,qty:kg,unit:'kg',loc,note:'기사 등록',addedBy:who,done:false});
-  saveDB();refreshAll();toast(`${drvSel} ${fmtN(kg)}kg 등록됨 (${who})`);
+  const id=S.seq++;
+  S.moves.push({id,date:cur,dept:preset.dept,item:drvSel,qty:kg,unit:'kg',loc,note:'기사 등록',addedBy:who,done:false});
+  lastMove.drv=id;
+  saveDB();refreshAll();showUndo(`${preset.dept} 라인 ← ${drvSel} ${fmtN(kg)}kg 등록됨 (${who})`,()=>undoLastMove('drv'));
 }
 function drvAddCustom(){
   const it=document.getElementById('drvItem2').value.trim(),q=+document.getElementById('drvQty2').value,d=document.getElementById('drvDept').value;
@@ -4646,8 +4952,10 @@ function drvAddCustomDo(it,q,d){
   const who=whoNow();
   const m=matchItem(it);
   const isNew=!m&&ensureMaterial(it,{});   // 비슷한 기존 품목이 있으면 새로 만들지 않음(오타·줄임말 방지)
-  S.moves.push({id:S.seq++,date:cur,dept:d,item:it,qty:q,unit:'kg',loc:qmLocOverride(it)||(m?m.loc.replace('(경질창고)',''):''),note:'기사 등록',addedBy:who,done:false});
-  saveDB();refreshAll();toast(`${it} ${fmtN(q)}kg 등록됨 (${who})${isNew?' · 기준정보에 신규 등록':''}`);
+  const id=S.seq++;
+  S.moves.push({id,date:cur,dept:d,item:it,qty:q,unit:'kg',loc:qmLocOverride(it)||(m?m.loc.replace('(경질창고)',''):''),note:'기사 등록',addedBy:who,done:false});
+  lastMove.drv=id;
+  saveDB();refreshAll();showUndo(`${d} 라인 ← ${it} ${fmtN(q)}kg 등록됨 (${who})${isNew?' · 기준정보에 신규 등록':''}`,()=>undoLastMove('drv'));
 }
 
 /* ═════════ 수정 다이얼로그 ═════════ */
@@ -4766,10 +5074,10 @@ function drvCalCellHTML(cell){
   if(ins.length)chips.push(`<span class="chip c-ord">입고${ins.length}</span>`);
   if(mvs.length)chips.push(`<span class="chip c-mut">이동${mvs.length}</span>`);
   if(outs.length)chips.push(`<span class="chip c-wait">출고${outs.length}</span>`);
-  return`<div class="calCell${cell.inMonth?'':' out'}${cell.date===realToday()?' today':''}${cell.date===cur?' sel':''}" onclick="drvCalPick('${cell.date}')">
-    <div class="calDayNum">${+cell.date.slice(8,10)}</div>
-    <div class="calChips">${chips.join('')}</div>
-  </div>`;
+  return`<button type="button" class="calCell${cell.inMonth?'':' out'}${cell.date===realToday()?' today':''}${cell.date===cur?' sel':''}" onclick="drvCalPick('${cell.date}')" aria-pressed="${cell.date===cur}" aria-label="${esc(fmtK(cell.date))} 작업 보기 · ${esc(UiHelpers.calDayLabel('',ins.length,mvs.length,outs.length,false).replace(/^ · /,''))}">
+    <span class="calDayNum" aria-hidden="true">${+cell.date.slice(8,10)}</span>
+    <span class="calChips" aria-hidden="true">${chips.join('')}</span>
+  </button>`;
 }
 let drvCalOpen=true;
 function drvCalendarHTML(){
@@ -4777,21 +5085,21 @@ function drvCalendarHTML(){
   return`<details class="card drvCal" ${drvCalOpen?'open':''} ontoggle="drvCalOpen=this.open">
     <summary>📅 캘린더 <span class="cnt">날짜를 탭하면 그 날로 이동</span></summary>
     <div class="row" style="align-items:center;margin:10px 0 8px">
-      <button class="btn ghost" onclick="drvCalShift(-1)">◀</button>
-      <b style="min-width:100px;text-align:center;font-size:15px">${ym.slice(0,4)}년 ${+ym.slice(5,7)}월</b>
-      <button class="btn ghost" onclick="drvCalShift(1)">▶</button>
+      <button class="btn ghost" onclick="drvCalShift(-1)" aria-label="이전 달 보기">◀</button>
+      <b style="min-width:100px;text-align:center;font-size:15px" aria-live="polite">${ym.slice(0,4)}년 ${+ym.slice(5,7)}월</b>
+      <button class="btn ghost" onclick="drvCalShift(1)" aria-label="다음 달 보기">▶</button>
       <button class="btn" onclick="drvCalDate=null;setDate(realToday())">오늘</button>
     </div>
-    <div class="hint" style="margin-bottom:6px"><span class="chip c-ord">■</span> 입고 &nbsp;<span class="chip c-mut">■</span> 창고이동 &nbsp;<span class="chip c-wait">■</span> 출고</div>
+    <div class="hint" style="margin-bottom:6px">칸 안 글자: <span class="chip c-ord">입고</span> <span class="chip c-mut">이동</span>(창고→라인, 완료 포함 전체) <span class="chip c-wait">출고</span>(사급 직접출고)</div>
     <div class="calWeekHead">${KDAY.map(w=>`<div>${w}</div>`).join('')}</div>
     <div class="calRows">${calMonthDays(ym).map(drvCalCellHTML).join('')}</div>
   </details>`;
 }
-function calGroupTable(icon,cls,label,items,cols){
+function calGroupTable(icon,cls,label,items,cols,extra){
   if(!items.length)return'';
   const head=cols.map(c=>`<th${c.num?' class="num"':''}>${c.h}</th>`).join('');
   const rows=items.map(it=>`<tr>${cols.map(c=>`<td${c.num?' class="num"':''}>${c.v(it)}</td>`).join('')}</tr>`).join('');
-  return`<div class="calGrpLbl ${cls}">${icon} ${label} ${items.length}</div><div class="tbl"><table class="calTbl"><thead><tr>${head}</tr></thead><tbody>${rows}</tbody></table></div>`;
+  return`<div class="calGrpLbl ${cls}">${icon} ${label} ${items.length}건${extra?' · '+extra:''}</div><div class="tbl"><table class="calTbl"><thead><tr>${head}</tr></thead><tbody>${rows}</tbody></table></div>`;
 }
 function calDayDetailHTML(d){
   const{ins,mvs,outs}=calDayData(d);
@@ -4800,19 +5108,19 @@ function calDayDetailHTML(d){
       {h:'품목',v:o=>esc(o.item)},
       {h:'수량',num:true,v:o=>fmtN(o.qty)+esc(o.unit)},
       {h:'업체',v:o=>esc(o.vendor)},
-      {h:'상태',v:o=>o.inDate?'<span class="chip c-done">입고완료</span>':'<span class="chip c-wait">대기</span>'},
+      {h:'상태',v:o=>o.inDate?'<span class="chip st c-done">입고완료</span>':'<span class="chip st c-wait">입고 대기</span>'},
     ])
-    +calGroupTable('🚚','c-mut','창고이동',mvs,[
+    +calGroupTable('🚚','c-mut','창고→라인 이동',mvs,[
       {h:'부서',v:m=>esc(m.dept)},
       {h:'품목',v:m=>esc(m.item)},
       {h:'수량',num:true,v:m=>fmtN(m.qty)+esc(m.unit)},
-      {h:'상태',v:m=>m.done?'<span class="chip c-done">완료</span>':'<span class="chip c-wait">대기</span>'},
-    ])
+      {h:'상태',v:m=>m.done?(m.erp?'<span class="chip st c-done">실물·전산 완료</span>':'<span class="chip st c-wait">실물 완료 · 전산 대기</span>'):'<span class="chip st c-wait">실물 대기</span>'},
+    ],(()=>{const c=UiHelpers.moveCounts(mvs);return`실물 대기 ${c.physPending} · 전산 대기 ${c.erpPending}`;})())
     +calGroupTable('📤','c-wait','출고',outs,[
       {h:'사급처',v:c=>esc(c.consignee)},
       {h:'품목',v:c=>esc(c.item)},
       {h:'수량',num:true,v:c=>fmtN(c.qty)+'kg'},
-      {h:'상태',v:c=>c.outDate?'<span class="chip c-done">출고완료</span>':'<span class="chip c-wait">대기</span>'},
+      {h:'상태',v:c=>c.outDate?'<span class="chip st c-done">출고완료</span>':'<span class="chip st c-wait">출고 대기</span>'},
     ]);
 }
 function calCellHTML(cell){
@@ -4824,11 +5132,11 @@ function calCellHTML(cell){
   if(outs.length)chips.push(`<span class="chip c-wait">출고${outs.length}</span>`);
   const names=[...ins.map(o=>o.item),...mvs.map(m=>m.item),...outs.map(c=>c.item)];
   const preview=names.slice(0,2).map(esc).join(', ');
-  return`<div class="calCell${cell.inMonth?'':' out'}${cell.date===realToday()?' today':''}${calSelDay===cell.date?' sel':''}" onclick="calPickDay('${cell.date}')">
-    <div class="calDayNum">${+cell.date.slice(8,10)}</div>
-    <div class="calChips">${chips.join('')}</div>
-    ${preview?`<div class="calPreview">${preview}${totalN>2?' 외 '+(totalN-2):''}</div>`:''}
-  </div>`;
+  return`<button type="button" class="calCell${cell.inMonth?'':' out'}${cell.date===realToday()?' today':''}${calSelDay===cell.date?' sel':''}" onclick="calPickDay('${cell.date}')" aria-pressed="${calSelDay===cell.date}" aria-label="${esc(UiHelpers.calDayLabel(fmtK(cell.date),ins.length,mvs.length,outs.length,false))} — 상세 보기">
+    <span class="calDayNum" aria-hidden="true">${+cell.date.slice(8,10)}</span>
+    <span class="calChips" aria-hidden="true">${chips.join('')}</span>
+    ${preview?`<span class="calPreview" aria-hidden="true">${preview}${totalN>2?' 외 '+(totalN-2):''}</span>`:''}
+  </button>`;
 }
 function calWeekCellHTML(d){
   const{ins,mvs,outs}=calDayData(d);
@@ -4840,7 +5148,10 @@ function calWeekCellHTML(d){
 function renderCalendar(){
   const grid=document.getElementById('calGrid');if(!grid)return;
   const tg=document.getElementById('calViewToggle');
-  tg.innerHTML=`<button class="btn sm ${calView==='month'?'pri':'ghost'}" onclick="calSetView('month')">월</button><button class="btn sm ${calView==='week'?'pri':'ghost'}" onclick="calSetView('week')">주</button>`;
+  tg.innerHTML=`<button class="btn sm ${calView==='month'?'pri':'ghost'}" aria-pressed="${calView==='month'}" onclick="calSetView('month')">월 보기</button><button class="btn sm ${calView==='week'?'pri':'ghost'}" aria-pressed="${calView==='week'}" onclick="calSetView('week')">주 보기</button>`;
+  const unit=calView==='month'?'달':'주';
+  document.getElementById('calPrev').setAttribute('aria-label',`이전 ${unit} 보기`);
+  document.getElementById('calNext').setAttribute('aria-label',`다음 ${unit} 보기`);
   const dayCard=document.getElementById('calDayCard');
   if(calView==='month'){
     const ym=calDate.slice(0,7);
@@ -5127,7 +5438,7 @@ function renderBomStatus(){
   const el=document.getElementById('fcBomStatus');if(!el)return;
   el.innerHTML=BOMD
     ?`<span class="chip c-done">BOM 로드됨</span> <span class="tag">${esc(BOMD.ts)} 업로드 · ${BOMD.rawRows&&BOMD.rawRows!==BOMD.rows?`원본 ${fmtN(BOMD.rawRows)}행 중 ${fmtN(BOMD.rows)}행 사용(소요량 0·음수 제외)`:`${fmtN(BOMD.rows)}행`} · 제품 ${fmtN(BOMD.prods)} · 자재 ${fmtN(BOMD.mats)}종</span> <button class="btn sm ghost" onclick="clearBom()">BOM 지우기</button>`
-    :'<span class="tag">BOM 미업로드 — 예측 계산에 필요합니다</span>';
+    :'<span class="chip st c-late">BOM 미업로드</span> <span class="tag">예측 계산을 하려면 ERP BOM 엑셀이 필요합니다 — 이 기기 브라우저에만 저장되므로 기기마다 한 번씩 올려야 합니다</span>';
 }
 
 /* ── 생산계획 인식 ── */
@@ -5288,9 +5599,14 @@ function fcBarChart(rows){
 function renderFcResult(){
   const tl=document.getElementById('fcTiles');if(!tl)return;
   const chart=document.getElementById('fcChart'),wkBox=document.getElementById('fcWeeks'),tb=document.getElementById('fcResBody'),hint=document.getElementById('fcCalcHint');
+  // 계산 버튼은 BOM·생산계획이 둘 다 있을 때만 누를 수 있음 — 없으면 이유를 버튼 옆에 계속 표시
+  const fst=UiHelpers.fcCalcState(!!BOMD,(S.fcPlan||[]).length);
+  const cbtn=document.getElementById('fcCalcBtn');
+  if(cbtn){cbtn.disabled=!fst.enabled;cbtn.setAttribute('aria-describedby','fcCalcHint');}
   if(!FC_RES){
-    tl.innerHTML='';chart.innerHTML='';wkBox.innerHTML='';hint.textContent='';
-    tb.innerHTML=`<tr><td colspan="7" class="empty">${BOMD?'[예측 계산]을 누르면 말단 자재 소요량이 표시됩니다':'BOM을 업로드해야 계산할 수 있습니다'}</td></tr>`;
+    tl.innerHTML='';chart.innerHTML='';wkBox.innerHTML='';
+    hint.innerHTML=fst.enabled?'':`<span class="chip st c-late">계산 불가</span> ${esc(fst.reason)}`;
+    tb.innerHTML=`<tr><td colspan="7" class="empty">${fst.enabled?'[예측 계산]을 누르면 말단 자재 소요량이 표시됩니다':esc(fst.reason)}</td></tr>`;
     return;
   }
   const rows=Object.keys(FC_RES.out).map(c=>{
@@ -5368,6 +5684,112 @@ function applyHashMode(){
   // 해시가 없으면 이 기기에 저장된 모드를 따름
   if(localStorage.getItem('jjDrvDevice')==='1')enterDriver();
 }
+/* ═════════ 화면 보강(반응형·접근성) — 렌더 결과에 덧붙이는 후처리만, 업무 데이터·로직은 건드리지 않음 ═════════
+   화면 대부분이 innerHTML 템플릿이라, 각 렌더 함수를 고치는 대신 렌더가 끝날 때마다(MutationObserver)
+   한 번 훑어서 ① 레이블↔입력칸 연결 ② 넓은 표 가로 스크롤 안내 ③ 모바일 핵심 열 고정·행 상세 보기
+   ④ 클릭 가능한 타일·머리글 키보드 조작을 붙임. */
+const mqMobile=window.matchMedia('(max-width:760px)');
+let fldSeq=0;
+function linkLabels(root){
+  root.querySelectorAll('label:not([for])').forEach(lab=>{
+    if(lab.querySelector('input,select,textarea'))return;   // <label><input>..</label> 형태는 이미 연결됨
+    const p=lab.parentElement;if(!p)return;
+    const ctls=[...p.children].filter(c=>c.matches('input:not([type=hidden]):not([type=checkbox]),select,textarea'));
+    if(ctls.length!==1)return;
+    const c=ctls[0];if(!c.id)c.id='fld'+(++fldSeq);
+    lab.htmlFor=c.id;
+  });
+  // 레이블 없이 placeholder만 있는 칸 — 최소한 스크린리더 이름은 붙임(보이는 레이블은 주요 칸에 따로 추가함)
+  root.querySelectorAll('input[placeholder],textarea[placeholder]').forEach(c=>{
+    if(c.getAttribute('aria-label')||(c.labels&&c.labels.length))return;
+    c.setAttribute('aria-label',c.placeholder.replace(/^예\)\s*/,'').split('\n')[0]);
+  });
+}
+function enhanceTables(root){
+  const mobile=mqMobile.matches;
+  root.querySelectorAll('.tbl').forEach(box=>{
+    const t=box.querySelector(':scope>table');if(!t||t.classList.contains('calTbl'))return;
+    const wide=box.scrollWidth>box.clientWidth+2;
+    box.classList.toggle('has-x',wide);
+    let hint=box.previousElementSibling;
+    if(!hint||!hint.classList.contains('xhint')){hint=document.createElement('div');hint.className='xhint';box.before(hint);}
+    hint.classList.toggle('show',wide);
+    // 행 상세는 아래 조건(모바일·열 4개 이상·품목 칸에 입력칸 없음)일 때만 붙으므로 안내 문구도 그때만 — 화면 폭이 바뀌면 다시 계산
+    const ths0=t.tHead?[...t.tHead.rows[0].cells]:[];
+    const itemCol=ths0[0]&&ths0[0].querySelector('input[type=checkbox]')?1:0;
+    const sample=t.tBodies[0]&&t.tBodies[0].rows[0]&&t.tBodies[0].rows[0].cells[itemCol];
+    const detail=mobile&&ths0.length>3&&!!sample&&sample.colSpan<=1&&!sample.querySelector('input,select,textarea');
+    const txt='↔ 표가 화면보다 넓습니다 — 옆으로 밀어서 나머지 열 보기'+(detail?' · 품목을 누르면 행 전체 보기':'');
+    if(hint.textContent!==txt)hint.textContent=txt;
+    if(!box.dataset.xh){box.dataset.xh='1';box.addEventListener('scroll',()=>box.classList.toggle('x-end',box.scrollLeft+box.clientWidth>=box.scrollWidth-2),{passive:true});}
+    const ths=t.tHead?[...t.tHead.rows[0].cells]:[];if(!ths.length)return;
+    const withSel=!!ths[0].querySelector('input[type=checkbox]');
+    if(!mobile||!wide){delete t.dataset.stick;delete t.dataset.act;t.querySelectorAll('td.stk-item').forEach(td=>{td.classList.remove('stk-item');td.removeAttribute('role');td.removeAttribute('tabindex');});return;}
+    t.dataset.stick=withSel?'2':'1';
+    if(withSel)t.style.setProperty('--stk1',ths[0].offsetWidth+'px');
+    // 처리 버튼 열은 좁을 때만 오른쪽에 고정 — 넓으면(칩+버튼 여러 개) 표 대부분을 가려 오히려 불편하므로
+    // 그때는 품목 칸을 눌러 여는 행 상세에서 처리하도록 둠
+    const lastTd=t.tBodies[0]&&t.tBodies[0].querySelector('tr>td:last-child:not([colspan]) button');
+    delete t.dataset.act;
+    if(lastTd&&ths.length>3&&!ths[ths.length-1].classList.contains('del-col')&&ths[ths.length-1].offsetWidth<=box.clientWidth*0.4)t.dataset.act='1';   // 삭제 전용 열은 고정하지 않음(편집 칸 옆에 붙지 않게)
+    const col=withSel?1:0;
+    [...(t.tBodies[0]?t.tBodies[0].rows:[])].forEach(tr=>{
+      const td=tr.cells[col];if(!td||td.colSpan>1)return;
+      td.classList.add('stk-item');
+      if(ths.length>3&&!td.hasAttribute('role')&&!td.querySelector('input,select,textarea')){td.setAttribute('role','button');td.tabIndex=0;td.setAttribute('aria-label',(td.textContent.trim().slice(0,40)||'행')+' — 행 전체 내용 보기');}
+    });
+  });
+}
+/* 모바일 행 상세 — 가로로 긴 표의 한 행을 "머리글: 값" 목록으로 펼쳐 보여줌(버튼도 그대로 동작) */
+function openRowDetail(td){
+  const tr=td.closest('tr'),t=td.closest('table');if(!tr||!t||!t.tHead)return;
+  const ths=[...t.tHead.rows[0].cells];
+  const body=document.getElementById('dlgRowBody');body.innerHTML='';
+  [...tr.cells].forEach((c,i)=>{
+    const h=ths[i];if(!h||h.querySelector('input[type=checkbox]'))return;
+    const d=document.createElement('div');d.className='row-kv';
+    d.innerHTML=`<div class="k">${esc(h.textContent.trim()||'처리')}</div>`;
+    const v=document.createElement('div');v.className='v';v.innerHTML=c.innerHTML;d.appendChild(v);body.appendChild(d);
+  });
+  document.getElementById('dlgRowTitle').textContent=td.textContent.trim().slice(0,60)||'행 상세';
+  document.getElementById('dlgRow').showModal();
+}
+document.addEventListener('click',e=>{
+  const td=e.target.closest('td.stk-item[role=button]');
+  if(td&&mqMobile.matches&&!e.target.closest('button,a,input,select,textarea,label')){openRowDetail(td);return;}
+  // 행 상세 안의 처리 버튼을 누르면 결과는 표·되돌리기 안내에 반영되므로 상세 창은 닫음(옛 내용이 남지 않게).
+  // 단 삭제(두 번 탭 확인)는 첫 탭에서 닫으면 확인을 끝낼 수 없으므로, 확인 대기 중이면 창을 유지하고 문구만 바꿈.
+  const ctl=e.target.closest('#dlgRowBody button,#dlgRowBody input');
+  if(ctl)setTimeout(()=>{
+    if(ctl.tagName==='BUTTON'&&/^del/.test(ctl.getAttribute('onclick')||'')&&_arm){ctl.textContent='정말 삭제?';return;}
+    document.getElementById('dlgRow').close();
+  },0);
+});
+/* role=button으로 만든 요소(요약 타일·정렬 머리글·행 상세 칸)는 Enter/Space로도 누를 수 있게 */
+document.addEventListener('keydown',e=>{
+  const t=e.target;
+  if((e.key==='Enter'||e.key===' ')&&t.getAttribute&&t.getAttribute('role')==='button'&&t.tagName!=='BUTTON'){e.preventDefault();t.click();}
+});
+function enhanceUI(){
+  linkLabels(document.body);
+  enhanceTables(document);
+  document.querySelectorAll('#stats .s[onclick]').forEach(s=>{if(!s.hasAttribute('role')){s.setAttribute('role','button');s.tabIndex=0;}});
+}
+let enhanceQueued=false;
+function queueEnhance(){if(enhanceQueued)return;enhanceQueued=true;setTimeout(()=>{enhanceQueued=false;enhanceObs.disconnect();try{enhanceUI();}finally{enhanceObs.observe(document.body,{childList:true,subtree:true});}},16);}   // rAF는 백그라운드 탭에서 멈춰서 setTimeout 사용
+// 토스트·되돌리기 안내·저장 상태 문구처럼 표와 무관한 곳의 변경(저장할 때마다 생김)은 무시 — 매번 전체 표 레이아웃을 다시 재지 않게
+const ENHANCE_IGNORE='#toast,#undoBar,#saveBox,#connBanner';
+const enhanceObs=new MutationObserver(recs=>{
+  if(recs.every(r=>{const el=r.target.nodeType===1?r.target:r.target.parentElement;return el&&el.closest(ENHANCE_IGNORE);}))return;
+  queueEnhance();
+});
+enhanceObs.observe(document.body,{childList:true,subtree:true});
+window.addEventListener('resize',queueEnhance);
+mqMobile.addEventListener?.('change',queueEnhance);
+queueEnhance();
+updateOdNeed();
+renderCsSummary();
+
 applyHashMode();
 /* 앱이 이미 열려 있는 상태에서 링크를 눌렀을 때도 화면이 바뀌게 함 —
    해시만 다른 주소는 브라우저가 페이지를 다시 읽지 않아 위 코드가 실행되지 않음. */

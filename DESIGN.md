@@ -124,9 +124,25 @@ Radius scale is tiny and mostly uniform — square-ish, not the rounded-pill/rou
 
 ## Responsive Behavior
 
-- Tables scroll horizontally inside `.tbl{overflow-x:auto}` rather than reflowing — acceptable for an internal desktop-first tool.
+- Tables scroll horizontally inside `.tbl{overflow-x:auto}` rather than reflowing — acceptable for an internal desktop-first tool. When a table is wider than its card, a `.xhint` line ("↔ 옆으로 밀어서…") and a right-edge shadow (`.tbl.has-x`) appear automatically (`enhanceTables()`).
+- `@media (max-width:760px)` (same page, no separate mobile site):
+  - The 9 nav tabs become a 3×3 grid (`nav{display:grid}`) — every menu stays visible, 44px tall, `--ink` text for contrast.
+  - Header wraps: title + 지게차/월마감/더보기 on one line, 기준일 row full width, connection pill below. 공유·백업·복원 live in the `더보기` menu (`.hdr-more`).
+  - Wide tables pin the key column on the left (`table[data-stick]` → 품목, or 선택칸+품목) and, only when it is narrow and not a delete-only column, the action column on the right (`table[data-act]`). Tapping the pinned 품목 cell opens a "머리글: 값" row detail dialog (`openRowDetail`) whose buttons work as in the row. Cells that contain inputs (기준정보) never open the detail.
+  - `.btn.sm` min 34px, `.btn` 38px, quick-pick buttons 40px, table checkboxes 20px.
 - 지게차 (driver) screen is the one truly mobile-optimized surface: larger fonts/touch targets, `max-width:900px`, checkboxes sized to 22×22px.
 - `@media (max-width:640px)`: dialog's 2-column grid collapses to 1 column; driver item rows stack instead of using the `1fr auto` grid.
+- `dialog{margin:auto}` is required because the global `*{margin:0}` reset otherwise removes the UA auto-centering.
+
+## Status, feedback & safety conventions (2026-09)
+
+- **Status chips never rely on color alone.** Add `.st` to a status chip to get a leading symbol: `c-wait` ○ 대기 · `c-done` ✓ 완료 · `c-late` ! 지연/위험 · `c-ord` → 진행 · `c-mut` – 기타. The text itself must also say the state.
+- **Connection pill** (`#saveBox`) always shows a mode word (`connState()` in `ui-helpers.js`): 샘플 데이터 / 이 기기에만 저장 / 실시간 공유 / 공유 저장 실패 / 읽기 전용. Any non-shared mode also shows the full-width `#connBanner` under the header (red for sample, amber otherwise) with a [실시간 공유 연결] button.
+- **Result + undo, not confirm dialogs.** A status change calls `showUndo(msg, fn)`: `#undoBar` shows "대상 → 결과" for 7s with [되돌리기]. Use `undoFields(kind, ids, fields)` for field changes and `undoCreate(kind, ids)` for just-created records (moves them to 휴지통, not a hard delete). Only irreversible deletes keep the two-tap `armDel` pattern.
+- **One-tap registration** (전화 모드, 벌크·직납, 지게차 직접 등록) keeps its speed but must show a `.qm-summary` line ("등록 내용: 부서 · 품목 · 단위 · 출고창고 · 요청일") before the tap and a `.qm-last` "방금 등록 … [되돌리기]" line after.
+- **Button wording states the outcome**: 입고 완료 처리 / 실물 이동 완료 / 전산 이동 완료 / 발주 등록 / 이번 주기 건너뛰기 / 공급사 발주 완료 / 출고 완료 처리, and the reverse actions "… 취소". Symbol-only buttons (◀ ▶ ✕) need a contextual `aria-label`.
+- **Form fields**: `input.autofill` (accent tint) = filled by a preset/lead-time, `input.need` (amber left bar) = required and still empty. 기준정보 inline cells: `.dirty` while typing (Esc cancels), `.saved` flash after save, delete in a separate `.del-col`.
+- **Terms**: 입고예정일(착일) for order ETA (field `eta` unchanged), 요청납기 for 사급 due dates, 창고 → 라인 이동 for `S.moves` (배합실/생산라인이 요청 → 지게차가 출고창고에서 해당 부서 라인으로). 주기 labels are displayed with a space (`주 2회`) via `cycleLabel()`; stored values are not rewritten.
 
 ## Iteration Guide
 

@@ -481,7 +481,7 @@ button.calCell:focus-visible{outline:2px solid var(--acc);outline-offset:-2px}
         <div class="row" style="align-items:center;margin-top:6px">
           <b id="qmSelName" style="font-size:16px"></b>
           <label for="qmUnit" style="margin:0;font-size:12px">단위</label>
-          <select id="qmUnit" onchange="qmUnitSel=this.value;renderQm()"><option>kg</option><option>Bag</option><option>PLT</option><option>드럼</option><option>Box</option><option>대</option></select>
+          <select id="qmUnit" onchange="qmUnitSel=this.value;renderQm()"><option>PLT</option><option>kg</option><option>Bag</option><option>드럼</option><option>Box</option><option>대</option></select>
           <span class="tag" id="qmLoc"></span>
         </div>
         <div class="qm-summary" id="qmSummary" aria-live="polite"></div>
@@ -2350,7 +2350,20 @@ function convInfo(item,qty,unit){
   }
   return'';
 }
-let qmDept='경질',qmItem='',qmUnitSel='kg';
+let qmDept='경질',qmItem='',qmUnitSel='PLT';
+/* 전화 모드 수량 퀵 버튼 — 배합실은 "몇 파레트" 단위로 요청하므로 기본 PLT.
+   단위별로 실제로 눌리는 값만 두고, kg일 때는 1·2kg 같은 의미 없는 값 대신 100kg 단위. */
+const QM_QUICK={PLT:[0.5,1,2,3,4,5,6,8],kg:[100,200,300,400,500,800,1000,1500,2000]};
+const QM_QUICK_DEFAULT=[1,2,3,4,5,6,8,10,12,16,20];   // Bag·드럼·Box·대
+function qmQuickNums(unit){return QM_QUICK[unit]||QM_QUICK_DEFAULT;}
+/* 퀵 버튼 보조 표기 — PLT면 품목별 파레트 중량(pltKgOf)으로 kg 환산을 같이 보여줌 */
+function qmQuickSub(item,n,unit){
+  if(unit!=='PLT')return unit;
+  const p=pltKgOf(item);
+  if(p==null)return unit;
+  if(Array.isArray(p))return`PLT ≈${fmtN(n*p[0])}~${fmtN(n*p[1])}kg`;
+  return`PLT ≈${fmtN(n*p)}kg`;
+}
 /* 같은 매입처(업체) 품목끼리 옆에 붙어 보이도록 그룹핑 — 매입처가 안 잡히는 품목은 원래 순서 유지 */
 function qmGrouped(dept){
   const items=QM_ITEMS[dept]||[];
@@ -2375,7 +2388,7 @@ function renderQm(){
     document.getElementById('qmSelName').textContent=qmItem;
     const ov=QM_OVR[qmItem]||{};
     const m=matchItem(qmBase(qmItem));const pack=ov.pack||(m?m.pack:'');
-    // 전화 기본 kg — "백으로 몇 개" 콜이면 통화 중 단위만 바꿔서 등록. 사용자가 고른 단위(qmUnitSel)는
+    // 전화 기본 PLT — "백으로 몇 개"·"몇 kg" 콜이면 통화 중 단위만 바꿔서 등록. 사용자가 고른 단위(qmUnitSel)는
     // 연속 등록·20초 동기화 리렌더에도 유지(예전엔 매번 kg으로 되돌아가 2건째부터 잘못 기록됨)
     document.getElementById('qmUnit').value=qmUnitSel;
     const pn=packNote(qmItem);
@@ -2384,7 +2397,7 @@ function renderQm(){
     // 누르기 전에 "무엇이 어떻게" 등록될지 한 줄로 — 부서·품목·단위·출고창고·기준일
     const u=qmUnitSel;
     document.getElementById('qmSummary').innerHTML=`등록 내용: <span class="dept d-${esc(qmDept)}">${esc(qmDept)}</span> 라인으로 <b>${esc(qmItem)}</b> · 단위 <b>${esc(u)}</b> · 출고창고 ${esc(locTxt)} · 요청일 ${fmtK(cur)}${cur!==realToday()?' <b style="color:var(--amber)">(오늘 아님)</b>':''}<br><span class="tag">아래 수량 버튼을 누르면 바로 등록됩니다</span>`;
-    document.getElementById('qmQty').innerHTML=[1,2,3,4,5,6,8,10,12,16,20].map(n2=>`<button onclick="qmAdd(${n2})" aria-label="${esc(qmDept)} ${esc(qmItem)} ${n2} ${esc(u)} 바로 등록">${n2}<span class="tag" style="font-size:10.5px;margin-left:2px">${esc(u)}</span></button>`).join('');
+    document.getElementById('qmQty').innerHTML=qmQuickNums(u).map(n2=>`<button onclick="qmAdd(${n2})" aria-label="${esc(qmDept)} ${esc(qmItem)} ${n2} ${esc(u)} 바로 등록">${n2}<span class="tag" style="font-size:10.5px;margin-left:2px">${esc(qmQuickSub(qmItem,n2,u))}</span></button>`).join('');
   }else box.style.display='none';
   renderQmLast();
 }
@@ -2503,7 +2516,9 @@ function openR696(m){
   const rp=ropOf(m.item);   // 백/지대 발주점 조회는 ropOf()로 통일 — 여기서 따로 다시 구현하면 나중에 매칭 로직이 바뀔 때 한쪽만 갱신되는 사고가 남
   const stk=S.inv&&S.inv.stock?(S.inv.stock[variant]??S.inv.stock['TIONA-696']??null):null;
   const openPo=S.orders.filter(o=>!o.skip&&!o.inDate&&o.unit==='kg'&&isR696(o.item)).reduce((a,o)=>a+(+o.qty||0),0);
-  const mvKg=m.unit==='kg'?+m.qty||0:null;
+  // 전화 모드 기본 단위가 PLT라 R696 이동도 PLT로 들어옴 — 발주점 판정을 건너뛰지 않게 kg로 환산(두 규격·미등록이면 환산 불가)
+  const mvPlt=m.unit==='PLT'?csPackKgOf(m.item,'PLT'):null;
+  const mvKg=m.unit==='kg'?+m.qty||0:(mvPlt!=null?(+m.qty||0)*mvPlt:null);
   const r=m.r696||{};   // 이미 확인된 기록이 있으면(재확인·정정) 그 값을 그대로 채워둠
   dlgTitle.textContent='R696 — 당월 추가 사용량 확인';
   dlgBody.innerHTML=`

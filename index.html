@@ -2353,7 +2353,7 @@ function convInfo(item,qty,unit){
 let qmDept='경질',qmItem='',qmUnitSel='PLT';
 /* 전화 모드 수량 퀵 버튼 — 배합실은 "몇 파레트" 단위로 요청하므로 기본 PLT.
    단위별로 실제로 눌리는 값만 두고, kg일 때는 1·2kg 같은 의미 없는 값 대신 100kg 단위. */
-const QM_QUICK={PLT:[0.5,1,2,3,4,5,6,8],kg:[100,200,300,400,500,800,1000,1500,2000]};
+const QM_QUICK={PLT:[1,2,3,4,5,6,8,10],kg:[100,200,300,400,500,800,1000,1500,2000]};   // 창고이동은 파레트 정수 단위만(반 파레트 없음)
 const QM_QUICK_DEFAULT=[1,2,3,4,5,6,8,10,12,16,20];   // Bag·드럼·Box·대
 function qmQuickNums(unit){return QM_QUICK[unit]||QM_QUICK_DEFAULT;}
 /* 퀵 버튼 보조 표기 — PLT면 품목별 파레트 중량(pltKgOf)으로 kg 환산을 같이 보여줌 */

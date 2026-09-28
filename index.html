@@ -1095,7 +1095,7 @@ function applyMasterPatches(){
       'IM812':'충격보강제',                                                // "IM" = Impact Modifier 관행 표기
       'HYDROCARB95T':'충전제',                                             // Omya Hydrocarb(탄산칼슘 필러) 제품군
       'UVP':'안정제',                                                      // 자외선 안정제
-      'DS356S1':'가소제','DS356T':'가소제',                                // 매입처 "단석"(단석산업 — 가소제 전문 제조사)
+      'DS356S1':'가소제','DS356T':'가소제','DS360T':'가소제','DS360':'가소제',                                // 매입처 "단석"(단석산업 — 가소제 전문 제조사)
       'PSGNT1TPZ':'기재수지',                                              // GPPS(재생) — 기재수지(첨가제 아님)
     };
     M.rop.forEach(r=>{if(!r.cat){const cat=ROP_CAT[norm(r.item)];if(cat)r.cat=cat;}});
@@ -1104,25 +1104,38 @@ function applyMasterPatches(){
   M._patchVersion=MASTER_PATCH_VERSION;
   if(sb&&sbOK)sbSaveMasterAfterPatch();
 }
-/* DWC4S·DWC6S → DWC4Z·DWC6Z 품명 변경 — 기존에 S로 등록된 발주·이동 이력도
-   새 Z 품목과 같은 품목으로 인식되게(위치 조회·발주 주기 이력 등) */
-const ITEM_ALIAS={'GPPS(재생)':'PSGNT1TPZ','GPPS(유니드글로벌)':'PSGNT1TPZ','GPPS':'PSGNT1TPZ','DWC4S':'DWC4Z','DWC6S':'DWC6Z'};
+/* 품명 변경 별칭(옛 이름 → 새 이름) — 기존에 옛 이름으로 등록된 발주·이동 이력도 새 품목과
+   같은 품목으로 인식되게(위치 조회·발주점·발주 주기 이력 등). 마스터(M.materials·M.rop)가
+   아직 옛 이름이면 반대 방향도 맞춰 주도록 aliasOf()로 양쪽 다 정규화해 비교함.
+   - DWC4S·DWC6S → DWC4Z·DWC6Z
+   - DS-356·DS-356T → DS-360·DS-360T, HCZ-995_B → HCZ-995C (2026-09-28 품명 변경) */
+const ITEM_ALIAS={'GPPS(재생)':'PSGNT1TPZ','GPPS(유니드글로벌)':'PSGNT1TPZ','GPPS':'PSGNT1TPZ','DWC4S':'DWC4Z','DWC6S':'DWC6Z',
+ 'DS-356':'DS-360','DS356':'DS-360','DS-356T':'DS-360T','DS356T':'DS-360T','HCZ-995_B':'HCZ-995C','HCZ-995B':'HCZ-995C'};
+const aliasOf=s=>{const k=String(s||'').trim();return ITEM_ALIAS[k]||k;};
+/* 조회 키 후보 — 새 이름·옛 이름 모두. 마스터(M.rop 등)에 'DS356S1'처럼 옛 이름을 품은 코드가
+   남아 있어도 새 이름(DS-360)으로 조회가 이어지도록 옛 이름 쪽 부분일치까지 살림. */
+function itemKeys(s){
+  const nw=aliasOf(s),ks=new Set([norm(nw),norm(s)]);
+  // 옛 이름 쪽은 5자 이상만 — 'GPPS' 같은 짧은 별칭이 부분일치로 신재 GPPS를 재생으로 잘못 잡지 않게
+  Object.entries(ITEM_ALIAS).forEach(([o,n])=>{const k=norm(o);if(n===nw&&k.length>=5)ks.add(k);});
+  return [...ks].filter(k=>k.length>=2);
+}
 /* 통계 탭(재고 추이) 드롭다운·현황 탭 부족재고(ropDue()) 목록 표시용 — S.invHist/M.rop의
    실제 키는 readInv() 매칭(백/지대 구분용 특수 처리 포함, ropOf() 부근 참고) 때문에
    'Kronos2450'·'TIONA-696'(백)/'K-2450(지대)'·'TIONA-666(696)'(지대)처럼 비대칭·암호 같은
    이름을 그대로 씀 — 화면에는 이 라벨로만 바꿔 보여주고 내부 키(option value·M.rop.item)는
    그대로 둬서 매칭 로직은 하나도 안 건드림. */
 const ITEM_DISPLAY_LABEL={'Kronos2450':'K-2450(백)','TIONA-696':'TIONA-696(백)','TIONA-666(696)':'TIONA-696(지대)'};
-const itemKey=s=>norm(ITEM_ALIAS[String(s||'').trim()]||s);
+const itemKey=s=>norm(aliasOf(s));
 function matchItem(q){ // 마스터에서 가장 비슷한 품목
-  q=ITEM_ALIAS[String(q).trim()]||q;
-  const n=norm(q); if(n.length<2)return null;
+  const ns=itemKeys(q); if(!ns.length)return null;
   let best=null,bs=0;
   for(const m of M.materials){
-    const cands=[m.name,short(m.name),...(m.name.match(/\(([^)]+)\)/g)||[]).map(x=>x.slice(1,-1))];
+    const cands=[m.name,aliasOf(m.name),short(m.name),...(m.name.match(/\(([^)]+)\)/g)||[]).map(x=>x.slice(1,-1))];
     for(const c of cands){const nc=norm(c); if(nc.length<2)continue;
-      let sc=0; if(nc===n)sc=100; else if(nc.includes(n)||n.includes(nc))sc=Math.min(nc.length,n.length)*3;
-      if(sc>bs){bs=sc;best=m;}}
+      for(const n of ns){
+        let sc=0; if(nc===n)sc=100; else if(nc.includes(n)||n.includes(nc))sc=Math.min(nc.length,n.length)*3;
+        if(sc>bs){bs=sc;best=m;}}}
   }
   return bs>=6?best:null;
 }
@@ -1138,8 +1151,8 @@ function locOf(q){const m=matchItem(q);return qmLocOverride(q)||(m?m.loc.replace
 function ropOf(q){
   if(isTionaFamily(q)){const r=M.rop.find(x=>x.item===r696Variant(q));if(r)return r;}
   if(isK2450Family(q)){const r=M.rop.find(x=>x.item===k2450Variant(q));if(r)return r;}
-  const n=norm(q);
-  return M.rop.find(x=>norm(x.item)===n)||M.rop.find(x=>norm(x.item).includes(n)||n.includes(norm(x.item)));
+  const ns=itemKeys(q);
+  return M.rop.find(x=>ns.includes(itemKey(x.item)))||M.rop.find(x=>{const xn=itemKey(x.item);return ns.some(n=>xn.includes(n)||n.includes(xn));});
 }
 function leadOf(q){const r=ropOf(q);return r?Math.ceil(r.lt):2;}
 function deptOf(m){if(!m)return '';const u=m.use||'';if(/창호/.test(u))return'창호';if(/경질/.test(u))return'경질';if(/디럭스|LVTD|타일/.test(u))return'타일';if(/데코|장판|벽지/.test(u))return'DBP';return'전사';}
@@ -1849,7 +1862,7 @@ function fillLists(){
   const q=document.getElementById('mvQuick');
   if(!q.children.length){
     // 월평균 사용량(발주기준 v6 실측) 많은 순 — 같은 계열(PMS·GPPS·DL)은 묶음
-    const freq=['필라 95T','SP-390','MB-875','GPPS(재생)','GPPS(유니드글로벌)','PMS-180','PMS-1808','PMS-1803','PMS-500','TIONA-696','DS-356','IM-812','K-2450','O-130P','MB-838','P-560J','DHA-100','C-9','SL-64','DL-201','DL-101','DL-250','ES-95','R-696','UV-P','NR-950','BP-276S'];
+    const freq=['필라 95T','SP-390','MB-875','GPPS(재생)','GPPS(유니드글로벌)','PMS-180','PMS-1808','PMS-1803','PMS-500','TIONA-696','DS-360','IM-812','K-2450','O-130P','MB-838','P-560J','DHA-100','C-9','SL-64','DL-201','DL-101','DL-250','ES-95','R-696','UV-P','NR-950','BP-276S'];
     q.innerHTML=freq.map(f=>`<button onclick="mvItem.value='${f}';autoLoc('mv');mvQty.focus()">${f}</button>`).join('');
   }
   if(!document.getElementById('odDate').value)document.getElementById('odDate').value=cur;
@@ -2051,7 +2064,8 @@ function readInv(f){
         let hit=null;
         for(const cand of cands){
           const nn=norm(cand);
-          hit=rops.find(rp=>{const rn=norm(rp.item);return rn.length>=3&&nn.includes(rn);});
+          // 발주 기준 품목의 새 이름·옛 이름(itemKeys) 모두 대조 — 재고 파일이 새 품명으로 바뀌어도 이어지게
+          hit=rops.find(rp=>itemKeys(rp.item).some(rn=>rn.length>=3&&nn.includes(rn)));
           if(hit)break;
         }
         if(hit){
@@ -2278,8 +2292,8 @@ function spRegisterOrder(name,n,dept,isDae,etaOv,note){
 const QM_ITEMS={
  '경질':['SP-390','MB-875','PMS-180','PMS-1808','PMS-1803','PMS-500','필라 95T','IM-812','K-2450(백)','K-2450(지대)','TIONA-696(백)','TIONA-696(지대)','O-130P','MB-838A','P-560J','SL-64','DL-201','DL-101','DL-250','ES-95','UV-P','UV-3C','SH-60','GHP BLUE 3931P'],
  '창호':['필라 95T','CPE H-135','NR-950','DWC4Z','DWC6Z','ASA GR','ASA DG','ASA BK','SJ-01'],
- '타일':['DS-356','DS-356T','GPPS(재생)','GPPS(유니드글로벌)','DHA-100','ROSIN C-9','ACR-401','WAX(폴리-210)'],
- 'DBP':['DS356S1','HCZ-995_B']};
+ '타일':['DS-360','DS-360T','GPPS(재생)','GPPS(유니드글로벌)','DHA-100','ROSIN C-9','ACR-401','WAX(폴리-210)'],
+ 'DBP':['DS356S1','HCZ-995C']};
 const QM_OVR={
  'TIONA-696(백)':{unit:'Bag',pack:'F/B 500kg(백)',loc:'14동 2열'},
  'TIONA-696(지대)':{unit:'PLT',pack:'P/B 25kg(지대)',loc:'14동 1열'},
@@ -2315,8 +2329,8 @@ const PACK_NOTES=[
 function packNote(it){const n=norm(it);const h=PACK_NOTES.find(([re])=>re.test(n));if(!h)return'';return typeof h[1]==='function'?h[1]():h[1];}
 /* 파레트 중량 — 예외 품목 우선, 나머지는 포장형태 기본 규칙
    기본: 드럼 1PLT=800kg(200kg×4, 최소단위) · F/B(플레콘백) 1PLT=1,000kg · P/B(지대) 1PLT=1,000kg
-   예외: DS-356/DS-356T 1,005 · ROSIN C-9 700 · SL-64 465/540 두 규격 · SONGNOX 500 · BP-276S 1,000 */
-const PLT_KG=[['SL-64',[465,540]],['DS-356T',1005],['DS-356',1005],['ROSIN C-9',700],['C-9',700],['BP-276S',1000],['SONGNOX',500]];
+   예외: DS-360/DS-360T(구 DS-356/356T) 1,005 · ROSIN C-9 700 · SL-64 465/540 두 규격 · SONGNOX 500 · BP-276S 1,000 */
+const PLT_KG=[['SL-64',[465,540]],['DS-360T',1005],['DS-360',1005],['DS-356T',1005],['DS-356',1005],['ROSIN C-9',700],['C-9',700],['BP-276S',1000],['SONGNOX',500]];
 function pltKgOf(item){
   const n=norm(item);
   const hit=PLT_KG.find(([k])=>n.includes(norm(k)));
@@ -3228,8 +3242,8 @@ function csEngineState(){
 function csPackKgOf(item,unit){
   const u=String(unit||'').normalize('NFKC').trim().toUpperCase();
   if(['PLT','파렛트','팔레트','PALLET'].includes(u)){const p=pltKgOf(String(item));return (p==null||Array.isArray(p))?null:p;}
-  const raw=String(item||'').trim(),keys=[norm(ITEM_ALIAS[raw]||raw),norm(qmBase(raw))].filter(k=>k.length>=2);
-  const m=M.materials.find(x=>keys.includes(norm(x.name)));
+  const raw=String(item||'').trim(),keys=[itemKey(raw),itemKey(qmBase(raw))].filter(k=>k.length>=2);
+  const m=M.materials.find(x=>keys.includes(itemKey(x.name)));
   return m&&+m.unitKg>0?+m.unitKg:null;
 }
 function csToMatchOrder(c){

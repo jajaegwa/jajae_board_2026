@@ -122,6 +122,56 @@
     return `${dateLabel}${parts.length ? ' · ' + parts.join(', ') : ' · 일정 없음'}${selected ? ' · 선택됨' : ''}`;
   }
 
+  /* 마감 메일 문구 — 마감관리 매입 탭 [마감 메일 복사] 버튼.
+     "N일자로 세금계산서 발행"의 N은 그 마감월의 마지막 영업일(토·일·공휴일 제외).
+     공휴일은 연도별 표로 관리(대체공휴일·선거일·임시공휴일 포함). 표에 없는 연도는 토·일만 빼고
+     계산하되 holidayKnown=false를 돌려줘 화면에서 안내함. 새 해가 오면 아래 표에 한 해를 추가할 것.
+     출처: 정부 월력요항·언론 보도(2026: 대체공휴일 3/2·5/25·8/17·10/5, 6/3 지방선거, 노동절·제헌절은
+     2026-04부터 공휴일 / 2027: 대체공휴일 2/9·5/3·7/19·8/16·10/4·10/11·12/27, 추석 9/14~16). */
+  const KR_HOLIDAYS = {
+    2025: ['01-01', '01-27', '01-28', '01-29', '01-30', '03-01', '03-03', '05-05', '05-06', '06-03', '06-06',
+      '08-15', '10-03', '10-05', '10-06', '10-07', '10-08', '10-09', '12-25'],
+    2026: ['01-01', '02-16', '02-17', '02-18', '03-01', '03-02', '05-01', '05-05', '05-24', '05-25', '06-03',
+      '06-06', '07-17', '08-15', '08-17', '09-24', '09-25', '09-26', '10-03', '10-05', '10-09', '12-25'],
+    2027: ['01-01', '02-06', '02-07', '02-08', '02-09', '03-01', '05-01', '05-03', '05-05', '05-13', '06-06',
+      '07-17', '07-19', '08-15', '08-16', '09-14', '09-15', '09-16', '10-03', '10-04', '10-09', '10-11',
+      '12-25', '12-27']
+  };
+  const YM_RE = /^(\d{4})-(0[1-9]|1[0-2])$/;
+  const pad2 = n => String(n).padStart(2, '0');
+  /* ym: 'YYYY-MM' → { date:'YYYY-MM-DD', day:숫자, holidayKnown } — 그 달의 마지막 영업일.
+     Date는 로컬(UTC 시차 무관)로만 다룸. 잘못된 ym이면 null. */
+  function lastBizDay(ym, holidays) {
+    const m = YM_RE.exec(String(ym || ''));
+    if (!m) return null;
+    const y = +m[1], mo = +m[2];
+    const table = holidays || KR_HOLIDAYS;
+    const hol = new Set((table[y] || []).map(md => `${y}-${md}`));
+    // 다음 달 0일 = 이 달 마지막 날부터 하루씩 거슬러 올라가며 첫 영업일을 찾음
+    for (const d = new Date(y, mo, 0); d.getMonth() === mo - 1; d.setDate(d.getDate() - 1)) {
+      const wd = d.getDay();
+      const iso = `${y}-${m[2]}-${pad2(d.getDate())}`;
+      if (wd === 0 || wd === 6 || hol.has(iso)) continue;
+      return { date: iso, day: d.getDate(), holidayKnown: !!table[y] };
+    }
+    return null;
+  }
+  /* 문구는 담당자가 보내준 메일 원문 그대로. 월·일만 치환. */
+  function closingMailText(ym, holidays) {
+    const b = lastBizDay(ym, holidays);
+    if (!b) return null;
+    const mm = b.date.slice(5, 7); // 원문 표기("09월")를 따라 두 자리 유지
+    return { text: `안녕하세요 현대엘앤씨 물류팀 선임 김성진입니다.
+
+${mm}월 마감 내역 수량, 금액 확인하였습니다.
+
+${b.day}일자로 세금계산서 발행부탁드립니다.
+
+감사합니다.
+
+김성진 드림.`, month: mm, day: b.day, date: b.date, holidayKnown: b.holidayKnown };
+  }
+
   return { moveCounts, moveCountText, CYCLE_CANON, cycleLabel, cycleOptions, cycleValueToStore, cycleText, connState,
-    consDraftSummary, emptyReason, fcCalcState, snapshot, restore, calDayLabel };
+    consDraftSummary, emptyReason, fcCalcState, snapshot, restore, calDayLabel, KR_HOLIDAYS, lastBizDay, closingMailText };
 });

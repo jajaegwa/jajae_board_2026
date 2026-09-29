@@ -102,9 +102,31 @@
     // Search independently delimited description segments, preserving spaces as
     // possible model separators (SONGSORB CS 928 -> SONGSORBCS928).
     const segments = h.split(/[_()\[\]/]+/).map(compact);
-    return segments.some(s => s === needle);
+    if (segments.some(s => s === needle)) return true;
+    // A Korean descriptor glued to the model inside one field ("BEAM COAT #1120  투명") and a model
+    // split across two adjacent fields ("Extadditive_003" vs "Extadditive 003") are the two shapes the
+    // ERP export produces that the operator's short name does not.
+    // Only a needle without its own Korean qualifier may absorb the other side's: "투명" vs "백색" written
+    // on both sides stay different products.
+    if (!/[가-힣]/.test(needle) && segments.some(s => { const k = s.replace(/[가-힣]+/g, ''); return k && k !== s && k === needle; })) return true;
+    for (let i = 0; i + 1 < segments.length; i++) if (segments[i] && segments[i+1] && segments[i] + segments[i+1] === needle) return true;
+    return false;
   }
   const emptyAliases = () => ({vendors:[], items:[]});
+  // Category and packaging words that name a family, not a product: TiO2, PVC, resin, drum...
+  const GENERIC_NAMES = new Set(['DRUM','TANK','BULK','CAN','BOX','BAG','FILM','SHEET','ROLL','PALLET','PLT','TONER','RESIN','POWDER','LIQUID','WHITE','BLACK','BLUE','RED','GREEN','YELLOW','BROWN','GRAY','GREY','CLEAR','NONE','SAMPLE','TEST','TIO2','PVC','PET','PMMA','PVDF','DOTP','DINP','DOP','COMPOUND']);
+  // A whole short name counts only when it looks like a product code — letters plus a digit or hyphen
+  // (NEO-P, TI640) — so a bare family word ("Extadditive", "DOTP") never matches every grade under it.
+  // (raw is the cleaned but uncompacted name: compact() drops hyphens, so the code-shape test reads raw.)
+  const wholeName = (raw, w) => w.length >= 4 && /[A-Z]/.test(w) && /[-0-9]/.test(raw) && !GENERIC_NAMES.has(w) && !/^\d+(?:KG|G|L|ML|EA|PCS|M|TON|MT)$/.test(w);
+  // An item alias limited to one vendor also applies when that vendor is an approved alias of the
+  // sale's or order's vendor (the seed limits P.GREEN(L8710) to "KSC AT" while the order form says
+  // "케이에스씨에이티", which is the same company by an approved vendor alias).
+  function sameVendorAs(vendor, others, aliases) {
+    const target=vendorName(vendor), names=others.map(vendorName);
+    if (names.includes(target)) return true;
+    return (aliases.vendors||[]).some(g=>{ if(!g.approved) return false; const n=(g.names||[]).map(vendorName); return n.includes(target) && names.some(v=>n.includes(v)); });
+  }
   function vendorMatch(s, o, aliases) {
     const a = regNo(s.vendorRegNo || s.vendor), b = regNo(o.vendorRegNo || o.vendor);
     if (a && b) return a===b ? {level:'exact', reason:'사업자번호 일치'} : {level:'blocked', reason:'사업자번호 충돌'};
@@ -129,13 +151,23 @@
     const sf=itemForms(s.item), of=itemForms(o.item);
     if (sf.some(t=>hasBounded(o.item,t)) || of.some(t=>hasBounded(s.item,t)))
       return {level:'exact',reason:'구분된 제품 모델 일치'};
+    // A short name without digits (NEO-P, DOTP, PVC Resin) is not a model token, but when the whole
+    // name equals one delimited field of the other side it is the same product. Generic packaging or
+    // category words never count.
+    if ((wholeName(cleanItem(o.item),y) && hasBounded(s.item,y)) || (wholeName(cleanItem(s.item),x) && hasBounded(o.item,x)))
+      return {level:'exact',reason:'구분된 품목명 일치'};
+    // An approved group wins over an unapproved one covering the same pair (a later approved seed or a
+    // learned alias must not stay "needs confirmation" because an older candidate group is listed first).
+    let suggested=false;
     for (const g of aliases.items || []) {
-      if (g.vendor && ![s.vendor,o.vendor].some(v=>vendorName(v)===vendorName(g.vendor))) continue;
+      if (g.vendor && !sameVendorAs(g.vendor, [s.vendor,o.vendor], aliases)) continue;
       const names=(g.names||[]).map(compact);
-      if (names.some(n=>n===x||hasBounded(s.item,n)) && names.some(n=>n===y||hasBounded(o.item,n)))
-        return {level:g.approved?'alias':'suggested',reason:g.approved?'승인된 품목 별칭':'품목 별칭 최초 확인 필요'};
+      if (names.some(n=>n===x||hasBounded(s.item,n)) && names.some(n=>n===y||hasBounded(o.item,n))) {
+        if (g.approved) return {level:'alias',reason:'승인된 품목 별칭'};
+        suggested=true;
+      }
     }
-    return {level:'none',reason:'품목 연결 없음'};
+    return suggested ? {level:'suggested',reason:'품목 별칭 최초 확인 필요'} : {level:'none',reason:'품목 연결 없음'};
   }
   // Normalized business content of a sale row: vendor name, item name, quantity in base unit,
   // unit family and sale date. Only the always-mapped columns take part (registration number and

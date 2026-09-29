@@ -3155,11 +3155,14 @@ function csBulkSetUnit(){
    자세한 설계는 CLAUDE_CODE_PROMPT.md(자재과 작업판 저장소 별도 보관) 참고. */
 const CS_SALES_SCHEMA_VERSION=1;
 const CS_SALES_ISSUER_ID='jajae-cs-sales-ledger';
-// alias-candidates.json(저장소 루트, Node 테스트에서도 씀)과 내용이 같은 최초 시드 — 전부
+// alias-candidates.json(저장소 루트, Node 테스트에서도 씀)과 내용이 같은 최초 시드 — v1·v2는 전부
 // approved:false로 시작하며, 실제 승인은 화면에서 담당자가 눌러야만 이뤄짐(임의 일괄 승인 금지).
+// v3(2026-09-29)만 예외로 approved:true — 담당자가 채팅으로 확인했거나 실제 매각내역과 발주 수량이
+// 정확히 맞아 확인된 짝이며, 각 그룹의 note·approvedBy에 근거를 남김(별칭 목록에서 확인 가능).
 // 시드 버전 — 올리면 이미 시드를 받은 설치본에도 "빠진 그룹만" 한 번 더 병합됨(이미 있는 그룹과
 // 담당자가 승인·수정한 내용은 그대로). 2: 선영·광성 부서 표기 추가(2026-09-23, 백업 데이터에서 확인).
-const CS_SALES_ALIAS_SEED_VERSION=2;
+// 3: 실제 더존 파일 대조로 확인된 공통(vendor 빈칸) 품목 별칭 11짝 추가(2026-09-29).
+const CS_SALES_ALIAS_SEED_VERSION=3;
 const CS_SALES_ALIAS_SEED={
   "vendors": [
     {"names":["케이에스씨에이티","KSC AT","KSCAT"],"regNo":"1318664447","approved":false},
@@ -3179,11 +3182,26 @@ const CS_SALES_ALIAS_SEED={
     {"vendor":"광성","names":["293F-1","J293F-1"],"approved":false},
     {"vendor":"동부엔지니어링","names":["Richbin329","RICHVIN-329"],"approved":false},
     {"vendor":"엔에이치씨","names":["SONGSORB CS 928","CS-928"],"approved":false},
-    {"vendor":"두하 생산관리","names":["LOX-203PF","LOX-203"],"approved":false,"note":"PL 등급에는 적용 금지"},
+    {"vendor":"두하 생산관리","names":["LOX-203PF","LOX-203"],"approved":false,"note":"v3 공통 별칭(LOX-203PF↔LOX-203PL↔LOX-203, 담당자 확인 2026-09-29)으로 대체됨"},
     {"vendor":"두하 생산관리","names":["GHP BLUE 3240","BLUE 3240"],"approved":false},
     {"vendor":"두하 생산관리","names":["GHP BLUE 3301","BLUE 3301"],"approved":false},
     {"vendor":"두하 생산관리","names":["GHP RED 1066","RED 1066"],"approved":false},
-    {"vendor":"두하 생산관리","names":["GHP YELLOW 3088","YELLOW 3088"],"approved":false}
+    {"vendor":"두하 생산관리","names":["GHP YELLOW 3088","YELLOW 3088"],"approved":false},
+    /* 시드 v3(2026-09-29) — 실제 더존 매각내역(9/1~9/29)과 작업판 발주를 대조해 확인한 표기 짝. vendor를 비워
+       모든 사급처에 적용함(같은 원료를 여러 사급처가 씀 — 293F-1은 광성·두성플러스·한엘, D-81 T는 동원김포·선영).
+       CR-102↔CR-102 NT, LOX-203PF↔LOX-203(PL)은 담당자가 채팅으로 같은 품목이라고 확인함. 나머지는 같은 사급처의
+       같은 날 발주와 수량이 정확히 맞아 확인된 것. */
+    {"vendor":"","names":["CR-102 NT","CR-102NT","CR-102"],"approved":true,"approvedBy":"자재과(채팅으로 확인)","approvedAt":"2026-09-29","note":"담당자 확인 — 방염점착 경화제 동일 품목(2026-09-29)"},
+    {"vendor":"","names":["LOX-203PF","LOX-203PL","LOX-203(PL)","LOX-203"],"approved":true,"approvedBy":"자재과(채팅으로 확인)","approvedAt":"2026-09-29","note":"담당자 확인 — 동일 품목(2026-09-29)"},
+    {"vendor":"","names":["293F-S","J293F-S","J-293F-S"],"approved":true,"approvedBy":"자재과(매각 파일 대조)","approvedAt":"2026-09-29","note":"실제 매각내역 대조로 확인(수량 일치, 2026-09-29)"},
+    {"vendor":"","names":["293F-1","J293F-1"],"approved":true,"approvedBy":"자재과(매각 파일 대조)","approvedAt":"2026-09-29","note":"실제 매각내역 대조로 확인(수량 일치, 2026-09-29)"},
+    {"vendor":"","names":["HELIOGEN GREEN L 8710","P.GREEN(L8710)"],"approved":true,"approvedBy":"자재과(매각 파일 대조)","approvedAt":"2026-09-29","note":"실제 매각내역 대조로 확인(수량 일치, 2026-09-29)"},
+    {"vendor":"","names":["EDENOL D-81 T","D-81T","D81-T","D-81"],"approved":true,"approvedBy":"자재과(매각 파일 대조)","approvedAt":"2026-09-29","note":"실제 매각내역 대조로 확인(수량 일치, 2026-09-29)"},
+    {"vendor":"","names":["Kronos2450","K2450"],"approved":true,"approvedBy":"자재과(매각 파일 대조)","approvedAt":"2026-09-29","note":"실제 매각내역 대조로 확인(수량 일치, 2026-09-29)"},
+    {"vendor":"","names":["TIONA-666(696)","TiO2 666(696)"],"approved":true,"approvedBy":"자재과(매각 파일 대조)","approvedAt":"2026-09-29","note":"실제 매각내역 대조로 확인(수량 일치, 2026-09-29)"},
+    {"vendor":"","names":["NEO-P","NEO-P(드럼)"],"approved":true,"approvedBy":"자재과(매각 파일 대조)","approvedAt":"2026-09-29","note":"실제 매각내역 대조로 확인(수량 일치, 2026-09-29)"},
+    {"vendor":"","names":["SV GY-00","일삼 GY_00(42%)"],"approved":true,"approvedBy":"자재과(매각 파일 대조)","approvedAt":"2026-09-29","note":"실제 매각내역 대조로 확인(수량 일치, 2026-09-29)"},
+    {"vendor":"","names":["Black 10P922","BLACK 10P922","BALCK 10P922"],"approved":true,"approvedBy":"자재과(매각 파일 대조)","approvedAt":"2026-09-29","note":"작업판 오타(BALCK) 흡수 — 실제 매각내역 대조로 확인(2026-09-29)"}
   ]
 };
 /* S.salesLedger/salesAliases/salesImportBatches가 없으면(예전 데이터·최초 실행) 채워둠 — 이미
@@ -3409,6 +3427,11 @@ function csSalesRenderColumnMap(det,autoRan=false){
 }
 const csSalesNum=v=>{if(v==null)return NaN;const s=String(v).trim().replace(/,/g,'');return /^-?\d+(\.\d+)?$/.test(s)?+s:NaN;};
 const csSalesIsSubtotal=s=>/^(합계|소계|계|total|subtotal)$/i.test(String(s||'').trim());
+// 사급 대상이 아닌 행의 단위 — 더존 매각내역에는 필름·시트(MR·KM)와 보닥 박스·캡(EA) 매각이 같이 실려 오는데
+// 사급 발주는 전부 kg 계열이라 이 행들은 매번 '대응 없음'으로만 남았음(2026-09-29 실제 파일: 141행 중 12행).
+// 제외 목록에 사유와 함께 남겨 사람이 확인할 수 있게 함.
+const CS_SALES_SKIP_UNITS=new Set(['MR','M','KM','EA','PCS','PC','RL','ROLL','매','장']);
+const csSalesSkipUnit=u=>CS_SALES_SKIP_UNITS.has(String(u??'').normalize('NFKC').replace(/\s+/g,'').toUpperCase());
 /* 매핑을 확정하면 원본 그리드를 sale 레코드(원천행 1개=1개)로 변환 — 요약/합산은 화면 표시에서만
    하고, 저장은 항상 원천행 단위로 함(그룹을 가짜 전표행으로 합쳐 저장하지 않음). */
 // keepMap: 자동 인식으로 바로 대조하는 경우 열 지정 패널을 지우지 않고 남김(틀렸을 때 고칠 자리).
@@ -3426,6 +3449,7 @@ function csSalesConfirmMap(keepMap=false){
     if(!vendor||!item){excluded.push({row:r2+1,reason:'사급처·품목 누락'});continue;}
     const qtyRaw=row[qi];const qty=csSalesNum(qtyRaw);
     if(!isFinite(qty)){excluded.push({row:r2+1,reason:`수량을 숫자로 읽을 수 없음("${String(qtyRaw??'')}")`});continue;}
+    if(ui>=0&&csSalesSkipUnit(row[ui])){excluded.push({row:r2+1,reason:`사급 대상 아님 — 단위 ${String(row[ui]).trim()}(필름·시트·부자재): ${item}`});continue;}
     rows.push({
       vendor,item,
       supplier:si>=0?String(row[si]??'').trim():'',
@@ -3537,7 +3561,7 @@ function csSalesRenderReview(){
   CS_SALES_PREVIEW.forEach((p,idx)=>{buckets[csSalesBucket(idx)].push(idx);});
   const noCandN=counts.NO_CANDIDATE||0;
   let html=`<h3>매각내역 대조 — ${esc(CS_SALES_FILENAME)}</h3>
-    <div class="hint"><b>자동 확정 ${buckets.auto.length}건</b>(체크됨 — [선택 항목 반영]을 누르면 반영과 함께 완료 처리) · <b>확인 필요 ${buckets.review.length}건</b> · 기존 반영 ${buckets.linked.length}건 — 원본 행 ${rawRows}건 · 업체·품목 요약 ${groupCount}그룹 · 상태별: ${summary||'없음'}${excluded.length?` · 제외 ${excluded.length}건(합계/소계·필수값 누락)`:''}</div>
+    <div class="hint"><b>자동 확정 ${buckets.auto.length}건</b>(체크됨 — [선택 항목 반영]을 누르면 반영과 함께 완료 처리) · <b>확인 필요 ${buckets.review.length}건</b> · 기존 반영 ${buckets.linked.length}건 — 원본 행 ${rawRows}건 · 업체·품목 요약 ${groupCount}그룹 · 상태별: ${summary||'없음'}${excluded.length?` · 제외 ${excluded.length}건(합계/소계·필수값 누락·사급 대상 아님)`:''}</div>
     ${noCandN?`<div class="hint" style="color:var(--amber)">대응 없음 ${noCandN}건 — 대부분 매각 파일의 품목 표기(제조사 정식 품명)와 작업판 품목 약칭이 달라서 생깁니다. <button class="btn sm pri" onclick="csSalesShowItemMap()">품목 대응표에서 한 번에 정리</button> 하면 저장된 대응은 다음 파일부터 자동 인식됩니다.</div>`:''}
     <div class="hint" style="color:var(--amber)">근거 배지는 검증된 확률이 아닙니다 — 표시된 근거와 사유를 직접 확인하세요.</div>`;
   if(excluded.length)html+=`<div class="tbl scroll" style="max-height:100px;margin:6px 0"><table><thead><tr><th>행</th><th>제외 사유</th></tr></thead><tbody>${excluded.map(e=>`<tr><td>${e.row}행</td><td>${esc(e.reason)}</td></tr>`).join('')}</tbody></table></div>`;
@@ -3968,7 +3992,9 @@ function csSalesLearnAliases(sale,order,opts={}){
   }
   const cI=s=>CsSalesEngine.cleanItem(s);
   if(CsSalesEngine.itemMatch(sale,mo,S.salesAliases).level==='none'&&cI(sale.item)&&cI(order.item)){
-    const g={vendor:order.consignee,names:[cI(sale.item),cI(order.item)],approved:false,learned:true,note:(opts.note||'직접 지정으로 등록')+(opts.approveItems?'':' — 반영을 마치면 승인됨')};
+    // vendor를 비워 모든 사급처에 적용 — 같은 원료를 여러 사급처가 쓰므로(293F-1: 광성·두성플러스·한엘) 한 사급처에
+    // 묶어 두면 다른 사급처 파일에서 같은 표기가 또 '대응 없음'이 됨(2026-09-29 실제 파일 대조·담당자 결정).
+    const g={vendor:'',names:[cI(sale.item),cI(order.item)],approved:false,learned:true,note:(opts.note||'직접 지정으로 등록')+(opts.approveItems?'':' — 반영을 마치면 승인됨')};
     if(opts.approveItems)Object.assign(g,{approved:true},csAliasStamp());
     S.salesAliases.items.push(g);created.push(['items',g]);
   }
@@ -4245,7 +4271,7 @@ function csSalesErrMsg(m){
 /* ── 품목 대응표 — 대응 없음 행을 사급처·품목별로 묶어 작업판 품목과 한 번에 잇기 ──
    더존 매각내역은 제조사 정식 품명(HELIOGEN GREEN L 8710), 작업판 사급 건은 약칭(P.GREEN(L8710))을 써서
    첫 업로드에서는 품목 대부분이 '대응 없음'이 됨(2026-09-29 점검: 품목 77종 중 별칭 13종). 행마다 [직접 지정]
-   하는 대신 표기 종류별로 한 번만 고르고 저장하면 승인된 품목 별칭(사급처 제한)으로 남아 다음 파일부터 자동.
+   하는 대신 표기 종류별로 한 번만 고르고 저장하면 승인된 품목 별칭(모든 사급처 공통)으로 남아 다음 파일부터 자동.
    사급처 표기까지 안 맞는 묶음은 사급처도 골라 업체 별칭을 함께 저장함. */
 let CS_SALES_ITEMMAP=[];   // [{vendor,item,unit,idxs,qty,vendorOk:[consignee…],pickVendor,pickItem}]
 function csSalesItemMapGroups(){
@@ -4303,7 +4329,7 @@ function csSalesShowItemMap(keep=false){
   const prevScroll=document.querySelector('#dlgSalesItemMapBody .tbl.scroll'),scrollTop=prevScroll?prevScroll.scrollTop:0;
   document.getElementById('dlgSalesItemMapBody').innerHTML=`
     <h3>품목 대응표 — 대응 없음 ${CS_SALES_ITEMMAP.length}종(${CS_SALES_ITEMMAP.reduce((n,g)=>n+g.idxs.length,0)}행)</h3>
-    <div class="hint">매각 파일의 사급처·품목 표기별로 작업판 사급 품목을 한 번만 골라 두면 <b>승인된 별칭</b>으로 저장돼 이번 파일과 다음 파일부터 자동 인식됩니다. 같은 사급처의 열린 사급 품목이 한 종류뿐인 줄은 <span class="tag">추천</span>으로 미리 골라 두었으니 맞으면 [저장]만 체크하세요. 품목을 직접 고른 줄은 자동으로 체크됩니다. 확실하지 않은 줄은 비워 두면 그대로 남습니다(행에서 [연결] 버튼이나 직접 지정으로 나중에 처리).</div>
+    <div class="hint">매각 파일의 사급처·품목 표기별로 작업판 사급 품목을 한 번만 골라 두면 <b>승인된 별칭</b>(모든 사급처 공통)으로 저장돼 이번 파일과 다음 파일부터 자동 인식됩니다. 같은 사급처의 열린 사급 품목이 한 종류뿐인 줄은 <span class="tag">추천</span>으로 미리 골라 두었으니 맞으면 [저장]만 체크하세요. 품목을 직접 고른 줄은 자동으로 체크됩니다. 확실하지 않은 줄은 비워 두면 그대로 남습니다(행에서 [연결] 버튼이나 직접 지정으로 나중에 처리).</div>
     <div class="tbl scroll" style="max-height:60vh;margin-top:8px"><table><thead><tr><th>매각 사급처</th><th>매각 품목 표기</th><th class="num">행수 · 수량</th><th>작업판 사급처</th><th>작업판 품목</th><th>저장</th></tr></thead>
     <tbody>${rows||'<tr><td colspan="6" class="empty">대응 없음 행이 없습니다</td></tr>'}</tbody></table></div>
     <div class="hint" style="margin-top:6px">고른 대응 <b id="csSalesItemMapCount">${csSalesItemMapPicked()}</b>종 — [대응표 저장 · 다시 대조]를 누르면 별칭을 저장하고 이 파일을 다시 자동 대응합니다. 사람이 이미 손댄 행(체크·배분·사유)은 건드리지 않습니다.</div>`;
@@ -4335,7 +4361,7 @@ function csSalesShowAliases(){
   csEngineState();
   const rowsV=S.salesAliases.vendors.map((g,i)=>`<tr><td>${esc((g.names||[]).join(' ↔ '))}</td><td>${esc(g.regNo||'')}</td><td>${esc(g.note||'')}</td>
     <td>${g.approved?`<span class="chip c-done">승인됨${g.approvedBy?' · '+esc(g.approvedBy):''}</span>`:`<button class="btn sm pri" onclick="csSalesApproveAliasGroup('vendors',${i})">승인</button>`}</td></tr>`).join('');
-  const rowsI=S.salesAliases.items.map((g,i)=>`<tr><td>${esc(g.vendor||'')}</td><td>${esc((g.names||[]).join(' ↔ '))}</td><td>${esc(g.note||'')}</td>
+  const rowsI=S.salesAliases.items.map((g,i)=>`<tr><td>${g.vendor?esc(g.vendor):'<span style="color:var(--mut)">모든 사급처</span>'}</td><td>${esc((g.names||[]).join(' ↔ '))}</td><td>${esc(g.note||'')}</td>
     <td>${g.approved?`<span class="chip c-done">승인됨${g.approvedBy?' · '+esc(g.approvedBy):''}</span>`:`<button class="btn sm pri" onclick="csSalesApproveAliasGroup('items',${i})">승인</button>`}</td></tr>`).join('');
   document.getElementById('dlgSalesAliasBody').innerHTML=`
     <h3>사급처·품목 별칭 후보</h3>

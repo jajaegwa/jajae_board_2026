@@ -11,10 +11,22 @@
     const m = String(v ?? '').match(/(?:^|[^0-9])(\d{3}-?\d{2}-?\d{5})(?!\d)/);
     return m ? m[1].replace(/-/g, '') : '';
   }
+  // Department suffixes a sales ledger or an order form appends to the same company ("두하 생산관리",
+  // "신호인더스트리 국내영업팀", "광성 품질관리지원팀") are dropped before comparison. Only a
+  // whitespace-separated trailing department is removed, and a bare word (영업, 물류, 자재…) counts
+  // only with a 팀/부/과 marker — "한진 물류" may be a different company from "한진" — except the
+  // unambiguous compounds (생산관리, 품질관리, 품질관리지원, 경영지원). A company whose own name ends
+  // in 영업/관리 ("한국영업") is untouched. Branch names (천안지점) are NOT stripped: two branches of
+  // one company are distinct counterparts for allocation, so they stay separate unless an alias
+  // joins them. Note: this changes contentTuple for such vendors, so two rows of one file that
+  // differed only by the suffix (same item, quantity and date) now share a content key; no ledger
+  // written before this rule carries such a pair (the ledger was empty when it landed, 2026-09-29).
+  const DEPT_SUFFIX = /\s+(?:(?:생산관리|품질관리(?:지원)?|경영지원)(?:팀|부|과)?|(?:(?:국내|해외)?영업[1-9]?|구매|자재|관리|생산[1-9]?|물류|총무|품질)(?:팀|부|과))$/;
   function vendorName(v) {
     return compact(String(v ?? '').normalize('NFKC')
       .replace(/\(\s*\d{3}-?\d{2}-?\d{5}\s*\)/g, '')
-      .replace(/주식회사|유한회사|㈜|\(\s*주\s*\)|\(\s*유\s*\)/g, ''));
+      .replace(/주식회사|유한회사|㈜|\(\s*주\s*\)|\(\s*유\s*\)/g, '')
+      .trim().replace(DEPT_SUFFIX, ''));
   }
   function cleanItem(v) {
     return String(v ?? '').normalize('NFKC')

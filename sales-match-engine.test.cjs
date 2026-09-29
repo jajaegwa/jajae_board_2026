@@ -13,6 +13,18 @@ test('법인 표기를 문자열로 제거하고 회사 이름 글자는 보존'
  assert.equal(E.vendorName('주식회사신호인더스트리(3118114892)'),E.vendorName('신호인더스트리'));
  assert.equal(E.vendorName('주성회사'),'주성회사');
 });
+test('업체명 뒤 부서 접미사는 비교 전 제거, 지점명과 회사명 자체의 영업/관리는 보존',()=>{
+ assert.equal(E.vendorName('두하 생산관리'),E.vendorName('두하'));
+ assert.equal(E.vendorName('신호인더스트리 국내영업팀'),E.vendorName('신호인더스트리'));
+ assert.equal(E.vendorName('광성 품질관리지원팀'),E.vendorName('광성'));
+ assert.equal(E.vendorName('(주)두하 생산관리 (3018537479)'),E.vendorName('두하'));
+ assert.notEqual(E.vendorName('선영 천안지점'),E.vendorName('선영'));
+ assert.equal(E.vendorName('한국영업'),'한국영업');
+ assert.notEqual(E.vendorName('두하생산관리'),E.vendorName('두하'));
+ assert.notEqual(E.vendorName('한진 물류'),E.vendorName('한진'));   // 표식 없는 한 단어는 다른 회사일 수 있어 보존
+ assert.equal(E.vendorName('한진 물류팀'),E.vendorName('한진'));
+ assert.equal(E.preview(s({vendor:'광성 품질관리지원팀'}),[o({vendor:'광성'})]).status,'READY');
+});
 test('IF850 하이픈 차이',()=>assert.equal(E.preview(s(),[o()]).status,'READY'));
 test('다른 사업자번호 차단',()=>assert.equal(E.preview(s({vendorRegNo:'1111111111'}),[o({vendorRegNo:'2222222222'})]).status,'NO_CANDIDATE'));
 test('293F-1과 293F-10 양방향 차단',()=>{

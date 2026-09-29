@@ -481,7 +481,7 @@ button.calCell:focus-visible{outline:2px solid var(--acc);outline-offset:-2px}
         <div class="row" style="align-items:center;margin-top:6px">
           <b id="qmSelName" style="font-size:16px"></b>
           <label for="qmUnit" style="margin:0;font-size:12px">단위</label>
-          <select id="qmUnit" onchange="qmUnitSel=this.value;renderQm()"><option>PLT</option><option>kg</option><option>Bag</option><option>드럼</option><option>Box</option><option>대</option></select>
+          <select id="qmUnit" onchange="qmUnitSel=this.value;renderQm()"><option>kg</option><option>PLT</option><option>Bag</option><option>드럼</option><option>Box</option><option>대</option></select>
           <span class="tag" id="qmLoc"></span>
         </div>
         <div class="qm-summary" id="qmSummary" aria-live="polite"></div>
@@ -2369,8 +2369,8 @@ function convInfo(item,qty,unit){
   }
   return'';
 }
-let qmDept='경질',qmItem='',qmUnitSel='PLT';
-/* 전화 모드 수량 퀵 버튼 — 배합실은 "몇 파레트" 단위로 요청하므로 기본 PLT.
+let qmDept='경질',qmItem='',qmUnitSel='kg';
+/* 전화 모드 수량 퀵 버튼 — 처음 기본 단위는 kg, 파레트 요청이면 단위를 PLT로 바꿔 등록.
    단위별로 실제로 눌리는 값만 두고, kg일 때는 1·2kg 같은 의미 없는 값 대신 100kg 단위. */
 const QM_QUICK={PLT:[1,2,3,4,5,6,8,10],kg:[100,200,300,400,500,800,1000,1500,2000]};   // 창고이동은 파레트 정수 단위만(반 파레트 없음)
 const QM_QUICK_DEFAULT=[1,2,3,4,5,6,8,10,12,16,20];   // Bag·드럼·Box·대
@@ -2407,7 +2407,7 @@ function renderQm(){
     document.getElementById('qmSelName').textContent=qmItem;
     const ov=QM_OVR[qmItem]||{};
     const m=matchItem(qmBase(qmItem));const pack=ov.pack||(m?m.pack:'');
-    // 전화 기본 PLT — "백으로 몇 개"·"몇 kg" 콜이면 통화 중 단위만 바꿔서 등록. 사용자가 고른 단위(qmUnitSel)는
+    // 전화 기본 kg — "몇 파레트"·"백으로 몇 개" 콜이면 통화 중 단위만 바꿔서 등록. 사용자가 고른 단위(qmUnitSel)는
     // 연속 등록·20초 동기화 리렌더에도 유지(예전엔 매번 kg으로 되돌아가 2건째부터 잘못 기록됨)
     document.getElementById('qmUnit').value=qmUnitSel;
     const pn=packNote(qmItem);

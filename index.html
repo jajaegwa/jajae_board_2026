@@ -2307,6 +2307,7 @@ const QM_OVR={
  'GPPS(재생)':{unit:'PLT',pack:'지대(P/B 25kg)'},
  'GPPS(유니드글로벌)':{unit:'PLT',pack:'지대(P/B 25kg)'},
  'DHA-100':{unit:'PLT',pack:'지대(P/B)'},
+ 'P-560J':{pack:'지대(P/B 25kg) 1PLT=5개×10줄=1,250kg'},
  'ROSIN C-9':{unit:'PLT',pack:'지대(P/B 25kg)'},
  'NR-950':{unit:'Bag',pack:'F/B 500kg'},
  'CPE H-135':{unit:'Bag',pack:'F/B 600kg'},
@@ -2334,8 +2335,8 @@ const PACK_NOTES=[
 function packNote(it){const n=norm(it);const h=PACK_NOTES.find(([re])=>re.test(n));if(!h)return'';return typeof h[1]==='function'?h[1]():h[1];}
 /* 파레트 중량 — 예외 품목 우선, 나머지는 포장형태 기본 규칙
    기본: 드럼 1PLT=800kg(200kg×4, 최소단위) · F/B(플레콘백) 1PLT=1,000kg · P/B(지대) 1PLT=1,000kg
-   예외: DS-360/DS-360T(구 DS-356/356T) 1,005 · ROSIN C-9 700 · SL-64 465/540 두 규격 · SONGNOX 500 · BP-276S 1,000 */
-const PLT_KG=[['SL-64',[465,540]],['DS-360T',1005],['DS-360',1005],['DS-356T',1005],['DS-356',1005],['ROSIN C-9',700],['C-9',700],['BP-276S',1000],['SONGNOX',500]];
+   예외: DS-360/DS-360T(구 DS-356/356T) 1,005 · P-560J 1,250(25kg 지대 5개×10줄) · ROSIN C-9 700 · SL-64 465/540 두 규격 · SONGNOX 500 · BP-276S 1,000 */
+const PLT_KG=[['SL-64',[465,540]],['P-560J',1250],['DS-360T',1005],['DS-360',1005],['DS-356T',1005],['DS-356',1005],['ROSIN C-9',700],['C-9',700],['BP-276S',1000],['SONGNOX',500]];
 function pltKgOf(item){
   const n=norm(item);
   const hit=PLT_KG.find(([k])=>n.includes(norm(k)));

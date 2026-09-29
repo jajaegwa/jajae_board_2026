@@ -554,3 +554,40 @@ test('같은 수량의 완료 건(60일 이내)과 열린 발주가 함께 있�
  const r=E.preview(s({qty:3000,date:'2026-09-20'}),[o({id:'D',done:true,inDate:'2026-09-01',orderDate:'2026-08-26',qty:3000}),o({id:'A',orderDate:'2026-09-05',qty:1000}),o({id:'B',orderDate:'2026-09-09',qty:2000})]);
  assert.deepEqual(r.proposal.map(a=>String(a.orderId)).sort(),['A','B']);
 });
+
+test('더존 경로형 품명 — 밑줄로 갈라진 모델(Extadditive_003)과 한글 수식어가 붙은 모델(BEAM COAT #1120  투명)도 일치',()=>{
+ const path=(m)=>`장식공통_내자국산_안정제_복합_${m}_P/B(25kg)_동부엔지니어링`;
+ assert.equal(E.itemMatch({item:path('Extadditive_003')},{item:'Extadditive 003'},{items:[]}).level,'exact');
+ assert.equal(E.itemMatch({item:path('Extadditive_007')},{item:'Extadditive_007'},{items:[]}).level,'exact');
+ assert.equal(E.itemMatch({item:path('Extadditive_003')},{item:'Extadditive 007'},{items:[]}).level,'none');   // 이웃 조각을 붙여도 다른 번호는 다름
+ assert.equal(E.itemMatch({item:'장식공통_내자국산_표면처리제_UV 도료_BEAM COAT #1120  투명_Can(18kg)_제비스코'},{item:'Beam Coat#1120'},{items:[]}).level,'exact');
+ assert.equal(E.itemMatch({item:'장식공통_내자국산_표면처리제_UV 도료_BEAM COAT #1120  투명_Can(18kg)_제비스코'},{item:'Beam Coat#1121'},{items:[]}).level,'none');
+});
+test('숫자 없는 온전한 품명(NEO-P)이 상대 표기의 한 조각과 같으면 일치, 포장·색 같은 일반어는 제외',()=>{
+ assert.equal(E.itemMatch({item:'장식공통_내자국산_가소제_기타_NEO-P_Drum(200kg)_애경케미칼'},{item:'NEO-P'},{items:[]}).level,'exact');
+ assert.equal(E.itemMatch({item:'장식공통_내자국산_가소제_기타_NEO-O_Drum(200kg)_애경케미칼'},{item:'NEO-P'},{items:[]}).level,'none');
+ assert.equal(E.itemMatch({item:'장식공통_내자국산_가소제_기타_NEO-P_Drum(200kg)_애경케미칼'},{item:'DRUM'},{items:[]}).level,'none');
+ assert.equal(E.itemMatch({item:'장식공통_외자_안료_M/P_Black 10P922_P/B(25kg)_SHEPHERD'},{item:'BLACK'},{items:[]}).level,'none');
+ assert.equal(E.itemMatch({item:'전사공통_외자_ABC_Drum(200kg)'},{item:'ABC'},{items:[]}).level,'none');   // 3자 이하는 온전한 품명으로 안 봄
+});
+test('사급처에 묶인 품목 별칭은 승인된 업체 별칭으로 같은 회사인 표기에도 적용, 빈 vendor 별칭은 모든 사급처에 적용',()=>{
+ const al={vendors:[{names:['KSC AT','케이에스씨에이티'],approved:true}],items:[{vendor:'KSC AT',names:['HELIOGEN GREEN L 8710','P.GREEN(L8710)'],approved:true}]};
+ const sale={vendor:'주식회사 케이에스씨에이티(1318664447)',item:'장식공통_내자국산_안료_M/P_HELIOGEN GREEN L 8710_P/B(10kg)_서광화인켐'};
+ assert.equal(E.itemMatch(sale,{vendor:'케이에스씨에이티',item:'P.GREEN(L8710)'},al).level,'alias');
+ assert.equal(E.itemMatch({...sale,vendor:'대양물산'},{vendor:'대양물산',item:'P.GREEN(L8710)'},al).level,'none');   // 다른 회사에는 여전히 안 붙음
+ al.vendors[0].approved=false;
+ assert.equal(E.itemMatch(sale,{vendor:'케이에스씨에이티',item:'P.GREEN(L8710)'},al).level,'none');   // 미승인 업체 별칭으로는 안 넓힘
+ const global={vendors:[],items:[{vendor:'',names:['293F-1','J293F-1'],approved:true}]};
+ assert.equal(E.itemMatch({vendor:'한엘',item:'인테리어필름_내자국산_접착제_유성_293F-1 (안티몬Free방염점착-주제)_Drum(170kg)_장연고분자'},{vendor:'한엘',item:'J293F-1'},global).level,'alias');
+});
+test('같은 짝을 덮는 미승인 그룹이 앞에 있어도 승인된 그룹이 있으면 alias, 한글 수식어는 한쪽에만 있을 때만 흡수',()=>{
+ const al={vendors:[],items:[{vendor:'두하 생산관리',names:['LOX-203PF','LOX-203'],approved:false},{vendor:'',names:['LOX-203PF','LOX-203PL','LOX-203(PL)','LOX-203'],approved:true}]};
+ assert.equal(E.itemMatch({vendor:'(주)두하',item:'장식공통_내자국산_안정제_UV_LOX-203PF_Tank(1,000kg)_케이디켐'},{vendor:'두하 생산관리',item:'LOX-203(PL)'},al).level,'alias');
+ al.items[1].approved=false;
+ assert.equal(E.itemMatch({vendor:'(주)두하',item:'장식공통_내자국산_안정제_UV_LOX-203PF_Tank(1,000kg)_케이디켐'},{vendor:'두하 생산관리',item:'LOX-203(PL)'},al).level,'suggested');
+ assert.equal(E.itemMatch({item:'X_BEAM COAT #1120 투명_Y'},{item:'Beam Coat#1120 백색'},{items:[]}).level,'none');
+ assert.equal(E.itemMatch({item:'X_BEAM COAT #1120 투명_Y'},{item:'Beam Coat#1120 투명'},{items:[]}).level,'exact');
+ assert.equal(E.itemMatch({item:'장식공통_내자수입_TiO2_TiO2_TIONA-666(696)_P/B(25kg)_일삼시화'},{item:'TiO2'},{items:[]}).level,'none');
+ assert.equal(E.itemMatch({item:'전사공통_내자국산_가소제_DOTP_SP-390_Bulk(30,000kg)_한화솔루션 울산2'},{item:'DOTP'},{items:[]}).level,'none');   // 가족명은 등급 전체에 붙지 않음
+ assert.equal(E.itemMatch({item:'장식공통_내자국산_안정제_복합_Extadditive_003_P/B(25kg)_동부엔지니어링'},{item:'Extadditive'},{items:[]}).level,'none');
+});

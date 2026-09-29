@@ -1,5 +1,5 @@
 {
-  "notice": "모두 최초 검토 후보임. approved를 자동으로 true로 바꾸지 말 것. 실제 담당자 승인 이력을 저장한 뒤 적용할 것.",
+  "notice": "v1·v2는 모두 최초 검토 후보임. approved를 자동으로 true로 바꾸지 말 것. vendor가 빈 v3 그룹(2026-09-29)만 담당자 채팅 확인·실제 매각내역 수량 일치로 확인돼 approved:true로 들어감(근거는 note).",
   "vendors": [
     {"names":["케이에스씨에이티","KSC AT","KSCAT"],"regNo":"1318664447","approved":false},
     {"names":["엔에이치씨","NHC"],"regNo":"3438600139","approved":false},
@@ -18,10 +18,21 @@
     {"vendor":"광성","names":["293F-1","J293F-1"],"approved":false},
     {"vendor":"동부엔지니어링","names":["Richbin329","RICHVIN-329"],"approved":false},
     {"vendor":"엔에이치씨","names":["SONGSORB CS 928","CS-928"],"approved":false},
-    {"vendor":"두하 생산관리","names":["LOX-203PF","LOX-203"],"approved":false,"note":"PL 등급에는 적용 금지"},
+    {"vendor":"두하 생산관리","names":["LOX-203PF","LOX-203"],"approved":false,"note":"v3 공통 별칭(LOX-203PF↔LOX-203PL↔LOX-203, 담당자 확인 2026-09-29)으로 대체됨"},
     {"vendor":"두하 생산관리","names":["GHP BLUE 3240","BLUE 3240"],"approved":false},
     {"vendor":"두하 생산관리","names":["GHP BLUE 3301","BLUE 3301"],"approved":false},
     {"vendor":"두하 생산관리","names":["GHP RED 1066","RED 1066"],"approved":false},
-    {"vendor":"두하 생산관리","names":["GHP YELLOW 3088","YELLOW 3088"],"approved":false}
+    {"vendor":"두하 생산관리","names":["GHP YELLOW 3088","YELLOW 3088"],"approved":false},
+    {"vendor":"","names":["CR-102 NT","CR-102NT","CR-102"],"approved":true,"approvedBy":"자재과(채팅으로 확인)","approvedAt":"2026-09-29","note":"담당자 확인 — 방염점착 경화제 동일 품목(2026-09-29)"},
+    {"vendor":"","names":["LOX-203PF","LOX-203PL","LOX-203(PL)","LOX-203"],"approved":true,"approvedBy":"자재과(채팅으로 확인)","approvedAt":"2026-09-29","note":"담당자 확인 — 동일 품목(2026-09-29)"},
+    {"vendor":"","names":["293F-S","J293F-S","J-293F-S"],"approved":true,"approvedBy":"자재과(매각 파일 대조)","approvedAt":"2026-09-29","note":"실제 매각내역 대조로 확인(수량 일치, 2026-09-29)"},
+    {"vendor":"","names":["293F-1","J293F-1"],"approved":true,"approvedBy":"자재과(매각 파일 대조)","approvedAt":"2026-09-29","note":"실제 매각내역 대조로 확인(수량 일치, 2026-09-29)"},
+    {"vendor":"","names":["HELIOGEN GREEN L 8710","P.GREEN(L8710)"],"approved":true,"approvedBy":"자재과(매각 파일 대조)","approvedAt":"2026-09-29","note":"실제 매각내역 대조로 확인(수량 일치, 2026-09-29)"},
+    {"vendor":"","names":["EDENOL D-81 T","D-81T","D81-T","D-81"],"approved":true,"approvedBy":"자재과(매각 파일 대조)","approvedAt":"2026-09-29","note":"실제 매각내역 대조로 확인(수량 일치, 2026-09-29)"},
+    {"vendor":"","names":["Kronos2450","K2450"],"approved":true,"approvedBy":"자재과(매각 파일 대조)","approvedAt":"2026-09-29","note":"실제 매각내역 대조로 확인(수량 일치, 2026-09-29)"},
+    {"vendor":"","names":["TIONA-666(696)","TiO2 666(696)"],"approved":true,"approvedBy":"자재과(매각 파일 대조)","approvedAt":"2026-09-29","note":"실제 매각내역 대조로 확인(수량 일치, 2026-09-29)"},
+    {"vendor":"","names":["NEO-P","NEO-P(드럼)"],"approved":true,"approvedBy":"자재과(매각 파일 대조)","approvedAt":"2026-09-29","note":"실제 매각내역 대조로 확인(수량 일치, 2026-09-29)"},
+    {"vendor":"","names":["SV GY-00","일삼 GY_00(42%)"],"approved":true,"approvedBy":"자재과(매각 파일 대조)","approvedAt":"2026-09-29","note":"실제 매각내역 대조로 확인(수량 일치, 2026-09-29)"},
+    {"vendor":"","names":["Black 10P922","BLACK 10P922","BALCK 10P922"],"approved":true,"approvedBy":"자재과(매각 파일 대조)","approvedAt":"2026-09-29","note":"작업판 오타(BALCK) 흡수 — 실제 매각내역 대조로 확인(2026-09-29)"}
   ]
 }

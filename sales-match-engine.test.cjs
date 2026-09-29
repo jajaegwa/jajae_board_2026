@@ -591,3 +591,48 @@ test('같은 짝을 덮는 미승인 그룹이 앞에 있어도 승인된 그룹
  assert.equal(E.itemMatch({item:'전사공통_내자국산_가소제_DOTP_SP-390_Bulk(30,000kg)_한화솔루션 울산2'},{item:'DOTP'},{items:[]}).level,'none');   // 가족명은 등급 전체에 붙지 않음
  assert.equal(E.itemMatch({item:'장식공통_내자국산_안정제_복합_Extadditive_003_P/B(25kg)_동부엔지니어링'},{item:'Extadditive'},{items:[]}).level,'none');
 });
+
+test('입하일기장 행: 벌크는 ±10% 이내면 입고량 그대로 배분하고 발주 마감, 그 밖은 부분 입고로 배분(매각 행은 종전대로 정확 일치만)',()=>{
+ const rc=(x={})=>s({sourceSystem:'ipha-import',documentNo:'R1',documentLine:'L1',vendor:'동원김포',item:'전사공통_내자국산_PVC_Straight_P-1000_Bulk(30,000kg)_한화솔루션',...x});
+ const bulkO=o({id:'B',vendor:'동원김포',item:'P-1000',qty:25000});
+ // 초과 +5.5%
+ let p=E.preview(rc({qty:26370}),[bulkO]);
+ assert.equal(p.status,'READY');assert.equal(p.subsetKind,'bulk');assert.deepEqual(p.proposal,[{orderId:'B',baseQty:26370}]);
+ let L=commit(rc({qty:26370}),[bulkO]);
+ assert.equal(L[0].allocations[0].baseQty,26370);assert.equal(E.remainingOrder(bulkO,L),0);
+ // 미달 -0.4%: 부족분은 발주 쪽만 소진(settleQty)해 잔량 0
+ p=E.preview(rc({qty:24900}),[bulkO]);
+ assert.deepEqual(p.proposal,[{orderId:'B',baseQty:24900,settleQty:100}]);
+ L=commit(rc({qty:24900}),[bulkO]);
+ assert.deepEqual(L[0].allocations,[{orderId:'B',baseQty:24900,settleQty:100}]);assert.equal(E.remainingOrder(bulkO,L),0);
+ // +12%는 허용 밖 → 부분 입고도 아님(입고가 더 큼) → 수량 확인
+ assert.equal(E.preview(rc({qty:28000}),[bulkO]).status,'QUANTITY_REVIEW');
+ // 벌크가 아닌 품목의 +5%는 허용 안 함
+ assert.equal(E.preview(rc({vendor:'동부엔지니어링',item:'IF850',qty:1050}),[o()]).status,'QUANTITY_REVIEW');
+ // 매각 행은 벌크여도 정확 일치만
+ assert.equal(E.preview(s({vendor:'동원김포',item:'전사공통_내자국산_PVC_Straight_P-1000_Bulk(30,000kg)_한화솔루션',qty:26370}),[bulkO]).status,'QUANTITY_REVIEW');
+ // 부분 입고: 51kg 발주에 12.75 → 38.25 순서로
+ const cr=o({id:'C',vendor:'두성플러스',item:'CR-102',qty:51});
+ const r1=rc({vendor:'두성플러스',item:'CR-102',qty:12.75,documentLine:'1'}),r2=rc({vendor:'두성플러스',item:'CR-102',qty:38.25,documentLine:'2'});
+ p=E.preview(r1,[cr]);assert.equal(p.status,'READY');assert.equal(p.subsetKind,'partial');
+ L=commit(r1,[cr]);assert.equal(E.remainingOrder(cr,L),38.25);
+ p=E.preview(r2,[cr],L);assert.equal(p.status,'READY');assert.equal(p.subsetKind,'unique');
+ // 매각 행은 부분 배분을 제안하지 않음
+ assert.equal(E.preview(s({vendor:'두성플러스',item:'CR-102',qty:12.75}),[cr]).status,'QUANTITY_REVIEW');
+ // 부분 입고는 오래된 열린 발주부터
+ p=E.preview(r1,[o({id:'N',vendor:'두성플러스',item:'CR-102',qty:51,orderDate:'2026-09-05'}),o({id:'M',vendor:'두성플러스',item:'CR-102',qty:51,orderDate:'2026-09-02'})]);
+ assert.deepEqual(p.proposal.map(a=>a.orderId),['M']);
+});
+test('입하 부분 입고는 열린 발주에만, 다른 발주를 조금 넘는 입고(탱크 실중량)는 수량 확인으로 남김',()=>{
+ const rc=(x={})=>s({sourceSystem:'ipha-import',documentNo:'R9',documentLine:'L9',vendor:'대양물산',item:'장식공통_내자국산_가소제_기타_P-3000_Tank(1,000kg)_송원산업',date:'2026-09-17',...x});
+ const big=o({id:'32',vendor:'대양물산',item:'P3000',qty:3000,orderDate:'2026-08-26'}),small=o({id:'350',vendor:'대양물산',item:'P-3000',qty:2000,orderDate:'2026-09-10'});
+ assert.equal(E.preview(rc({qty:2058}),[big,small]).status,'QUANTITY_REVIEW');
+ assert.equal(E.preview(rc({qty:1500}),[o({...big,done:true,inDate:'2026-09-03'})]).status,'QUANTITY_REVIEW');   // 완료된 발주에는 부분 배분 안 함
+ assert.equal(E.preview(rc({qty:1500}),[big]).subsetKind,'partial');
+});
+test('벌크 마감(settleQty)은 한 줄이 입고 전량을 가져갈 때만 — 사람이 줄여 배분하면 발주를 마감하지 않음',()=>{
+ const rc=s({sourceSystem:'ipha-import',documentNo:'R2',documentLine:'L2',vendor:'동원김포',item:'전사공통_내자국산_PVC_Straight_P-1000_Bulk(30,000kg)_한화솔루션',qty:24900});
+ const B=o({id:'B',vendor:'동원김포',item:'P-1000',qty:25000});
+ const L=commit(rc,[B],[],{allocations:[{orderId:'B',baseQty:23000}],reviewConfirmed:true,reviewReason:'일부만'});
+ assert.deepEqual(L[0].allocations,[{orderId:'B',baseQty:23000}]);assert.equal(E.remainingOrder(B,L),2000);
+});

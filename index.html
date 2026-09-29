@@ -598,10 +598,10 @@ button.calCell:focus-visible{outline:2px solid var(--acc);outline-offset:-2px}
     <div class="grid g2" id="csMails"></div>
   </div>
   <div class="card">
-    <h2>사급 매각내역 업로드 — 발주·직접출고 대조</h2>
+    <h2>사급 매각내역·입하일기장 업로드 — 발주·직접출고 대조</h2>
     <div class="hint">엑셀을 올리면 열을 자동 인식해 바로 대조하고, 업체·품목·수량이 모두 맞는 행은 <b>자동 확정</b>으로 선택됩니다. [선택 항목 반영]을 누르면 대조 이력을 남기고 전량 배분된 사급 건을 입고·출고 완료 처리합니다. 대응 없음·수량 차이 행만 직접 지정하거나 검토 사유를 쓰면 됩니다.</div>
     <div class="row" style="margin-top:8px">
-      <button class="btn sm pri" onclick="csSalesFile.click()">매각내역 엑셀 올리기</button>
+      <button class="btn sm pri" onclick="csSalesFile.click()">매각내역·입하일기장 엑셀 올리기</button>
       <input type="file" id="csSalesFile" accept=".xlsx,.xls,.csv" style="display:none" onchange="csSalesReadFile(this.files[0]);this.value=''">
       <button class="btn sm" onclick="csSalesShowAliases()">별칭 목록</button>
       <button class="btn sm" onclick="csSalesShowLedger()">대조 이력</button>
@@ -3308,7 +3308,20 @@ function csToMatchOrder(c){
     m210Confirmed:Boolean(c.m210by)
   };
 }
-function csSalesOrders(){return S.cons.filter(c=>['발주','직접출고'].includes(c.action)).map(csToMatchOrder);}
+// 대조 후보 사급 건 — 자동 대응·직접 지정·근접 후보·품목 대응표가 모두 같은 목록을 쓰도록 한 곳에 둠.
+// 1) 입하일기장은 공급사가 사급처로 보낸 입고만 실리므로 발주 건만 — 직접출고(자재과 창고에서 내보냄)는 입하 기록이
+//    없어, 후보에 넣으면 같은 품목·수량의 입하가 직접출고 건에 잘못 배분됨.
+// 2) 다른 장부(매각내역 ↔ 입하일기장)로 이미 배분된 사급 건은 빼 둠 — 두 장부는 발행 주체 ID가 달라 같은 납품을
+//    서로 알아보지 못하므로, 매각내역으로 A 발주를 다 채운 뒤 같은 납품의 입하 행을 올리면 다음 열린 발주 B에
+//    또 배분되고 완료 처리까지 됨(코드리뷰로 발견). 사급 건 하나는 한 장부로만 맞추게 함.
+function csSalesLedgerIssuer(e){try{const k=JSON.parse(e.sourceKey);return k[0]==='transaction'?k[2]:k[0]==='content'?k[1]:'';}catch(err){return '';}}
+function csSalesCandCons(){
+  const ipha=CS_SALES_KIND==='ipha',mine=ipha?CS_SALES_IPHA_ISSUER_ID:CS_SALES_ISSUER_ID;
+  const other=new Set();
+  (S.salesLedger||[]).forEach(e=>{if(e.reversedAt)return;const iss=csSalesLedgerIssuer(e);if(iss&&iss!==mine)(e.allocations||[]).forEach(a=>other.add(String(a.orderId)));});
+  return S.cons.filter(c=>(ipha?c.action==='발주':['발주','직접출고'].includes(c.action))&&!other.has(String(c.id)));
+}
+function csSalesOrders(){return csSalesCandCons().map(csToMatchOrder);}
 
 /* ── 엑셀 읽기 · 시트/열 확인 ── */
 let CS_SALES_WB=null,CS_SALES_FILENAME='';
@@ -3346,7 +3359,30 @@ const CS_SALES_RE_VENDOR=/사급처|매입처|거래처|업체명|공급받는�
   CS_SALES_RE_DOCNO=/전표번호|전표NO|문서번호|매각번호|판매번호/i,CS_SALES_RE_DOCLINE=/전표행|행번호|LINE\s*NO|라인번호/i,
   CS_SALES_RE_REGNO=/사업자|사업자번호|사업자등록번호/;
 const csSalesFindPri=(cells,re)=>{for(let i=0;i<cells.length;i++)if(re.test(cells[i]))return i;return -1;};
+/* 입하일기장(ERP 보고서 "VG_02_입하일기장") — 매각내역은 한 업체·품목의 여러 발주가 한 줄로 합쳐져 나와
+   발주별 수량 대조가 안 됨(2026-09-29 담당자 피드백). 입하일기장은 입고(Receipt) 한 건이 한 줄이라 발주 단위로
+   맞출 수 있음. 사급처는 별도 열이 없고 Locator 셋째 칸에 들어 있음("#_#_(주)대양물산_#_M401P2"), 자가 입고는
+   셋째 칸이 '#'이거나 Locator가 비어 있음. 머리글 위에 보고서명·필터 조건 줄이 6줄쯤 붙어 옴. */
+let CS_SALES_KIND='sales';   // 'sales'(매각내역) | 'ipha'(입하일기장) — 마지막으로 인식한 파일 형식
+const CS_SALES_IPHA_ISSUER_ID='jajae-cs-ipha-ledger';
+function csSalesDetectIpha(grid){
+  for(let ri=0;ri<Math.min(grid.length,15);ri++){
+    const cells=(grid[ri]||[]).map(v=>String(v).replace(/\s/g,'').toUpperCase());
+    const at=name=>cells.indexOf(name.toUpperCase());
+    const vi=at('Locator'),ii=at('ItemDescription'),qi=at('정입고수량'),di=at('입고일자');
+    if(vi>=0&&ii>=0&&qi>=0&&di>=0)return{kind:'ipha',h:ri,vi,ii,qi,di,ci:at('ItemCode'),si:at('SiteName'),ui:at('ItemUOM'),dni:at('ReceiptNo'),dli:at('PoLineLocationId'),ri2:-1};
+  }
+  return null;
+}
+// Locator → 사급처 표기(셋째 칸). 자가 입고면 ''.
+function csSalesIphaVendor(loc){
+  const p=String(loc??'').trim().split('_');
+  if(p.length<5)return '';
+  const v=p[2].trim();
+  return v&&v!=='#'?v:'';
+}
 function csSalesDetect(grid){
+  const ip=csSalesDetectIpha(grid);if(ip)return ip;
   for(let ri=0;ri<Math.min(grid.length,10);ri++){
     const row=grid[ri]||[];let vi=-1,ii=-1,qi=-1,di=-1,ci=-1,si=-1,ui=-1,dni=-1,dli=-1,ri2=-1;
     const cells=row.map(v=>String(v).replace(/\s/g,''));
@@ -3366,7 +3402,7 @@ function csSalesDetect(grid){
       else if(dni<0&&CS_SALES_RE_DOCNO.test(s))dni=i;
       else if(dli<0&&CS_SALES_RE_DOCLINE.test(s))dli=i;
       else if(ri2<0&&CS_SALES_RE_REGNO.test(s))ri2=i;}
-    if(vi>=0&&ii>=0&&qi>=0)return{h:ri,vi,ii,qi,di,ci,si,ui,dni,dli,ri2};
+    if(vi>=0&&ii>=0&&qi>=0)return{kind:'sales',h:ri,vi,ii,qi,di,ci,si,ui,dni,dli,ri2};
   }
   return null;
 }
@@ -3375,6 +3411,7 @@ function csSalesLoadSheet(idx,grid){   // grid: 이미 읽어 둔 시트(시트 
   CS_SALES_SHEET_IDX=idx;
   CS_SALES_GRID=grid||csSalesSheetGrid(idx);
   const det=csSalesDetect(CS_SALES_GRID);
+  CS_SALES_KIND=det?det.kind:'sales';
   // 사급처·품목·수량·매각일 열이 모두 인식되면 [열 확정]을 기다리지 않고 바로 대조함(2026-09-23,
   // "올리면 알아서" 요청) — 열 지정 패널은 그대로 남겨(대조 창을 닫으면 보임) 인식이 틀렸으면 고쳐서
   // [열 확정]을 다시 누르면 됨. 매각일 열이 없으면 모든 행이 반영 불가라 종전처럼 사람이 지정.
@@ -3405,7 +3442,8 @@ function csSalesRenderColumnMap(det,autoRan=false){
   const sheetSel=multiSheet?`<label>시트</label><select onchange="csSalesLoadSheet(+this.value)">${CS_SALES_WB.SheetNames.map((n,i)=>`<option value="${i}" ${i===CS_SALES_SHEET_IDX?'selected':''}>${esc(n)}</option>`).join('')}</select>`:'';
   // 자동 인식으로 이미 대조한 경우 열 지정 패널은 접어 둠 — 대조 창을 닫았을 때 화면을 차지하는 건 표 샘플뿐이라
   // "뭘 더 눌러야 하나" 헷갈리게 했음. 열이 틀렸을 때만 펼쳐 고치면 됨.
-  document.getElementById('csSalesMap').innerHTML=`${autoRan?`<details><summary style="cursor:pointer;font-size:13px">열 지정 확인·수정 — ${esc(CS_SALES_FILENAME)}${sheetName} · 자동 인식한 열로 <b>${totalRows}행</b> 대조함 (열이 틀렸을 때만 펼쳐서 고치세요)</summary>`:''}
+  const kindTag=CS_SALES_KIND==='ipha'?' · <b>입하일기장</b>(Locator의 사급처로 대조, 자가 입고 제외)':'';
+  document.getElementById('csSalesMap').innerHTML=`${autoRan?`<details><summary style="cursor:pointer;font-size:13px">열 지정 확인·수정 — ${esc(CS_SALES_FILENAME)}${sheetName}${kindTag} · 자동 인식한 열로 <b>${totalRows}행</b> 대조함 (열이 틀렸을 때만 펼쳐서 고치세요)</summary>`:''}
     <div class="hint">${autoRan?`자동 인식한 열로 이 시트의 데이터 <b>${totalRows}행</b>을 바로 대조했습니다. 열이 틀렸으면 아래에서 고치고 [열 확정]을 다시 누르세요(아래 표는 처음 5행 샘플, 칸에 마우스를 올리면 전체 내용).`
       :`자동 인식 결과입니다${sheetName} — 틀렸으면 아래에서 직접 고치고 [열 확정]을 누르세요. 아래 표는 이 시트의 데이터 <b>${totalRows}행</b> 중 처음 5행 샘플입니다(칸에 마우스를 올리면 전체 내용이 보입니다). [열 확정 — 대조 미리보기]를 눌러야 전체 ${totalRows}행이 대조됩니다.`}</div>
     <div class="tbl scroll" style="max-height:260px;margin:6px 0"><table style="white-space:nowrap"><thead>${headRow}</thead><tbody>${sample}</tbody></table></div>
@@ -3425,12 +3463,14 @@ function csSalesRenderColumnMap(det,autoRan=false){
     <div class="row" style="margin-top:8px"><button class="btn sm pri" onclick="csSalesConfirmMap()">열 확정 — 대조 미리보기</button>${autoRan?`<button class="btn sm" onclick="csSalesRenderReview()">대조 창 다시 열기</button>`:''}</div>${autoRan?'</details>':''}`;
   if(!det)toast('열을 자동 인식하지 못했습니다 — 위에서 직접 지정하세요');
 }
+// 입하일기장 입고일자는 "20260901"처럼 구분자 없는 8자리 — fcDateOf는 구분자가 있어야 읽음.
+const csSalesDateOf=v=>{const t=String(v??'').trim();const m=t.match(/^(20\d{2})(\d{2})(\d{2})$/);return m?`${m[1]}-${m[2]}-${m[3]}`:fcDateOf(v);};
 const csSalesNum=v=>{if(v==null)return NaN;const s=String(v).trim().replace(/,/g,'');return /^-?\d+(\.\d+)?$/.test(s)?+s:NaN;};
 const csSalesIsSubtotal=s=>/^(합계|소계|계|total|subtotal)$/i.test(String(s||'').trim());
 // 사급 대상이 아닌 행의 단위 — 더존 매각내역에는 필름·시트(MR·KM)와 보닥 박스·캡(EA) 매각이 같이 실려 오는데
 // 사급 발주는 전부 kg 계열이라 이 행들은 매번 '대응 없음'으로만 남았음(2026-09-29 실제 파일: 141행 중 12행).
 // 제외 목록에 사유와 함께 남겨 사람이 확인할 수 있게 함.
-const CS_SALES_SKIP_UNITS=new Set(['MR','M','KM','EA','PCS','PC','RL','ROLL','매','장']);
+const CS_SALES_SKIP_UNITS=new Set(['MR','M','KM','M2','EA','PCS','PC','RL','ROLL','SH','매','장']);
 const csSalesSkipUnit=u=>CS_SALES_SKIP_UNITS.has(String(u??'').normalize('NFKC').replace(/\s+/g,'').toUpperCase());
 /* 매핑을 확정하면 원본 그리드를 sale 레코드(원천행 1개=1개)로 변환 — 요약/합산은 화면 표시에서만
    하고, 저장은 항상 원천행 단위로 함(그룹을 가짜 전표행으로 합쳐 저장하지 않음). */
@@ -3441,14 +3481,27 @@ function csSalesConfirmMap(keepMap=false){
   const vi=val('csmV'),si=val('csmS'),ri2=val('csmR'),ii=val('csmI'),ci=val('csmC'),qi=val('csmQ'),ui=val('csmU'),di=val('csmD'),dni=val('csmDN'),dli=val('csmDL');
   if(vi<0||ii<0||qi<0){toast('사급처열·품목명열·수량열은 필수입니다');return;}
   const rows=[],excluded=[];
+  const ipha=CS_SALES_KIND==='ipha';
+  // 입하일기장: 자가 입고·작업판에 없는 사급처는 행마다 적으면 수백 줄이라 사유별로 묶어 한 줄씩만 남김.
+  const selfRows=[],offBoard=new Map();
+  const consignees=ipha?[...new Set(S.cons.filter(c=>c.action==='발주').map(c=>c.consignee).filter(Boolean))]:[];
+  const onBoard=new Map();
+  const isOnBoard=v=>{if(!onBoard.has(v))onBoard.set(v,consignees.some(c=>['exact','alias','suggested'].includes(CsSalesEngine.vendorMatch({vendor:v},{vendor:c},S.salesAliases).level)));return onBoard.get(v);};
   for(let r2=h+1;r2<CS_SALES_GRID.length;r2++){
     const row=CS_SALES_GRID[r2];
     if(!row||!row.some(c=>String(c??'').trim()))continue;   // 완전 빈 행
-    const vendor=String(row[vi]??'').trim(),item=String(row[ii]??'').trim();
-    if(csSalesIsSubtotal(vendor)||csSalesIsSubtotal(item)){excluded.push({row:r2+1,reason:'합계/소계로 보이는 행'});continue;}
+    const rawVendor=String(row[vi]??'').trim(),item=String(row[ii]??'').trim();
+    if(csSalesIsSubtotal(rawVendor)||csSalesIsSubtotal(item)||/^\[?합\s*계\]?$/.test(String(row[0]??'').trim())){excluded.push({row:r2+1,reason:'합계/소계로 보이는 행'});continue;}
+    let vendor=ipha?csSalesIphaVendor(rawVendor):rawVendor;
+    if(ipha&&!vendor){selfRows.push(r2+1);continue;}
+    // "(주)두하-안희철안덕기"처럼 하이픈 뒤에 담당자 이름이 붙는 Locator가 있음 — 전체 표기가 작업판 사급처와 안 맞을 때만
+    // 꼬리를 떼어 다시 봄("에스-케미칼" 같은 회사명 자체의 하이픈을 자르지 않게, 코드리뷰로 발견).
+    if(ipha&&!isOnBoard(vendor)){const cut=vendor.replace(/-[가-힣]{2,}$/,'').trim();if(cut!==vendor&&isOnBoard(cut))vendor=cut;}
+    if(ipha&&!isOnBoard(vendor)){offBoard.set(vendor,(offBoard.get(vendor)||0)+1);continue;}
     if(!vendor||!item){excluded.push({row:r2+1,reason:'사급처·품목 누락'});continue;}
     const qtyRaw=row[qi];const qty=csSalesNum(qtyRaw);
     if(!isFinite(qty)){excluded.push({row:r2+1,reason:`수량을 숫자로 읽을 수 없음("${String(qtyRaw??'')}")`});continue;}
+    if(ipha&&qty===0){excluded.push({row:r2+1,reason:`정입고수량 0(불합격·검사 대기): ${vendor} ${item}`});continue;}
     if(ui>=0&&csSalesSkipUnit(row[ui])){excluded.push({row:r2+1,reason:`사급 대상 아님 — 단위 ${String(row[ui]).trim()}(필름·시트·부자재): ${item}`});continue;}
     rows.push({
       vendor,item,
@@ -3456,11 +3509,18 @@ function csSalesConfirmMap(keepMap=false){
       vendorRegNo:ri2>=0?String(row[ri2]??'').trim():'',
       itemCode:ci>=0?String(row[ci]??'').trim():'',
       qty,unit:ui>=0?String(row[ui]??'').trim():'',
-      date:di>=0?fcDateOf(row[di]):'',
+      date:di>=0?csSalesDateOf(row[di]):'',
       documentNo:dni>=0?String(row[dni]??'').trim():'',
       documentLine:dli>=0?String(row[dli]??'').trim():'',
+      sourceSystem:ipha?'ipha-import':'excel-import',
     });
   }
+  // 같은 입고번호+납품행이 여러 줄(로트·로케이터 분할)로 나오면 전표행 키가 겹쳐 둘째 줄이 '원본 변경'으로 막힘 —
+  // 그 줄들만 전표행 키를 비워 내용 키(업체·품목·수량·입고일+순번)로 식별되게 함(코드리뷰로 발견).
+  if(ipha){const cnt=new Map();rows.forEach(r=>{const k=r.documentNo&&r.documentLine?r.documentNo+'|'+r.documentLine:'';if(k)cnt.set(k,(cnt.get(k)||0)+1);});
+    rows.forEach(r=>{if(cnt.get(r.documentNo+'|'+r.documentLine)>1){r.documentNo='';r.documentLine='';}});}
+  if(selfRows.length)excluded.unshift({row:'',reason:`자가 입고(Locator에 사급처 없음) ${selfRows.length}행`});
+  offBoard.forEach((n,v)=>excluded.unshift({row:'',reason:`작업판 사급 발주에 없는 사급처 — ${v} ${n}행 (작업판 사급처와 표기만 다르면 별칭 목록에서 확인)`}));
   if(!rows.length){toast('매각내역 행을 찾지 못했습니다 — 열 지정을 확인하세요');csSalesRenderColumnMap(csSalesDetect(CS_SALES_GRID));return;}
   if(!keepMap)document.getElementById('csSalesMap').innerHTML='';
   csSalesPreviewAndShow(rows,excluded);
@@ -3471,7 +3531,8 @@ function csSalesConfirmMap(keepMap=false){
    받은 뒤 CsSalesEngine.withContentOrdinals가 붙임. */
 function csSalesToSale(r){
   return {
-    sourceSystem:'excel-import',issuerId:CS_SALES_ISSUER_ID,
+    // 입하일기장 행은 매각내역과 다른 장부라 발행 주체 ID를 따로 씀(입고번호·발주 납품행 번호가 매각 전표번호와 겹쳐도 같은 건으로 묶이지 않게).
+    sourceSystem:r.sourceSystem||'excel-import',issuerId:r.sourceSystem==='ipha-import'?CS_SALES_IPHA_ISSUER_ID:CS_SALES_ISSUER_ID,
     documentNo:r.documentNo||'',documentLine:r.documentLine||'',
     vendor:r.vendor,vendorRegNo:r.vendorRegNo,item:r.item,itemCode:r.itemCode,supplier:r.supplier,
     qty:r.qty,unit:r.unit,date:r.date,
@@ -3560,11 +3621,11 @@ function csSalesRenderReview(){
   const buckets={auto:[],review:[],linked:[]};
   CS_SALES_PREVIEW.forEach((p,idx)=>{buckets[csSalesBucket(idx)].push(idx);});
   const noCandN=counts.NO_CANDIDATE||0;
-  let html=`<h3>매각내역 대조 — ${esc(CS_SALES_FILENAME)}</h3>
-    <div class="hint"><b>자동 확정 ${buckets.auto.length}건</b>(체크됨 — [선택 항목 반영]을 누르면 반영과 함께 완료 처리) · <b>확인 필요 ${buckets.review.length}건</b> · 기존 반영 ${buckets.linked.length}건 — 원본 행 ${rawRows}건 · 업체·품목 요약 ${groupCount}그룹 · 상태별: ${summary||'없음'}${excluded.length?` · 제외 ${excluded.length}건(합계/소계·필수값 누락·사급 대상 아님)`:''}</div>
+  let html=`<h3>${CS_SALES_KIND==='ipha'?'입하일기장':'매각내역'} 대조 — ${esc(CS_SALES_FILENAME)}</h3>
+    <div class="hint"><b>자동 확정 ${buckets.auto.length}건</b>(체크됨 — [선택 항목 반영]을 누르면 반영과 함께 완료 처리) · <b>확인 필요 ${buckets.review.length}건</b> · 기존 반영 ${buckets.linked.length}건 — 원본 행 ${rawRows}건 · 업체·품목 요약 ${groupCount}그룹 · 상태별: ${summary||'없음'}${excluded.length?` · 제외 ${excluded.length}건(아래 표에 사유별로 — 합계·필수값 누락·사급 대상 아님·자가 입고 등)`:''}</div>
     ${noCandN?`<div class="hint" style="color:var(--amber)">대응 없음 ${noCandN}건 — 대부분 매각 파일의 품목 표기(제조사 정식 품명)와 작업판 품목 약칭이 달라서 생깁니다. <button class="btn sm pri" onclick="csSalesShowItemMap()">품목 대응표에서 한 번에 정리</button> 하면 저장된 대응은 다음 파일부터 자동 인식됩니다.</div>`:''}
     <div class="hint" style="color:var(--amber)">근거 배지는 검증된 확률이 아닙니다 — 표시된 근거와 사유를 직접 확인하세요.</div>`;
-  if(excluded.length)html+=`<div class="tbl scroll" style="max-height:100px;margin:6px 0"><table><thead><tr><th>행</th><th>제외 사유</th></tr></thead><tbody>${excluded.map(e=>`<tr><td>${e.row}행</td><td>${esc(e.reason)}</td></tr>`).join('')}</tbody></table></div>`;
+  if(excluded.length)html+=`<div class="tbl scroll" style="max-height:100px;margin:6px 0"><table><thead><tr><th>행</th><th>제외 사유</th></tr></thead><tbody>${excluded.map(e=>`<tr><td>${e.row?e.row+'행':'묶음'}</td><td>${esc(e.reason)}</td></tr>`).join('')}</tbody></table></div>`;
   html+=`<div class="tbl scroll" id="csSalesReviewScroll" style="max-height:56vh;margin-top:8px"><table><thead><tr>
     <th><input type="checkbox" id="csSalesSelectAll" onchange="csSalesToggleAll()" title="전체 선택/해제"></th>
     <th>사급처</th><th>품목</th><th>처리유형</th><th>날짜</th><th class="num">매각수량</th>
@@ -3863,7 +3924,10 @@ function csSalesQuickApply(opts={}){
   const orders=csSalesOrders(),batchKeys=csSalesBatchKeys();
   const sim=S.salesLedger.slice(),reservedIds=new Set();
   const synth=(prev,alloc)=>({id:'sim-'+Math.random().toString(36).slice(2),version:CsSalesEngine.VERSION,sourceKey:prev.sourceKey,contentOrdinal:prev.contentOrdinal,
-    sourceSnapshot:prev.sourceSnapshot,actor:'(모의)',createdAt:'',reviewReason:'',allocations:alloc.map(a=>({orderId:a.orderId,baseQty:+a.baseQty})),reversedAt:null});
+    sourceSnapshot:prev.sourceSnapshot,actor:'(모의)',createdAt:'',reviewReason:'',allocations:alloc.map(a=>{const c=(prev.candidates||[]).find(x=>String(x.orderId)===String(a.orderId));
+      // 벌크 마감 부족분은 엔진 commit()과 같은 조건(한 줄이 입고 전량, 허용 범위 안)일 때만 모의 원장에도 반영 — 사람이 줄을 고쳤으면 없음.
+      const short=c&&c.bulkSettle&&alloc.length===1&&Math.abs(+a.baseQty-prev.remaining)<1e-6?c.remaining-+a.baseQty:0;
+      return {orderId:a.orderId,baseQty:+a.baseQty,...(short>1e-6?{settleQty:short}:{})};}),reversedAt:null});
   const reserve=(prev,alloc)=>{if(alloc.length){sim.push(synth(prev,alloc));alloc.forEach(a=>reservedIds.add(String(a.orderId)));}};
   CS_SALES_PREVIEW.forEach((p,idx)=>{
     const st=CS_SALES_ROW_STATE[idx];
@@ -4011,9 +4075,9 @@ function csSalesBuildManualOpts(){
   // 원장은 한 번만 훑어 발주별 기배분량을 만든 뒤 잔량 계산 — 건마다 remainingOrder()로 원장 전체를
   // 다시 훑으면 렌더마다 사급 건수×원장 크기만큼 느려짐(코드리뷰로 발견).
   const used={};
-  (S.salesLedger||[]).filter(e=>!e.reversedAt).forEach(e=>(e.allocations||[]).forEach(a=>{const k=String(a.orderId);used[k]=(used[k]||0)+(+a.baseQty||0);}));
+  (S.salesLedger||[]).filter(e=>!e.reversedAt).forEach(e=>(e.allocations||[]).forEach(a=>{const k=String(a.orderId);used[k]=(used[k]||0)+(+a.baseQty||0)+(+a.settleQty||0);}));
   const remainingOf=c=>{const q=CsSalesEngine.amount(c.qty,c.unit,CsSalesEngine.unit(c.unit)?.family==='PACK'?csPackKgOf(c.item,c.unit):null);return q?Math.max(0,q.value-(used[String(c.id)]||0)):0;};
-  CS_SALES_MANUAL_OPTS=S.cons.filter(c=>['발주','직접출고'].includes(c.action))
+  CS_SALES_MANUAL_OPTS=csSalesCandCons()
     .map(c=>({c,start:csSalesConsStart(c),remaining:remainingOf(c)}))
     .filter(x=>x.remaining>1e-6).sort((a,b)=>b.start.localeCompare(a.start))
     .map(({c,start,remaining})=>({id:String(c.id),c,start,remaining,html:`<option value="${c.id}">${esc(c.action)} ${esc(c.item)} / ${esc(c.consignee)} — ${fmtN(c.qty)}${esc(c.unit||'')} · ${esc(start||'날짜 없음')}${c.done?' (완료)':''}</option>`}));
@@ -4050,7 +4114,7 @@ function csSalesManualOptions(prev,sale){
 // 바로 연결할 열린 사급 건 후보(같은 업체 우선, 없으면 같은 품목; 매각 잔량과 같은 잔량 먼저, 최대 3건).
 function csSalesNearMisses(sale,prev){
   if(!CS_SALES_MANUAL_OPTS)csSalesBuildManualOpts();
-  const all=S.cons.filter(c=>['발주','직접출고'].includes(c.action));
+  const all=csSalesCandCons();
   const vendorAll=all.filter(c=>csSalesVendorOk(sale,c)).length,itemAll=all.filter(c=>csSalesItemOk(sale,c)).length;
   let quick=CS_SALES_MANUAL_OPTS.filter(o=>csSalesVendorOk(sale,o.c));
   if(!quick.length)quick=CS_SALES_MANUAL_OPTS.filter(o=>csSalesItemOk(sale,o.c));
@@ -4282,7 +4346,7 @@ function csSalesItemMapGroups(){
     if(!groups.has(k))groups.set(k,{vendor:p.sale.vendor,item:p.sale.item,unit:p.sale.unit,idxs:[],qty:0});
     const g=groups.get(k);g.idxs.push(idx);g.qty+=+p.sale.qty||0;
   });
-  const all=S.cons.filter(c=>['발주','직접출고'].includes(c.action));
+  const all=csSalesCandCons();
   const consignees=[...new Set(all.map(c=>c.consignee).filter(Boolean))].sort();
   return [...groups.values()].map(g=>{
     const sale=CS_SALES_PREVIEW[g.idxs[0]].sale;
@@ -4312,7 +4376,7 @@ function csSalesShowItemMap(keep=false){
   csEngineState();
   if(!keep)CS_SALES_ITEMMAP=[];
   CS_SALES_ITEMMAP=csSalesItemMapGroups();
-  const all=S.cons.filter(c=>['발주','직접출고'].includes(c.action));
+  const all=csSalesCandCons();
   const itemsOf=v=>{const m=new Map();all.filter(c=>!v||c.consignee===v).forEach(c=>{const x=m.get(c.item)||{n:0,open:0,qty:new Set()};x.n++;if(!c.done)x.open++;x.qty.add(c.qty);m.set(c.item,x);});return [...m.entries()].sort((a,b)=>b[1].open-a[1].open||a[0].localeCompare(b[0]));};
   const rows=CS_SALES_ITEMMAP.map((g,i)=>{
     const vSel=g.vendorOk.length?(g.vendorOk.length>1?`<select onchange="csSalesItemMapSet(${i},'pickVendor',this.value)">${g.vendorOk.map(v=>`<option ${g.pickVendor===v?'selected':''}>${esc(v)}</option>`).join('')}</select>`:`<b>${esc(g.pickVendor)}</b>`)+`<div class="tag">표기 일치${g.vendorOk.length>1?' '+g.vendorOk.length+'곳':''}</div>`

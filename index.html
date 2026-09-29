@@ -3924,7 +3924,10 @@ function csSalesQuickApply(opts={}){
   const orders=csSalesOrders(),batchKeys=csSalesBatchKeys();
   const sim=S.salesLedger.slice(),reservedIds=new Set();
   const synth=(prev,alloc)=>({id:'sim-'+Math.random().toString(36).slice(2),version:CsSalesEngine.VERSION,sourceKey:prev.sourceKey,contentOrdinal:prev.contentOrdinal,
-    sourceSnapshot:prev.sourceSnapshot,actor:'(모의)',createdAt:'',reviewReason:'',allocations:alloc.map(a=>({orderId:a.orderId,baseQty:+a.baseQty})),reversedAt:null});
+    sourceSnapshot:prev.sourceSnapshot,actor:'(모의)',createdAt:'',reviewReason:'',allocations:alloc.map(a=>{const c=(prev.candidates||[]).find(x=>String(x.orderId)===String(a.orderId));
+      // 벌크 마감 부족분은 엔진 commit()과 같은 조건(한 줄이 입고 전량, 허용 범위 안)일 때만 모의 원장에도 반영 — 사람이 줄을 고쳤으면 없음.
+      const short=c&&c.bulkSettle&&alloc.length===1&&Math.abs(+a.baseQty-prev.remaining)<1e-6?c.remaining-+a.baseQty:0;
+      return {orderId:a.orderId,baseQty:+a.baseQty,...(short>1e-6?{settleQty:short}:{})};}),reversedAt:null});
   const reserve=(prev,alloc)=>{if(alloc.length){sim.push(synth(prev,alloc));alloc.forEach(a=>reservedIds.add(String(a.orderId)));}};
   CS_SALES_PREVIEW.forEach((p,idx)=>{
     const st=CS_SALES_ROW_STATE[idx];
@@ -4072,7 +4075,7 @@ function csSalesBuildManualOpts(){
   // 원장은 한 번만 훑어 발주별 기배분량을 만든 뒤 잔량 계산 — 건마다 remainingOrder()로 원장 전체를
   // 다시 훑으면 렌더마다 사급 건수×원장 크기만큼 느려짐(코드리뷰로 발견).
   const used={};
-  (S.salesLedger||[]).filter(e=>!e.reversedAt).forEach(e=>(e.allocations||[]).forEach(a=>{const k=String(a.orderId);used[k]=(used[k]||0)+(+a.baseQty||0);}));
+  (S.salesLedger||[]).filter(e=>!e.reversedAt).forEach(e=>(e.allocations||[]).forEach(a=>{const k=String(a.orderId);used[k]=(used[k]||0)+(+a.baseQty||0)+(+a.settleQty||0);}));
   const remainingOf=c=>{const q=CsSalesEngine.amount(c.qty,c.unit,CsSalesEngine.unit(c.unit)?.family==='PACK'?csPackKgOf(c.item,c.unit):null);return q?Math.max(0,q.value-(used[String(c.id)]||0)):0;};
   CS_SALES_MANUAL_OPTS=csSalesCandCons()
     .map(c=>({c,start:csSalesConsStart(c),remaining:remainingOf(c)}))

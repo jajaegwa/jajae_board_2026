@@ -326,7 +326,9 @@
   const daysBetween = (a,b) => Math.round((new Date(b+'T00:00:00Z')-new Date(a+'T00:00:00Z'))/86400000);
   const active = ledger => (ledger || []).filter(x=>!x.reversedAt);
   function usedForOrder(ledger, id) {
-    return active(ledger).reduce((sum,e)=>sum+e.allocations.filter(a=>String(a.orderId)===String(id)).reduce((n,a)=>n+a.baseQty,0),0);
+    // settleQty: a bulk receipt short of its order within tolerance closes the order — the shortfall is
+    // consumed on the order side only (never counted against the receipt).
+    return active(ledger).reduce((sum,e)=>sum+e.allocations.filter(a=>String(a.orderId)===String(id)).reduce((n,a)=>n+a.baseQty+(+a.settleQty||0),0),0);
   }
   // Sale-side consumption of an allocation on the sale's base scale: saleBaseQty (recorded for kg↔L
   // allocations, converted from the operator's saleQty at commit time) else baseQty.
@@ -405,6 +407,14 @@
   // opts.packKgOf(item, unit): per-pack kg for PACK units (포·BOX·롤…), from the caller's master data.
   // Result fields added for units: salePackKg (conversion applied to the sale, else null), unitOk (sale
   // unit usable for commit); per candidate packKg, unitOk, crossFamily.
+  // Receiving-log rows (입하일기장, sourceSystem 'ipha-import') are physical receipts, not sales: one
+  // order routinely arrives in several receipts, and bulk tankers are weighed (25,000 kg ordered,
+  // 25,320–26,940 kg received). Decision 2026-09-29: for receipts only, (1) a receipt within ±10% of a
+  // bulk order's remaining quantity settles that order at the received weight, and (2) a receipt smaller
+  // than an open order's remaining quantity is a partial delivery of it. Sales keep exact matching.
+  const BULK_TOLERANCE = 0.10;
+  const isReceipt = s => s.sourceSystem === 'ipha-import';
+  const isBulk = t => /(?:^|[^A-Z])BULK(?:$|[^A-Z])/i.test(String(t ?? ''));
   function preview(sale, orders, ledger=[], aliases=emptyAliases(), opts={}) {
     const manualIds=new Set((opts.manualOrderIds||[]).map(String));
     const separate=Boolean(opts.separateSale);
@@ -531,6 +541,27 @@
     // No committable combination, but one exists once the blocked candidates are counted: the row
     // needs data fixed (unit, date, destination), not a quantity decision — say so in the status.
     const blockedExact=subset.kind==='none' && committable.length<nonCross.length && ['unique','fifo'].includes(uniqueSubset(nonCross,remaining).kind);
+    let receiptKind='';
+    if (subset.kind==='none' && !blockedExact && isReceipt(sale)) {
+      // Only clean, open candidates take part — a stale or review-flagged order is a human decision.
+      const byRank=committable.filter(c=>!c.staleDone&&!c.issues.length&&c.remaining>1e-6).sort((a,b)=>orderRank(a)<orderRank(b)?-1:orderRank(a)>orderRank(b)?1:0);
+      const bulk=byRank.find(c=>(isBulk(sale.item)||isBulk(c.item)) && Math.abs(remaining-c.remaining)<=BULK_TOLERANCE*c.remaining+1e-6);
+      // Partial delivery only into an open order, and not when the receipt slightly exceeds some other
+      // order (a weighed tank of 2,058 kg against a 2,000 kg order is that order, not a part of a 3,000 kg
+      // one) — such rows stay a quantity review for the operator.
+      const nearOver=byRank.some(c=>remaining>c.remaining+1e-6 && remaining<=c.remaining*(1+BULK_TOLERANCE)+1e-6);
+      const part=bulk||nearOver?null:byRank.find(c=>!c.done && c.remaining>remaining+1e-6);
+      if (bulk) {
+        bulk.bulkSettle=true;
+        bulk.reasons.push(`벌크 실중량 차이 ${remaining>=bulk.remaining?'+':''}${Math.round(remaining-bulk.remaining).toLocaleString('en-US')}kg(±${BULK_TOLERANCE*100}% 이내) — 입고량 그대로 배분하고 발주 마감`);
+        base.proposal=[{orderId:bulk.orderId,baseQty:remaining,...(remaining<bulk.remaining?{settleQty:bulk.remaining-remaining}:{})}];
+        receiptKind='bulk';
+      } else if (part) {
+        part.reasons.push(`부분 입고 — 발주 잔량 ${part.remaining.toLocaleString('en-US')} 중 ${remaining.toLocaleString('en-US')} 배분(나머지는 다음 입고 대기)`);
+        base.proposal=[{orderId:part.orderId,baseQty:remaining}];
+        receiptKind='partial';
+      }
+    }
     if (subset.kind==='unique'||subset.kind==='fifo') base.proposal=subset.sets[0].map(id=>{
       const c=base.candidates.find(x=>String(x.orderId)===String(id));
       // A FIFO pick is a proposal like any other, but the reason says so, so the operator (and the
@@ -541,9 +572,9 @@
     const selected=base.candidates.filter(c=>base.proposal.some(p=>String(p.orderId)===String(c.orderId)));
     const status=!base.candidates.length?'NO_CANDIDATE':base.candidates.every(c=>c.crossFamily)?'REVIEW':
       !committable.length||blockedExact?'REVIEW':   // candidates need data fixed first — not a quantity question
-      subset.kind==='too_many'?'REVIEW':subset.kind==='none'?'QUANTITY_REVIEW':
+      subset.kind==='too_many'?'REVIEW':subset.kind==='none'&&!receiptKind?'QUANTITY_REVIEW':
       base.issues.length||selected.some(c=>c.issues.length)?'REVIEW':'READY';
-    return {...base,status,remaining,subsetKind:subset.kind};
+    return {...base,status,remaining,subsetKind:receiptKind||subset.kind};
   }
   // Returns a new ledger only. Apply and persist in one app-side transaction.
   // Does NOT alter physical receipt/shipment dates or done flags.
@@ -571,7 +602,9 @@
       if (!c.unitOk) throw Error('발주/출고 단위 보완 필요');
       if (!orderStart(o)) throw Error('발주/접수일 보완 필요');
       if (!expectedOrders || expectedOrders[id]!==orderSnapshot(o,packKg(o.item,o.unit))) throw Error('미리보기 이후 대상 변경 또는 스냅샷 누락');
-      if (!(Number.isFinite(a.baseQty)&&a.baseQty>0) || a.baseQty>c.remaining+1e-6) throw Error('대상 잔량 초과/잘못된 수량');
+      // A bulk receipt may exceed the order's remaining by the weighing tolerance (recorded at the received weight).
+      const cap=c.bulkSettle?c.remaining*(1+BULK_TOLERANCE):c.remaining;
+      if (!(Number.isFinite(a.baseQty)&&a.baseQty>0) || a.baseQty>cap+1e-6) throw Error('대상 잔량 초과/잘못된 수량');
       if (c.issues.length && (!reviewConfirmed||!reviewReason.trim())) throw Error('후보 검토 사유 필수');
       if (c.issues.includes('M-210 행선지 확인 필요')) throw Error('M-210 행선지 보완 필요');
       // kg↔L: baseQty is on the order's scale, so the sale-side consumption must be stated separately —
@@ -581,7 +614,16 @@
         const saleBaseQty=+a.saleQty*saleFactor;
         stored.push({orderId:a.orderId,baseQty:a.baseQty,saleQty:+a.saleQty,saleBaseQty});
         sum+=saleBaseQty;
-      } else { stored.push({orderId:a.orderId,baseQty:a.baseQty}); sum+=a.baseQty; }
+      } else {
+        // Settling short is decided here from the preview, never taken from the caller: only a bulk
+        // receipt within tolerance of the whole remaining quantity closes the order.
+        // Only a single line taking the whole receipt settles (an operator's partial or split line must not
+        // close the order on weight that never arrived against it).
+        const whole=allocations.length===1 && Math.abs(a.baseQty-p.remaining)<1e-6;
+        const short=c.bulkSettle&&whole?c.remaining-a.baseQty:0;
+        stored.push({orderId:a.orderId,baseQty:a.baseQty,...(short>1e-6&&short<=BULK_TOLERANCE*c.remaining+1e-6?{settleQty:short}:{})});
+        sum+=a.baseQty;
+      }
     }
     if (sum>p.remaining+1e-6) throw Error('매각 잔량 초과');
     return [...ledger,{id:eventId,version:VERSION,sourceKey:p.sourceKey,contentOrdinal:p.contentOrdinal||undefined,sourceSnapshot:p.sourceSnapshot,

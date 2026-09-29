@@ -868,6 +868,7 @@ function listHTML(side){
       <option value="">유형 전체</option>${[...tySet].sort().map(t=>`<option${f.ty===t?' selected':''}>${esc(t)}</option>`).join('')}
     </select>
     <span class="sp" style="flex:1"></span>
+    ${side==='purchase'?`<button class="btn sm" onclick="copyClosingMail()" title="매입처에 보내는 마감 확인·세금계산서 발행 요청 메일 문구를 복사합니다(마감월·마지막 영업일 자동 반영)">마감 메일 복사</button>`:''}
     <button class="btn sm" onclick="addVendor('${side}')">+ 업체 추가</button>
     <button class="btn sm" onclick="exportCSV('${side}')">CSV 내보내기</button>
     <button class="btn sm danger" onclick="resetSide('${side}')">체크 초기화</button>
@@ -933,6 +934,22 @@ function toggleDetail(side,vid,el){
     ${v.alias?`<span><b>매칭명</b>${esc(v.alias)}</span>`:''}
     </div>${L&&L.open.length?`<div class="dbox" style="margin-top:4px"><span><b>미입고</b>${L.open.map(o=>`${esc(o.item)} ${o.qty||''}${esc(o.unit||'')} <span class="mut">(발주 ${esc((o.ordDate||'').slice(5))}${o.eta?` · 착 ${esc(o.eta.slice(5))}`:''})</span>`).join(' · ')}</span></div>`:''}</td>`;
   tr.after(d);
+}
+/* 매입 마감 메일 문구 복사 — 마감월(mon)의 마지막 영업일(토·일·공휴일 제외, ui-helpers.js KR_HOLIDAYS)을 넣어 클립보드로.
+   클립보드 API가 막힌 환경(권한 거부 등)에서는 숨김 textarea + execCommand로 한 번 더 시도 */
+function copyText(txt){
+  const fb=()=>{const ta=document.createElement('textarea');ta.value=txt;ta.style.cssText='position:fixed;left:-9999px;top:0';document.body.appendChild(ta);ta.focus();ta.setSelectionRange(0,txt.length);let ok=false;try{ok=document.execCommand('copy');}catch(e){}ta.remove();return ok;};
+  if(navigator.clipboard&&navigator.clipboard.writeText)return navigator.clipboard.writeText(txt).then(()=>true,()=>fb());
+  return Promise.resolve(fb());
+}
+function copyClosingMail(){
+  if(!window.UiHelpers){toast('화면 도우미(ui-helpers.js)를 불러오지 못했습니다 — 새로고침 후 다시 시도');return;}
+  const r=UiHelpers.closingMailText(mon);
+  if(!r){toast('마감월이 올바르지 않습니다');return;}
+  copyText(r.text).then(ok=>{
+    if(!ok){prompt('자동 복사가 막혀 있습니다. 아래 문구를 직접 복사하세요 (Ctrl+C)',r.text);return;}
+    toast(`${r.month}월 마감 메일 복사됨 — 세금계산서 ${r.day}일자(${r.date})`+(r.holidayKnown?'':' · 이 연도 공휴일 표가 없어 토·일만 제외했습니다'));
+  });
 }
 function setStep(side,vid,name,val){entry(side,vid).st[name]=!!val;saveDB();renderNav();renderView();}
 function setSent(side,vid,k,val){entry(side,vid)[k]=val;saveDB();}
@@ -1088,7 +1105,7 @@ on conflict (id) do nothing;`;
       <button class="btn pri" onclick="askConnect()">비밀번호로 연결</button>
       <button class="btn" onclick="fetchOrders();toast('발주 데이터 새로고침')">발주 데이터 새로고침</button>
     </div>
-    ${mainOK&&!sbOK?`<div class="hint" style="margin-top:12px">마감 전용 보드가 아직 없습니다. Supabase SQL Editor에서 아래를 1회 실행하세요 ('공유비밀번호'를 실제 비밀번호로 교체):</div><pre class="sql">${sql}</pre><button class="btn sm" onclick="navigator.clipboard.writeText(\`${sql}\`).then(()=>toast('복사됨'))">SQL 복사</button>`:''}
+    ${mainOK&&!sbOK?`<div class="hint" style="margin-top:12px">마감 전용 보드가 아직 없습니다. Supabase SQL Editor에서 아래를 1회 실행하세요 ('공유비밀번호'를 실제 비밀번호로 교체):</div><pre class="sql">${sql}</pre><button class="btn sm" onclick="copyText(\`${sql}\`).then(ok=>toast(ok?'SQL 복사됨':'복사 실패 — 위 SQL을 직접 선택해 복사하세요'))">SQL 복사</button>`:''}
   </div>
   <div class="card"><h2>데이터 가져오기 / 내보내기</h2>
     <div class="hint">최초 1회 <b>마감-시드.json</b>을 가져오면 업체 목록과 7월 진행 상황이 채워집니다. 이후에는 자동 저장·공유됩니다.</div>

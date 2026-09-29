@@ -76,3 +76,38 @@ test('캘린더 날짜 설명',()=>{
   assert.equal(U.calDayLabel('9월 26일(토)',1,2,0,true),'9월 26일(토) · 입고 1건, 창고→라인 이동 2건(완료 포함) · 선택됨');
   assert.equal(U.calDayLabel('9월 1일(화)',0,0,0,false),'9월 1일(화) · 일정 없음');
 });
+
+test('마지막 영업일: 토·일·공휴일 제외',()=>{
+  assert.equal(U.lastBizDay('2026-09').date,'2026-09-30');           // 수요일
+  assert.equal(U.lastBizDay('2026-10').date,'2026-10-30');           // 10/31 토 → 10/30 금
+  assert.equal(U.lastBizDay('2026-05').date,'2026-05-29');           // 5/30 토·31 일
+  assert.equal(U.lastBizDay('2027-10').date,'2027-10-29');           // 10/31 일 → 10/29 금
+  // 공휴일 표를 직접 넣어 월말 공휴일·연휴가 건너뛰어지는지 확인(9/30 수, 9/29 화를 휴일로)
+  assert.equal(U.lastBizDay('2026-09',{2026:['09-30','09-29']}).date,'2026-09-28');
+  assert.equal(U.lastBizDay('2026-09',{2026:['09-30']}).holidayKnown,true);
+  assert.equal(U.lastBizDay('2031-03').holidayKnown,false);          // 표 없는 연도는 토·일만 제외
+  assert.equal(U.lastBizDay('2031-03').date,'2031-03-31');           // 월요일
+  assert.equal(U.lastBizDay('2026-13'),null);
+  assert.equal(U.lastBizDay(''),null);
+});
+test('공휴일 표: 날짜 형식과 중복 없음',()=>{
+  Object.entries(U.KR_HOLIDAYS).forEach(([y,list])=>{
+    assert.equal(new Set(list).size,list.length,y+' 중복');
+    list.forEach(md=>assert.match(md,/^(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$/,y+' '+md));
+  });
+});
+test('마감 메일 문구: 마감월·마지막 영업일만 치환, 나머지는 원문 그대로',()=>{
+  const r=U.closingMailText('2026-09');
+  assert.equal(r.month,'09');assert.equal(r.day,30);
+  assert.equal(r.text,`안녕하세요 현대엘앤씨 물류팀 선임 김성진입니다.
+
+09월 마감 내역 수량, 금액 확인하였습니다.
+
+30일자로 세금계산서 발행부탁드립니다.
+
+감사합니다.
+
+김성진 드림.`);
+  assert.match(U.closingMailText('2026-10').text,/10월 마감 내역[\s\S]*30일자로/);
+  assert.equal(U.closingMailText('bad'),null);
+});

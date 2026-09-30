@@ -775,6 +775,15 @@ const SENSITIVE={
 };
 const CYCLE={'매일':1,'주 2회':3.5,'주2회':3.5,'주 1회':7,'주1회':7,'격주':14,'3주 1회':21,'3주1회':21,'월 1회':30};
 const norm=s=>String(s||'').toUpperCase().replace(/[\s\(\)\[\]\-_.,#\/㈜주식회사]/g,'');
+/* R696 매입처 기준(2026-09-30 사용자 지침): 경질생산팀이 쓰는 bag(백)은 개화 것만 쓰고,
+   지대는 경질용·사급용 할 것 없이 전부 일삼에서 발주함. 재고 파일의 백/지대 판정, 발주 기준표의
+   매입처, 사급 발주서의 공급사 기본값이 모두 이 한 곳을 보게 해서 기준이 바뀔 때 한 군데만
+   고치면 되게 함. K-2450은 매입처가 다른 품목이라 이 규칙을 쓰지 않음.
+   위치: applyMasterPatches()가 스크립트 평가 중에 바로 호출되므로(아래 "sb 선언 이후 호출" 참고)
+   그보다 뒤에 선언하면 TDZ에 걸려 앱이 통째로 안 뜸 — 반드시 파일 앞쪽에 둘 것(자체 코드리뷰). */
+const R696_BAG_VENDOR='개화',R696_JD_VENDOR='일삼시화';
+const R696_BAG_VENDOR_RE=/개화/,R696_JD_VENDOR_RE=/일삼/;   // 재고 파일에 '일삼시화'·'일삼' 어느 쪽으로 적혀도 잡히게 함
+const r696VendorOf=variant=>variant==='TIONA-666(696)'?R696_JD_VENDOR:R696_BAG_VENDOR;
 const short=s=>String(s||'').replace(/^.*?_(?=[^_]+$)/,'');  // 'TiO2_TIONA-696' → 'TIONA-696'
 /* 발주기준 심플 v6(2026-07-09) + 이후 발주점 수정 요청들을 한 곳에 모아 M.rop/M.presetSelf에 적용.
    Supabase 로그인 성공 시 M이 실제 마스터데이터로 통째로 교체되므로(M[k]=md[k]), 그 직후에도
@@ -828,7 +837,8 @@ function applyMasterPatches(){
     }
     M._v6BaselineApplied=true;
   }
-  // TIONA-696 백(FB, 개화)·지대(JD, 일삼시화) 매입처·로케이터 분리 — 지대는 R696 규칙에서 이미
+  // TIONA-696 백(FB, 개화)·지대(JD, 일삼) 매입처·로케이터 분리 — 매입처 기준은 R696_BAG_VENDOR/
+  // R696_JD_VENDOR 한 곳에서 가져옴(2026-09-30 지침). 지대는 R696 규칙에서 이미
   // 쓰는 TIONA-666(696) 코드로 구분(r696Variant 참고). 발주점 수치는 백 값을 그대로 물려받음 —
   // 지대 전용 발주점이 정해지면 별도로 반영 필요.
   // 현장에서는 기술명(TIONA-696) 대신 사내 룰명 "R696"/"R-696"으로 등록해둔 경우가 있어 그 이름도
@@ -839,11 +849,11 @@ function applyMasterPatches(){
   if(bagE){
     const bagDups=new Set(bagCandidates.slice(1));
     if(bagDups.size)M.rop=M.rop.filter(r=>!bagDups.has(r));
-    bagE.item='TIONA-696';bagE.loc='FB';bagE.vendor='개화';
+    bagE.item='TIONA-696';bagE.loc='FB';bagE.vendor=R696_BAG_VENDOR;
   }
   let jdE=M.rop.find(r=>r.item==='TIONA-666(696)');
   if(!jdE&&bagE){jdE={...bagE,item:'TIONA-666(696)'};M.rop.push(jdE);}
-  if(jdE){jdE.loc='JD';jdE.vendor='일삼시화';}
+  if(jdE){jdE.loc='JD';jdE.vendor=R696_JD_VENDOR;}
   // v11: K-2450 백(14동 2열)/지대(14동 1열) 발주 기준 분리 + TIONA-696 1회 발주량 현장 확인치
   // 반영(2026-09). DW재고 엑셀의 실제 품목명(담당자 확인)은
   // "장식공통_내자수입_TiO2_TiO2_Kronos2450_P/B(25kg)_제일케미칼티디"처럼 브랜드명
@@ -1828,7 +1838,7 @@ function invDeptOf(d){d=d||'';if(d.startsWith('창호'))return'창호';if(d.star
    되는 문제가 있었음(사용자 신고 2026-09-22). 아래 규칙으로 넓게 판정하고, 그래도 못 가른 행은
    '위치 미확인'으로 따로 세어 화면에 그대로 드러냄. */
 const INV_SPLIT_FAMILIES=[
-  {bag:'TIONA-696',jd:'TIONA-666(696)',label:'TIONA-696'},
+  {bag:'TIONA-696',jd:'TIONA-666(696)',label:'TIONA-696',bagVendor:R696_BAG_VENDOR_RE,jdVendor:R696_JD_VENDOR_RE},
   {bag:'Kronos2450',jd:'K-2450(지대)',label:'K-2450'}
 ];
 // 위치·포장 표기 비교용 — norm()은 괄호·하이픈까지 지워서 '14-1'이 '141'이 되어버리므로 따로 둠(공백만 제거)
@@ -1844,6 +1854,15 @@ function invLocVariant(cells){
     if(/(^|[^0-9])1열|14동1(?![0-9])/.test(src))return 'jd';
     if(/(^|[^0-9])2열|14동2(?![0-9])/.test(src))return 'bag';
   }
+  return null;
+}
+/* 매입처(공급사) 표기로 판정 — DW 재고 품목명 끝에 매입처가 붙어 오는 양식이라 위치가 안 읽혀도
+   이걸로 갈림. 매입처 규칙이 있는 품목(R696)에만 적용함. */
+function invVendorVariant(rowText,fam){
+  if(!fam||!fam.jdVendor)return null;
+  const r=String(rowText||'');
+  if(fam.bagVendor&&fam.bagVendor.test(r))return 'bag';
+  if(fam.jdVendor.test(r))return 'jd';
   return null;
 }
 /* 포장 표기로 판정 — 위치를 전혀 못 읽을 때만 쓰는 보조 규칙(F/B 500kg=백, P/B 25kg=지대).
@@ -1863,18 +1882,32 @@ function invPackVariant(rowText){
    그 행이 백·지대를 이미 합친 총계일 수 있어, 포장 표기만 보고 한쪽으로 몰면 반대쪽이 통째로
    품절로 잘못 잡힘. 어느 규칙으로도 못 가른 행은 예전처럼 백 항목에 합산하되 '위치 미확인'으로
    따로 세어 화면에 표시함(멋대로 갈라 잘못된 발주점 경고를 내는 것보다 안전). */
-function resolveInvSplit(rows){
-  const byLoc=rows.map(r=>invLocVariant(r.cells));
-  const useLoc=byLoc.some(v=>v);
-  const usePack=!useLoc&&rows.length>1;
-  const d={bag:0,jd:0,unknown:0,by:useLoc?'위치 표기':(usePack?'포장 표기':''),rows:[]};
+function resolveInvSplit(rows,fam){
+  const ev=rows.map(r=>({loc:invLocVariant(r.cells),pack:invPackVariant(r.rowText),ven:invVendorVariant(r.rowText,fam)}));
+  /* 그 계열 행이 하나뿐이면 포장 표기·매입처로는 가르지 않음 — 그 한 행이 백·지대를 합친 총계인데
+     한쪽 포장·한쪽 매입처만 적혀 있을 수 있어, 믿고 갈랐다가는 멀쩡한 수량이 통째로 반대쪽으로
+     넘어감. 위치(로케이터)만 예외로 한 행이어도 믿음 — 실물이 놓인 자리를 가리키는 값이라
+     합산 총계에는 붙을 수 없음. 못 가른 행은 예전처럼 백에 합산하고 '위치 미확인'으로 표시함. */
+  const multi=rows.length>1;
+  const used=new Set();
+  const d={bag:0,jd:0,unknown:0,by:'',conflict:0,rows:[]};
   rows.forEach((r,i)=>{
-    const v=useLoc?byLoc[i]:(usePack?invPackVariant(r.rowText):null);
+    const x=ev[i];
+    // 읽힌 근거끼리 답이 갈리면 둘 중 하나가 틀린 것 — 따로 세어 화면에 알림(예: 일삼 지대가
+    // 백 자리에 쌓여 있거나, 개화 것이 지대 포장으로 적혀 있는 경우). 배정은 아래 우선순위대로 함.
+    const seen=[x.loc,multi?x.pack:null,multi?x.ven:null].filter(Boolean);
+    if(seen.length>1&&seen.some(v=>v!==seen[0]))d.conflict+=r.qty;
+    // 근거는 행마다 따로 적용함 — 어떤 행은 위치가 읽히고 어떤 행은 매입처만 읽히는 파일이
+    // 흔해서, 파일 전체에 규칙 하나만 쓰면 멀쩡히 읽히는 행까지 '미확인'이 됨.
+    let v=null,basis='';
+    if(x.loc){v=x.loc;basis='위치 표기';}
+    else if(multi&&x.pack){v=x.pack;basis='포장 표기';}
+    else if(multi&&x.ven){v=x.ven;basis='매입처';}
+    if(basis)used.add(basis);
     d[v||'unknown']+=r.qty;
-    if(d.rows.length<40)d.rows.push({loc:String(r.locText||'').trim().slice(0,60),qty:r.qty,v:v||''});
+    if(d.rows.length<40)d.rows.push({loc:String(r.locText||'').trim().slice(0,60),qty:r.qty,v:v||'',b:basis});
   });
-  // 규칙은 돌렸지만 한 행도 못 가른 경우 — '포장 표기 기준'이라고 적으면 갈린 줄 알게 되므로 비움
-  if(d.bag===0&&d.jd===0)d.by='';
+  d.by=[...used].join('+');
   return d;
 }
 // 이 품목(백 항목) 수치에 '위치 미확인'으로 합쳐진 수량(kg) — 화면 경고 표시용. 없으면 0.
@@ -1892,12 +1925,15 @@ function readInv(f){
     const rops=[...M.rop].sort((a,b)=>String(b.item).length-String(a.item).length);
     wb.SheetNames.forEach(n=>{
       const rows=XLSX.utils.sheet_to_json(wb.Sheets[n],{header:1,raw:true,defval:''});
-      let qCol=-1,iCol=-1,hRow=-1,whCol=-1;const locCols=[];
+      let qCol=-1,iCol=-1,hRow=-1,whCol=-1,whHard=false;const locCols=[];
       for(let ri=0;ri<Math.min(rows.length,20);ri++){
         (rows[ri]||[]).forEach((c,ci)=>{const s=String(c).replace(/\s/g,'');
           if(qCol<0&&/현재고|가용재고|재고수량|^재고|기말재고|재고량/.test(s))qCol=ci;
           if(iCol<0&&/품목|품명|자재명|자재내역|명칭|Description/i.test(s))iCol=ci;
-          if(whCol<0&&/창고|위치|장소/.test(s))whCol=ci;
+          // '창고' 헤더를 먼저 찾음 — 위치 컬럼이 앞에 있는 양식에서 whCol이 '14동 2열' 같은 값을
+          // 잡으면 M으로 시작하지 않아 모든 행이 걸러지고 업로드가 통째로 실패함(자체 코드리뷰).
+          if(/창고/.test(s)&&(whCol<0||!whHard)){whCol=ci;whHard=true;}
+          else if(whCol<0&&/위치|장소/.test(s))whCol=ci;
           // 로케이터(보관 위치) 후보 컬럼은 전부 모아둠 — 창고코드(M404P2)와 위치(14동 2열)가
           // 서로 다른 컬럼에 들어있는 파일이 있어, 첫 하나(whCol)만 보면 위치 값을 놓침.
           if(/창고|위치|장소|로케이터|보관|적치|LOC/i.test(s)&&!locCols.includes(ci))locCols.push(ci);});
@@ -1951,12 +1987,18 @@ function readInv(f){
     // split에 따로 남겨 화면에서 "이 수치에 미확인 N kg이 섞여 있음"을 볼 수 있게 함.
     Object.keys(pend).forEach(label=>{
       const fam=INV_SPLIT_FAMILIES.find(f=>f.label===label);
-      const d=resolveInvSplit(pend[label]);
+      const rows=pend[label];
+      const d=resolveInvSplit(rows,fam);
       split[label]=d;
-      stock[fam.bag]=(stock[fam.bag]||0)+d.bag+d.unknown;
-      // 지대 수치는 "0"도 하나의 주장이라, 미확인 행이 하나도 없을 때만 0으로 기록함 — 미확인 행이
-      // 남아 있으면 그게 지대였을 수도 있는데 0으로 적어버리면 있지도 않은 부족을 띄움(자체 코드리뷰).
-      if(d.jd>0||(d.by&&d.unknown===0))stock[fam.jd]=(stock[fam.jd]||0)+d.jd;
+      /* 한쪽 수량이 0일 때 그 키를 쓸지 — "0"은 "이번 파일에 그 포장이 없다"는 주장이라 근거가
+         있을 때만 적음. 행을 하나도 빠짐없이 갈랐고(미확인 0) 행이 2개 이상이면 0으로 적어서
+         그 포장이 발주점 목록에 계속 남게 함(진짜 품절이면 부족으로 잡혀야 함). 미확인이 남았거나
+         행이 하나뿐이면 어느 쪽도 0으로 단정하지 않고 키를 비워 둠 — 그러면 기존 '품절 추정'
+         경로(이전 스냅샷엔 있었는데 이번엔 없음)가 그대로 돌아 사람이 맥락을 보고 판단함. */
+      const solid=!!d.by&&d.unknown===0&&rows.length>1;
+      const bagQty=d.bag+d.unknown;
+      if(bagQty>0||solid)stock[fam.bag]=(stock[fam.bag]||0)+bagQty;
+      if(d.jd>0||solid)stock[fam.jd]=(stock[fam.jd]||0)+d.jd;
     });
     if(!hits){toast('재고 파일에서 발주 기준 품목을 못 찾음 — 품목명·재고 컬럼이 있는지 확인');return;}
     S.inv={ts:localISO(new Date())+' '+new Date().toTimeString().slice(0,5),stock,split};
@@ -1978,7 +2020,7 @@ function pushInvHistSnapshot(d,stock,split){
   // 백/지대 배정 결과도 같이 남겨야 스냅샷으로 되돌렸을 때 "이 수치에 미확인이 섞여 있음" 경고가
   // 같이 살아남음 — 경고만 사라지면 이 기능이 고치려던 상태로 그대로 되돌아감(자체 코드리뷰).
   // 행별 원문(rows)은 90일치를 쌓으면 저장 용량만 키우므로 합계만 남김.
-  const sp={};Object.keys(split||{}).forEach(k=>{const v=split[k]||{};sp[k]={bag:v.bag||0,jd:v.jd||0,unknown:v.unknown||0,by:v.by||'',rows:[]};});
+  const sp={};Object.keys(split||{}).forEach(k=>{const v=split[k]||{};sp[k]={bag:v.bag||0,jd:v.jd||0,unknown:v.unknown||0,by:v.by||'',conflict:v.conflict||0,rows:[]};});
   S.invHist.push({d,stock:{...stock},split:sp});
   S.invHist.sort((a,b)=>a.d<b.d?-1:1);
   if(S.invHist.length>90)S.invHist=S.invHist.slice(-90);
@@ -2000,12 +2042,13 @@ function renderInvSplit(){
     const d=sp[f.label],tot=d.bag+d.jd+d.unknown;
     // 스냅샷 복원본에는 행별 원문을 안 남기므로(저장 용량) 표 대신 그 사실을 적어둠
     const body=(d.rows||[]).length
-      ?`<div class="tbl"><table><thead><tr><th>재고 파일의 위치 표기</th><th class="num">수량(kg)</th><th>배정</th></tr></thead><tbody>${d.rows.map(r=>`<tr><td>${esc(r.loc||'(위치 표기 없음)')}</td><td class="num">${fmtN(Math.round(r.qty))}</td><td>${r.v==='jd'?'지대':r.v==='bag'?'백':'<b>미확인 → 백에 합산</b>'}</td></tr>`).join('')}</tbody></table></div>`
+      ?`<div class="tbl"><table><thead><tr><th>재고 파일의 위치 표기</th><th class="num">수량(kg)</th><th>배정</th><th>근거</th></tr></thead><tbody>${d.rows.map(r=>`<tr><td>${esc(r.loc||'(위치 표기 없음)')}</td><td class="num">${fmtN(Math.round(r.qty))}</td><td>${r.v==='jd'?'지대':r.v==='bag'?'백':'<b>미확인 → 백에 합산</b>'}</td><td class="tag">${esc(r.b||'—')}</td></tr>`).join('')}</tbody></table></div>`
       :'<div class="tag">행별 내역은 재고 파일을 올린 직후에만 남음 — 스냅샷 복원본에는 합계만 있음</div>';
     return `<details style="margin:2px 0"><summary class="tag" style="cursor:pointer">
       <b>${esc(f.label)}</b> 백 ${fmtN(Math.round(d.bag))}kg · 지대 ${fmtN(Math.round(d.jd))}kg
       ${d.unknown>0?`<span class="chip c-late" title="백·지대 어느 쪽인지 못 읽은 행 — 백 수치에 합산됨">위치 미확인 ${fmtN(Math.round(d.unknown))}kg</span>`:''}
-      <span class="tag">${d.by?esc(d.by)+' 기준 · ':''}파일 합계 ${fmtN(Math.round(tot))}kg</span></summary>${body}</details>`;
+      ${d.conflict>0?`<span class="chip c-late" title="위치·포장·매입처 중 읽힌 근거끼리 답이 갈림 — 배정은 위치 → 포장 → 매입처 순으로 먼저 읽힌 근거를 따랐음. 어느 쪽이 맞는지 확인 필요">근거 불일치 ${fmtN(Math.round(d.conflict))}kg</span>`:''}
+      <span class="tag">${d.by?esc(d.by)+' 기준 · ':''}파일 합계 ${fmtN(Math.round(tot))}kg${f.jdVendor?` · 백=${esc(R696_BAG_VENDOR)} / 지대=${esc(R696_JD_VENDOR)}`:''}</span></summary>${body}</details>`;
   }).join('');
 }
 const invRestoreLbl=key=>_arm===key?'정말 복원?':'선택 날짜로 복원';   // armLbl은 "삭제" 전용 문구라 복원엔 안 맞아 별도로 둠(같은 _arm/armDel 상태를 그대로 씀)
@@ -2425,7 +2468,7 @@ function openR696(m){
     if(o.dec==='발주'&&prevDec!=='발주'){
       const short2=rp&&projected!=null?Math.max(0,rp.rop-projected):0;
       const qty=rp?Math.max(rp.qty,Math.ceil(short2/(rp.qty||1))*(rp.qty||1)):4000;
-      S.orders.push({id:S.seq++,type:'self',ordDate:cur,vendor:rp?rp.vendor:(SENSITIVE.tionaFallbackVendor||'(확인 필요)'),item:variant==='TIONA-666(696)'?'TIONA-696(지대)':'TIONA-696(백)',dest:'자가(세종·부강)',qty,unit:'kg',eta:addDays(cur,rp?Math.ceil(rp.lt):2),inDate:'',loc:m.loc,dept:m.dept,note:`R696 창고이동 연계 발주 (확인:${o.by})`});
+      S.orders.push({id:S.seq++,type:'self',ordDate:cur,vendor:(rp&&rp.vendor)||r696VendorOf(variant)||SENSITIVE.tionaFallbackVendor||'(확인 필요)',item:variant==='TIONA-666(696)'?'TIONA-696(지대)':'TIONA-696(백)',dest:'자가(세종·부강)',qty,unit:'kg',eta:addDays(cur,rp?Math.ceil(rp.lt):2),inDate:'',loc:m.loc,dept:m.dept,note:`R696 창고이동 연계 발주 (확인:${o.by})`});
       toast(`R696 확인 저장됨 · ${fmtN(qty)}kg 발주안 등록됨`);
     }else if(o.dec==='발주')toast('R696 확인 저장됨 — 이미 발주 등록된 건이라 중복 등록하지 않음');
     else toast('R696 확인 기록 저장됨');
@@ -2771,6 +2814,9 @@ function judge(consignee,item){
   if(action==='확인'&&m){ const esc2=s=>s.replace(/[.*+?^${}()|[\]\\]/g,'\\$&'); const kw=SENSITIVE.kscatCode?new RegExp(esc2(SENSITIVE.kscatCode)+'|사급'):/사급/; if(kw.test(m.note+m.vendor))action='직접출고'; }
   // 발주 대응 품목: 우리 창고 출고 아님 — 항상 공급사 발주(사급처 직납)
   if(orderResp(item))action='발주';
+  // R696 지대는 경질용·사급용 가릴 것 없이 전부 일삼 발주(2026-09-30 지침) — 품목명만으로
+  // 정해지는 기준이라 공급사 추정값이 뭐였든 덮어씀(사람이 고치면 그 값이 남음, _manual 참고).
+  if(isTionaFamily(item)&&r696Variant(item)==='TIONA-666(696)')supplier=R696_JD_VENDOR;
   // M-210: 정기 거래처 건 / 월1회 입항분 구분 필요 — 행선지 건별 확인 전 자동 판정 금지
   if(isM210(item)){action='확인';supplier=supplier||SENSITIVE.m210Supplier||'(공급사 확인)';}
   return {action,supplier,loc:qmLocOverride(item)||(m?m.loc.replace('(경질창고)',''):'')};

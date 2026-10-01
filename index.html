@@ -4519,12 +4519,12 @@ function renderCs(){
   const th=document.getElementById('csDueTh');if(th)th.textContent='요청납기'+(csSort==='asc'?' ▲':csSort==='desc'?' ▼':'');
   updateCsSelCnt();
 }
-/* 발주 = 사급처 직납(요청납기만 의미 있음, 출고일 없음) · 직접출고 = 14동 출고(출고일만 의미 있음)
-   → 처리를 바꾸면 그에 맞는 날짜 칸만 켜지게 처리 */
+/* 발주 = 사급처 직납(출고일 없음) → 발주일 때만 출고일 칸을 잠금.
+   요청납기는 직접출고에도 씀(출고 보드 오늘/내일 칸·납기 정렬·필터·지시서 납기) — 예전에 직접출고면
+   요청납기 칸을 잠가서, 등록 때 비워 둔 직접출고 건은 나중에 납기를 넣을 방법이 없었음(신고로 발견). */
 function csEditActionSync(sel){
-  const due=document.getElementById('csEditDue'),out=document.getElementById('csEditOutDate');
-  if(!due||!out)return;
-  due.disabled=sel.value==='직접출고';
+  const out=document.getElementById('csEditOutDate');
+  if(!out)return;
   out.disabled=sel.value==='발주';
 }
 // 매각대조 대상(발주·직접출고)인데 단위가 비어 있는 건 — 사급발주 탭의 건수 표시·필터·행 표시가 같은 기준을 씀.

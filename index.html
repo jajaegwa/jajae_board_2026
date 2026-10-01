@@ -4748,16 +4748,25 @@ async function sbSaveMasterAfterPatch(){
    그 함수가 각 폰의 푸시 서버로 알림을 쏨. 앱 실행 여부와 무관하게 도착함.
    VAPID 공개키는 함수에서 받아오므로 이 파일에 키를 넣을 필요가 없음. */
 const PUSH_FN=SB_URL+'/functions/v1/notify-drivers';
-let pushCfg=null;
+/* Supabase Edge Function은 기본으로 JWT 검증이 켜져 있어, 헤더 없이 부르면 함수 코드에 닿기 전에
+   401로 거절됨 — 그동안 서버 푸시가 조용히 꺼져 "앱 실행 중일 때"만 알림이 왔던 원인.
+   anon 키는 이미 공개된 값(화면 데이터 조회에도 씀)이라 붙여도 보안상 차이 없음. */
+const PUSH_HDR={apikey:SB_ANON,Authorization:'Bearer '+SB_ANON};
+let pushCfg=null,pushCfgOff=false;   // pushCfgOff: 서버가 "미설정"이라고 확실히 답한 경우(네트워크 오류와 구분)
 async function pushConfig(){
   if(pushCfg)return pushCfg;
   try{
-    const r=await fetch(PUSH_FN+'?config=1');
-    if(!r.ok)return null;
-    pushCfg=await r.json();
-    return pushCfg&&pushCfg.configured?pushCfg:null;
+    const r=await fetch(PUSH_FN+'?config=1',{headers:PUSH_HDR});
+    if(!r.ok){pushCfgOff=r.status===404;return null;}   // 404 = 함수 미배포
+    const c=await r.json();
+    // 설정된 경우에만 기억 — 미설정 응답을 담아두면 다음 호출이 공개키 없는 값으로 구독을 시도함
+    if(c&&c.configured&&c.publicKey)pushCfg=c;
+    pushCfgOff=!pushCfg;
+    return pushCfg;
   }catch(e){return null;}   // 함수 미배포 — 앱 실행 중 알림만 동작
 }
+const PUSH_OK_KEY='jjPushOK';   // 이 기기가 서버 푸시(앱 꺼도 오는 알림)에 등록됐는지 — 지게차 화면 표시용
+function pushServerOK(){try{return localStorage.getItem(PUSH_OK_KEY)==='1';}catch(e){return false;}}
 function b64ToU8(b64){
   const s=(b64+'='.repeat((4-b64.length%4)%4)).replace(/-/g,'+').replace(/_/g,'/');
   const raw=atob(s), out=new Uint8Array(raw.length);
@@ -4766,19 +4775,46 @@ function b64ToU8(b64){
 }
 /* 기사 폰을 푸시 구독에 등록 — 알림 권한을 켤 때 함께 호출됨 */
 async function subscribeServerPush(){
+  const mark=v=>{try{localStorage.setItem(PUSH_OK_KEY,v?'1':'0');}catch(e){}};
+  if(!sbOK||!sbPass)return false;             // 공유 연결이 있어야 인증 가능(상태 표시는 그대로 둠)
   const cfg=await pushConfig();
-  if(!cfg)return false;                       // 서버 미설정이면 조용히 넘어감
-  if(!sbOK||!sbPass)return false;             // 공유 연결이 있어야 인증 가능
+  // 상태 표시는 서버가 확실히 거절·미설정이라고 답할 때만 끔 — 일시적 네트워크 오류로
+  // 이미 등록된 폰을 "앱 켜져 있을 때만"으로 잘못 표시하지 않기 위함
+  if(!cfg){if(pushCfgOff)mark(false);return false;}   // 서버 미설정이면 조용히 넘어감
   try{
     const reg=await navigator.serviceWorker.ready;
+    if(!reg.pushManager){mark(false);return false;}   // 이 브라우저는 서버 푸시 미지원
     let sub=await reg.pushManager.getSubscription();
     if(!sub)sub=await reg.pushManager.subscribe({userVisibleOnly:true,
       applicationServerKey:b64ToU8(cfg.publicKey)});
-    const r=await fetch(PUSH_FN,{method:'POST',headers:{'Content-Type':'application/json'},
+    const r=await fetch(PUSH_FN,{method:'POST',headers:{...PUSH_HDR,'Content-Type':'application/json'},
       body:JSON.stringify({action:'subscribe',passcode:sbPass,sub:sub.toJSON(),
         name:localStorage.getItem('jjUser')||'',clientId:sbClientId})});
+    if(r.ok||(r.status>=400&&r.status<500))mark(r.ok);   // 5xx는 일시 장애로 보고 표시 유지
     return r.ok;
-  }catch(e){return false;}
+  }catch(e){return false;}   // 네트워크 오류 — 표시 유지
+}
+/* [다시 시도] 버튼 — 권한은 이미 허용된 상태라 askNotifPerm(기존 건 알림 처리·환영 알림)을 거치지 않고 구독만 다시 함 */
+async function retryServerPush(){
+  if(!sbOK||!sbPass){toast('실시간 공유 연결이 먼저 필요합니다 — 연결 후 다시 눌러 주세요');return;}
+  const ok=await subscribeServerPush();
+  toast(ok?'알림 켜짐 — 앱을 꺼도 알림이 옵니다':(pushCfgOff?'서버 알림이 아직 설정되지 않았습니다 — 자재과에 문의':'서버 알림 등록 실패 — 잠시 후 다시 시도해 주세요'));
+  renderDriver();
+}
+/* 이미 알림을 허용한 기사 폰은 앱을 열 때마다 서버 구독을 다시 맞춰 둠 — 예전 버전에서 구독이
+   실패했던 폰도 버튼을 다시 누를 필요 없이 이 수정이 배포되면 자동으로 "앱 꺼도 옴"이 됨.
+   권한이 이미 허용된 상태라 사용자 조작 없이 구독해도 브라우저가 막지 않음. 페이지당 1회만 시도
+   (화면 갱신마다 부르므로 실패해도 반복하지 않음 — 재시도는 [다시 시도] 버튼). */
+let pushSyncDone=false,pushSyncBusy=false;
+async function ensureServerPush(){
+  if(pushSyncDone||pushSyncBusy||!sbOK||!sbPass)return;
+  pushSyncBusy=true;
+  try{
+    const before=pushServerOK();
+    await subscribeServerPush();
+    pushSyncDone=true;
+    if(pushServerOK()!==before)renderDriver();
+  }finally{pushSyncBusy=false;}
 }
 /* 자재과가 저장한 뒤 호출 — 새로 생긴 기사 작업이 있을 때만 발송.
    기사 기기에서는 보내지 않음(기사가 자기 완료 체크로 자신에게 알림 보내는 것 방지). */
@@ -4792,7 +4828,7 @@ async function sendServerPush(){
   const title=fresh.length===1?fresh[0].t:`새 작업 ${fresh.length}건`;
   const body=fresh.length===1?fresh[0].b:fresh.slice(0,4).map(f=>`· ${f.b}`).join('\n')+(fresh.length>4?`\n외 ${fresh.length-4}건`:'');
   try{
-    await fetch(PUSH_FN,{method:'POST',headers:{'Content-Type':'application/json'},
+    await fetch(PUSH_FN,{method:'POST',headers:{...PUSH_HDR,'Content-Type':'application/json'},
       body:JSON.stringify({action:'notify',passcode:sbPass,title,body,
         url:location.origin+location.pathname+'#driver',exclude:sbClientId})});
     markNotified(fresh.map(f=>f.k));   // 자재과 쪽에서도 중복 발송 방지
@@ -4854,6 +4890,7 @@ function seedNotified(){markNotified(drvPushItems().map(x=>x.k));}
 async function pushDrvNotif(){
   if(!document.body.classList.contains('driver'))return;   // 기사 기기에서만
   if(!notifSupported()||Notification.permission!=='granted')return;
+  ensureServerPush();
   if(localStorage.getItem(NOTIF_KEY)===null){seedNotified();return;}  // 첫 실행은 기준만 잡고 넘어감
   const seen=notifiedSet();
   const fresh=drvPushItems().filter(x=>!seen.has(x.k));
@@ -5179,7 +5216,7 @@ function renderDriver(){
   const cb=(fn,done,guardKey)=>`<label><input type="checkbox" ${done?'checked':''} ${ro?'disabled':''} onchange="drvGuardedToggle('${guardKey}',()=>{${fn}})">완료</label>`;
   const meName=localStorage.getItem('jjUser')||'';
   const insLeft=ins.filter(o=>!o.inDate).length;
-  let h=`<div class="banner"><div><b>${fmtK(cur)}</b> 지게차 작업 <span style="opacity:.7;font-size:13px">(${cur})</span><input type="date" class="drv-date" value="${cur}" onchange="setDate(this.value)"></div><div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">남은 일: 입고 ${insLeft} · 창고→라인 ${mv.filter(m=>!m.done).length} · 사급출고 ${outsLeft}${drvVisibleNotes().filter(n=>!n.done).length?' · 전달사항 '+drvVisibleNotes().filter(n=>!n.done).length:''}${notifSupported()&&Notification.permission!=='granted'?`<button class="btn sm warn" onclick="askNotifPerm()" title="폰 알림 받기">🔔 알림 켜기</button>`:(notifSupported()?`<span class="chip c-done" title="새 작업이 등록되면 폰 알림이 옵니다">🔔 알림 켜짐</span>`:'')}<button class="btn sm" style="background:transparent;color:var(--navy-ink);border-color:#4a5b6c" onclick="askName()">👤 ${esc(meName)||'이름 입력'}</button><button class="btn sm" style="background:transparent;color:var(--navy-ink);border-color:#4a5b6c" onclick="location.reload()">새로고침</button></div></div>`;
+  let h=`<div class="banner"><div><b>${fmtK(cur)}</b> 지게차 작업 <span style="opacity:.7;font-size:13px">(${cur})</span><input type="date" class="drv-date" value="${cur}" onchange="setDate(this.value)"></div><div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">남은 일: 입고 ${insLeft} · 창고→라인 ${mv.filter(m=>!m.done).length} · 사급출고 ${outsLeft}${drvVisibleNotes().filter(n=>!n.done).length?' · 전달사항 '+drvVisibleNotes().filter(n=>!n.done).length:''}${notifSupported()&&Notification.permission!=='granted'?`<button class="btn sm warn" onclick="askNotifPerm()" title="폰 알림 받기">🔔 알림 켜기</button>`:(notifSupported()?(pushServerOK()?`<span class="chip c-done" title="앱을 완전히 꺼도 새 작업 알림이 옵니다">🔔 알림 켜짐 · 앱 꺼도 옴</span>`:`<button class="btn sm warn" onclick="retryServerPush()" title="지금은 앱이 화면에 켜져 있을 때만 알림이 옵니다. 눌러서 서버 알림 등록을 다시 시도합니다">🔔 앱 켜져 있을 때만 · 다시 시도</button>`):'')}<button class="btn sm" style="background:transparent;color:var(--navy-ink);border-color:#4a5b6c" onclick="askName()">👤 ${esc(meName)||'이름 입력'}</button><button class="btn sm" style="background:transparent;color:var(--navy-ink);border-color:#4a5b6c" onclick="location.reload()">새로고침</button></div></div>`;
   if(cur!==localISO(new Date()))h+=`<div class="card" style="margin-top:10px;font-size:13px;color:var(--amber)">⚠ 오늘(${fmtK(localISO(new Date()))}) 날짜가 아닙니다 · <b onclick="setDate('${localISO(new Date())}')" style="cursor:pointer;text-decoration:underline">오늘로 돌아가기</b></div>`;
   if(spTxt)h+=`<div class="card" style="margin-top:10px;font-size:15px"><b>특이사항</b> ${esc(spTxt)}</div>`;
   h+=drvCalendarHTML();

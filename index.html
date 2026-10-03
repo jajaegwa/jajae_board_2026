@@ -828,7 +828,7 @@ button.calCell:focus-visible{outline:2px solid var(--acc);outline-offset:-2px}
     <button class="btn sm" onclick="aiSend('아직 처리 안 된 사급 요청 알려줘')">미처리 사급</button>
   </div>
   <label for="aiQ">질문</label>
-  <textarea id="aiQ" rows="2" placeholder="예) 경질 P-1000 이번 주 이동량은? (Enter 전송 · Shift+Enter 줄바꿈)" onkeydown="if(event.key==='Enter'&&!event.shiftKey&&!event.isComposing){event.preventDefault();aiSend();}"></textarea>
+  <textarea id="aiQ" rows="2" placeholder="예) 경질 P-1000 이번 주 이동량은? (Enter 전송 · Shift+Enter 줄바꿈)" onkeydown="if(event.key==='Enter'&&!event.shiftKey&&!event.isComposing&&event.keyCode!==229){event.preventDefault();aiSend();}"></textarea>
 </div>
 <div class="dlg-foot"><button class="btn" style="margin-right:auto" onclick="aiClear()">대화 지우기</button><button class="btn" onclick="dlgAi.close()">닫기</button><button class="btn pri" onclick="aiSend()">질문하기</button></div></dialog>
 
@@ -4880,7 +4880,8 @@ function aiContext(){
   const notes=last((S.notes||[]).filter(n=>inWin(n.date)||!n.done),50);
   let low=[];
   try{low=ropDue().map(r=>({item:r.item,dept:r.dept,stock:r.stk,rop:r.rop,orderQty:r.qty,lt:r.lt,vendor:r.vendor,loc:r.loc,note:r.gpps||''}));}catch(e){}
-  return JSON.stringify({
+  // 서버가 15만 자에서 자르므로 작은 항목(발주점 이하·전달사항)을 앞에 두고, 넘치면 큰 목록을 오래된 것부터 줄임
+  const build=n=>JSON.stringify({
     오늘:realToday(),기준일:cur,조회범위:`${from} ~ ${to} (미완료 건은 최근 60일까지 포함)`,
     재고업로드시각:(S.inv&&S.inv.ts)||'재고 업로드 없음',
     필드설명:{
@@ -4888,8 +4889,11 @@ function aiContext(){
       발주입고:'ordDate=발주일, eta=입고예정일(착일), inDate=실입고일(없으면 미입고), dest=납품처',
       사급:'recvDate=접수일, due=요청납기, consignee=사급처, supplier=공급사, action=발주/직접출고/확인/제외, done=true면 처리 완료',
       발주점이하:'stock=현재고 kg, rop=발주점, orderQty=1회 발주량, lt=리드타임(일)'},
-    창고이동:moves.map(aiCompact),발주입고:orders.map(aiCompact),사급:cons.map(aiCompact),
-    전달사항:notes.map(aiCompact),발주점이하:low});
+    발주점이하:low,전달사항:notes.map(aiCompact),
+    창고이동:last(moves,n).map(aiCompact),발주입고:last(orders,n).map(aiCompact),사급:last(cons,n).map(aiCompact)});
+  let n=200,out=build(n);
+  while(out.length>140000&&n>20){n=Math.floor(n*0.7);out=build(n);}
+  return out;
 }
 function openAi(){
   if(!sbOK||!sbPass){toast('실시간 공유에 연결된 기기에서만 AI 질문을 쓸 수 있습니다');return;}

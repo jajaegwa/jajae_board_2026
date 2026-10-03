@@ -102,7 +102,8 @@ Deno.serve(async (req: Request) => {
     return json({ error: 'upstream', status: res.status, reason: reason[res.status] ?? 'other' }, 502);
   }
 
-  const out = await res.json() as { content?: Array<{ type: string; text?: string }> };
+  let out: { content?: Array<{ type: string; text?: string }> };
+  try { out = await res.json(); } catch { return json({ error: 'upstream', status: res.status, reason: 'other' }, 502); }
   const text = (out.content ?? []).filter(c => c.type === 'text').map(c => c.text ?? '').join('').trim();
   return json({ text: text || '(답변이 비어 있습니다)' });
 });

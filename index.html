@@ -181,6 +181,17 @@ dialog::backdrop{background:rgba(10,18,26,.5)}
 .dlg{padding:18px}.dlg h3{font-size:14.5px;margin-bottom:12px;padding-bottom:8px;border-bottom:1px solid var(--line2)}
 .dlg .grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
 .dlg-foot{padding:12px 18px;border-top:1px solid var(--line);display:flex;justify-content:flex-end;gap:8px}
+/* 작업판 질문 채팅(AI) */
+.ai-log{height:min(52vh,420px);overflow-y:auto;border:1px solid var(--line);border-radius:2px;background:var(--bg);padding:8px;display:flex;flex-direction:column;gap:6px;margin-bottom:8px}
+.ai-msg{max-width:88%;padding:6px 9px;border:1px solid var(--line2);border-radius:2px;background:var(--card);white-space:pre-wrap;word-break:break-word;line-height:1.5}
+.ai-msg.me{align-self:flex-end;border-color:var(--acc)}
+.ai-msg.bot{align-self:flex-start}
+.ai-msg.wait{color:var(--mut)}
+.ai-msg.err{align-self:stretch;max-width:none;border-color:var(--red);color:var(--red)}
+.ai-empty{margin:auto;text-align:center;color:var(--mut);font-size:12px}
+.ai-chips{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px}
+#aiQ{width:100%;resize:vertical;min-height:0}
+@media (max-width:640px){.ai-log{height:34vh}}
 /* 전화 모드 · 원터치 입력 */
 .qm-dept{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px}
 .qm-dept button{flex:1;min-width:88px;padding:12px 0;font:inherit;font-size:15.5px;font-weight:700;border-radius:3px;border:1.5px solid var(--line);background:var(--card);color:var(--ink);cursor:pointer}
@@ -357,6 +368,7 @@ button.calCell:focus-visible{outline:2px solid var(--acc);outline-offset:-2px}
   </span>
   <span class="chip c-wait" id="drvNotif" style="display:none;cursor:pointer" onclick="clearDrvNotif()" title="눌러서 확인"></span>
   <span class="chip c-late" id="delAlert" style="display:none;cursor:pointer" onclick="ackDeletes()" title="눌러서 삭제 기록 보기"></span>
+  <button class="btn sm" id="btnAi" onclick="openAi()" title="작업판 데이터에 대해 AI에게 질문 (읽기 전용)">AI 질문</button>
   <button class="btn sm" onclick="toggleDriver()" id="btnDrv">지게차 화면</button>
   <!-- a가 아니라 button으로 만듦 — 지게차 화면 잠금(body.driver)이 header button만 숨기므로
        a 링크였다면 기사 화면에서도 그대로 눌려 비밀번호 없이 월마감 관리 화면으로 새어나갈 수
@@ -370,7 +382,7 @@ button.calCell:focus-visible{outline:2px solid var(--acc);outline-offset:-2px}
       <button class="btn sm" onclick="hdrMore.open=false;openShare()">공유·바로가기</button>
       <button class="btn sm" onclick="hdrMore.open=false;exportJSON()">백업 (클립보드 복사)</button>
       <button class="btn sm" onclick="hdrMore.open=false;impFile.click()">복원 (백업 파일 불러오기)</button>
-      <span class="tag" id="buildStamp" title="화면 버전 — 최신이 아니면 Ctrl+F5로 강력 새로고침">화면 버전 v2026-09-26b</span>
+      <span class="tag" id="buildStamp" title="화면 버전 — 최신이 아니면 Ctrl+F5로 강력 새로고침">화면 버전 v2026-10-03a</span>
     </div>
   </details>
   <input type="file" id="impFile" accept=".json" style="display:none" onchange="importJSON(event)" aria-label="백업 파일 선택">
@@ -805,6 +817,20 @@ button.calCell:focus-visible{outline:2px solid var(--acc);outline-offset:-2px}
 
 <dialog id="dlg"><div class="dlg"><h3 id="dlgTitle">수정</h3><div class="grid2" id="dlgBody"></div></div>
 <div class="dlg-foot"><button class="btn" id="dlgDelBtn" style="margin-right:auto;color:var(--red)" onclick="dlgDelete()">삭제</button><button class="btn" onclick="dlg.close()">취소</button><button class="btn pri" onclick="dlgSave()">저장</button></div></dialog>
+
+<dialog id="dlgAi" aria-labelledby="dlgAiTitle" style="max-width:640px;width:94vw"><div class="dlg">
+  <h3 id="dlgAiTitle">작업판에 질문 <span class="tag">AI · 현재 작업판 데이터 기준 · 등록·수정은 하지 않음</span></h3>
+  <div id="aiLog" class="ai-log" role="log" aria-live="polite"></div>
+  <div class="ai-chips">
+    <button class="btn sm" onclick="aiSend('오늘 남은 창고이동 요청 정리해줘')">오늘 남은 창고이동</button>
+    <button class="btn sm" onclick="aiSend('이번 주 입고 예정과 지연된 입고 알려줘')">이번 주 입고 예정</button>
+    <button class="btn sm" onclick="aiSend('발주점 이하 품목과 발주 필요량 알려줘')">발주점 이하 품목</button>
+    <button class="btn sm" onclick="aiSend('아직 처리 안 된 사급 요청 알려줘')">미처리 사급</button>
+  </div>
+  <label for="aiQ">질문</label>
+  <textarea id="aiQ" rows="2" placeholder="예) 경질 P-1000 이번 주 이동량은? (Enter 전송 · Shift+Enter 줄바꿈)" onkeydown="if(event.key==='Enter'&&!event.shiftKey&&!event.isComposing){event.preventDefault();aiSend();}"></textarea>
+</div>
+<div class="dlg-foot"><button class="btn" style="margin-right:auto" onclick="aiClear()">대화 지우기</button><button class="btn" onclick="dlgAi.close()">닫기</button><button class="btn pri" onclick="aiSend()">질문하기</button></div></dialog>
 
 <dialog id="dlgRow" aria-labelledby="dlgRowTitle"><div class="dlg"><h3 id="dlgRowTitle">행 상세</h3><div id="dlgRowBody"></div></div>
 <div class="dlg-foot"><button class="btn pri" onclick="dlgRow.close()">닫기</button></div></dialog>
@@ -4833,6 +4859,73 @@ async function sendServerPush(){
         url:location.origin+location.pathname+'#driver',exclude:sbClientId})});
     markNotified(fresh.map(f=>f.k));   // 자재과 쪽에서도 중복 발송 방지
   }catch(e){}
+}
+
+/* ═════════ 작업판 질문 채팅 (구독핀 AI) ═════════
+   구독핀 API 키는 Edge Function(ai-chat) 시크릿에만 있음 — 이 파일에 키를 넣으면 GitHub Pages
+   소스 보기로 누구나 가져가 크레딧을 쓸 수 있으므로 절대 넣지 말 것.
+   질문할 때마다 기준일 ±14일 데이터(미완료 건은 기간 밖도)와 발주점 이하 목록을 함께 보냄.
+   읽기 전용 — AI 답변으로 데이터가 바뀌는 일은 없음. */
+const AI_FN=SB_URL+'/functions/v1/ai-chat';
+let aiHist=[],aiBusy=false;
+// 화면 전용·내부 필드(_로 시작)와 빈 값·중첩 객체는 빼서 전송량을 줄임
+function aiCompact(o){const r={};for(const[k,v]of Object.entries(o||{})){if(k[0]==='_'||v===''||v==null||typeof v==='object')continue;r[k]=v;}return r;}
+function aiContext(){
+  const from=addDays(cur,-14),to=addDays(cur,14),old=addDays(cur,-60);
+  const inWin=d=>!!d&&d>=from&&d<=to;
+  const last=(a,n)=>a.length>n?a.slice(-n):a;
+  const moves=last(S.moves.filter(m=>inWin(m.date)||(!m.done&&m.date>=old)),200);
+  const orders=last(S.orders.filter(o=>inWin(o.ordDate)||inWin(o.eta)||inWin(o.inDate)||(!o.inDate&&(o.eta||o.ordDate||'')>=old)),200);
+  const cons=last(S.cons.filter(c=>inWin(c.recvDate)||inWin(c.outDate)||inWin(c.inDate)||(!c.done&&(c.recvDate||'')>=old)),200);
+  const notes=last((S.notes||[]).filter(n=>inWin(n.date)||!n.done),50);
+  let low=[];
+  try{low=ropDue().map(r=>({item:r.item,dept:r.dept,stock:r.stk,rop:r.rop,orderQty:r.qty,lt:r.lt,vendor:r.vendor,loc:r.loc,note:r.gpps||''}));}catch(e){}
+  return JSON.stringify({
+    오늘:realToday(),기준일:cur,조회범위:`${from} ~ ${to} (미완료 건은 최근 60일까지 포함)`,
+    재고업로드시각:(S.inv&&S.inv.ts)||'재고 업로드 없음',
+    필드설명:{
+      창고이동:'창고→라인 이동 요청. date=요청일, dept=부서, loc=출고창고, done=true면 실물 이동 완료, actKg=실출고 kg',
+      발주입고:'ordDate=발주일, eta=입고예정일(착일), inDate=실입고일(없으면 미입고), dest=납품처',
+      사급:'recvDate=접수일, due=요청납기, consignee=사급처, supplier=공급사, action=발주/직접출고/확인/제외, done=true면 처리 완료',
+      발주점이하:'stock=현재고 kg, rop=발주점, orderQty=1회 발주량, lt=리드타임(일)'},
+    창고이동:moves.map(aiCompact),발주입고:orders.map(aiCompact),사급:cons.map(aiCompact),
+    전달사항:notes.map(aiCompact),발주점이하:low});
+}
+function openAi(){
+  if(!sbOK||!sbPass){toast('실시간 공유에 연결된 기기에서만 AI 질문을 쓸 수 있습니다');return;}
+  aiRender();dlgAi.showModal();setTimeout(()=>aiQ.focus(),50);
+}
+function aiRender(err){
+  aiLog.innerHTML=(aiHist.length?aiHist.map(m=>`<div class="ai-msg ${m.role==='user'?'me':'bot'}">${esc(m.content)}</div>`).join('')
+    :'<div class="ai-empty">작업판 데이터에 대해 물어보세요.<br>아래 버튼을 누르거나 직접 입력하면 됩니다.</div>')
+    +(aiBusy?'<div class="ai-msg bot wait">답변 작성 중…</div>':'')
+    +(err?`<div class="ai-msg err">${esc(err)}</div>`:'');
+  aiLog.scrollTop=aiLog.scrollHeight;
+}
+function aiClear(){if(aiBusy)return;aiHist=[];aiRender();aiQ.focus();}
+function aiErrText(status,d){
+  if(status===401)return'작업판 비밀번호가 서버 설정(BOARD_PASSCODE)과 다릅니다.';
+  if(status===404)return'AI 채팅 서버(ai-chat 함수)가 아직 배포되지 않았습니다.';
+  if(status===503)return'구독핀 API 키가 아직 설정되지 않았습니다 (ai-chat 함수 Secrets의 GUDOKPIN_KEY).';
+  const m={balance:'구독핀 크레딧 잔액이 부족합니다.',key:'구독핀 API 키가 올바르지 않습니다.',model:'모델 ID가 구독핀에 등록돼 있지 않습니다 (AI_MODEL 확인).'};
+  return m[d&&d.reason]||'AI 답변을 받지 못했습니다. 잠시 뒤 다시 시도하세요.';
+}
+async function aiSend(q){
+  q=String(q??aiQ.value).trim();
+  if(!q||aiBusy)return;
+  aiQ.value='';aiHist.push({role:'user',content:q});aiBusy=true;aiRender();
+  let err='';
+  try{
+    const r=await fetch(AI_FN,{method:'POST',headers:{...PUSH_HDR,'Content-Type':'application/json'},
+      body:JSON.stringify({passcode:sbPass,messages:aiHist,context:aiContext()})});
+    const d=await r.json().catch(()=>({}));
+    if(r.ok&&d.text)aiHist.push({role:'assistant',content:d.text});
+    else err=aiErrText(r.status,d);
+  }catch(e){err='AI 서버에 연결하지 못했습니다. 네트워크를 확인하세요.';}
+  aiBusy=false;
+  // 실패하면 질문을 기록에서 빼고 입력칸에 되돌려 그대로 다시 보낼 수 있게 함
+  if(err){aiHist.pop();aiQ.value=q;}
+  aiRender(err);
 }
 
 /* ═════════ 지게차 폰 알림 ═════════

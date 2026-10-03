@@ -26,7 +26,7 @@ Edge Functions → `ai-chat` → **Secrets**
 |---|---|
 | `GUDOKPIN_KEY` | 구독핀 API 키 (`csk_`로 시작) |
 | `BOARD_PASSCODE` | 작업판 공유 비밀번호 (`notify-drivers`에 넣은 것과 같은 값) |
-| `AI_MODEL` | (선택) 기본 `claude-sonnet-5` — `GET https://api.gudokpin.com/v1/models` 목록에 있는 것만 |
+| `AI_MODEL` | (선택) 기본 `claude-opus-5-5` — `GET https://api.gudokpin.com/v1/models` 목록에 있는 것만 |
 | `GUDOKPIN_BASE` | (선택) 기본 `https://api.gudokpin.com` — Anthropic 방식이라 **`/v1` 붙이지 말 것** |
 
 ## 3단계 · 확인

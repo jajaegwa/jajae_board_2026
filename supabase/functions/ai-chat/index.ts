@@ -5,7 +5,7 @@
    필요한 시크릿 (Supabase 대시보드 > Edge Functions > ai-chat > Secrets)
      GUDOKPIN_KEY    구독핀 API 키 (csk_로 시작)  ← 절대 저장소에 올리지 말 것
      BOARD_PASSCODE  작업판 공유 비밀번호 — notify-drivers와 같은 값
-     AI_MODEL        (선택) 모델 ID, 기본 claude-sonnet-5
+     AI_MODEL        (선택) 모델 ID, 기본 claude-opus-5-5
      GUDOKPIN_BASE   (선택) 기본 https://api.gudokpin.com  — Anthropic 방식이라 /v1 붙이지 말 것
 
    엔드포인트
@@ -15,7 +15,7 @@
 
 const GUDOKPIN_KEY = Deno.env.get('GUDOKPIN_KEY') ?? '';
 const BOARD_PASSCODE = Deno.env.get('BOARD_PASSCODE') ?? '';
-const AI_MODEL = Deno.env.get('AI_MODEL') || 'claude-sonnet-5';
+const AI_MODEL = Deno.env.get('AI_MODEL') || 'claude-opus-5-5';
 const GUDOKPIN_BASE = (Deno.env.get('GUDOKPIN_BASE') || 'https://api.gudokpin.com').replace(/\/+$/, '');
 
 // 비용·남용 방지 상한

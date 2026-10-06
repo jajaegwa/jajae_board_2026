@@ -760,6 +760,18 @@ button.calCell:focus-visible{outline:2px solid var(--acc);outline-offset:-2px}
     <div id="fcWeeks" style="margin:10px 0"></div>
     <div class="tbl scroll"><table><thead><tr><th>코드</th><th>품목명</th><th>단위</th><th class="num">소요량</th><th class="num">현재고(kg)</th><th class="num">부족분</th><th></th></tr></thead><tbody id="fcResBody"></tbody></table></div>
   </div>
+  <div class="card">
+    <h2>③ 재고 소진 예측(통계) <span class="cnt" id="fcStCnt"></span></h2>
+    <div class="hint" style="margin-bottom:8px">[현황]에서 올린 날짜별 재고 스냅샷과 입고 완료 기록으로 품목별 일 소비량을 추정해 소진 예상일(범위)·안전재고·동적 발주점·권장 발주량을 계산합니다. ①②의 BOM 전개와 별개로 생산계획 없이도 동작하며, 재고 파일을 매 영업일 올릴수록 정확해집니다. 동적 발주점이 등록 발주점과 크게 다르면 [기준정보]의 발주점을 검토하세요.</div>
+    <div class="row" style="align-items:center;margin-bottom:8px">
+      <label for="fcZSel" style="margin:0;align-self:center">서비스 수준</label><select id="fcZSel" onchange="fcSetZ(this.value)" title="품절을 허용하지 않을 확률 — 높일수록 안전재고·동적 발주점이 커짐"><option value="90">90%</option><option value="95">95%</option><option value="99">99%</option></select>
+      <label for="fcStSearch" style="margin:0;align-self:center">품목 검색</label><input id="fcStSearch" type="search" placeholder="품목명" oninput="renderFcStatTable()" style="min-width:160px">
+      <button class="btn sm" onclick="exportFcStatXlsx()">엑셀 내보내기</button>
+      <span class="hint" id="fcStHint" style="flex:1;min-width:160px"></span>
+    </div>
+    <div class="stat" id="fcStTiles"></div>
+    <div class="tbl scroll"><table><thead><tr><th>품목</th><th>리스크</th><th class="num">현재고(kg)</th><th class="num">입고예정</th><th class="num">일 소비(kg)</th><th class="num">변동 σ</th><th class="num">커버(일)</th><th>소진 예상</th><th class="num">동적 발주점</th><th class="num">등록 발주점</th><th class="num">권장 발주량</th><th>모델·정확도</th><th></th></tr></thead><tbody id="fcStBody"></tbody></table></div>
+  </div>
 </section>
 
 <!-- ═══════ 지게차 기사 화면 ═══════ -->
@@ -889,6 +901,7 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
 </script>
 <script src="sales-match-engine.js"></script>
 <script src="ui-helpers.js"></script>
+<script src="fc-engine.js"></script>
 <script>
 /* ═════════ 기준정보 ═════════ */
 const M=JSON.parse(document.getElementById('masterData').textContent);
@@ -2098,14 +2111,21 @@ function readInv(f){
   r.readAsArrayBuffer(f);
 }
 function clearInv(){delete S.inv;saveDB();refreshAll();toast('재고 데이터 지움 — 주기 기준으로 돌아감');}
-/* readInv()·restoreInvSnapshot() 둘 다 "오늘 날짜 스냅샷을 지우고 새로 넣은 뒤 정렬·90개로
+/* readInv()·restoreInvSnapshot() 둘 다 "오늘 날짜 스냅샷을 지우고 새로 넣은 뒤 정렬·보관 한도로
    자르기"를 하므로 한 곳에 모음 — 따로 두면 나중에 한쪽만 고치다 캡·정렬 규칙이 어긋날 위험
-   (코드리뷰로 발견). */
+   (코드리뷰로 발견).
+   보관 한도 200개(≈6~7개월): 예전 90개로는 재고 소진 예측(fc-engine.js)의 모델 검증·28일 이동평균이
+   최근 석 달치만 보게 됨. 스냅샷은 S(공유 상태) 안에 있어 편집 때마다 통째로 서버에 올라가므로
+   무작정 늘릴 수 없음 — 발주 기준 품목 ~45개 × 1개당 약 1KB로 200개면 약 200KB. 값은 0.1kg 단위로
+   반올림해 자릿수를 줄임. 계절성(1년↑)까지 보려면 스냅샷을 별도 보드(jajae-invhist)로 분리해야 함. */
+const INV_HIST_MAX=200;
 function pushInvHistSnapshot(d,stock){
+  const compact={};
+  Object.keys(stock||{}).forEach(k=>{const v=+stock[k];if(isFinite(v))compact[k]=Math.round(v*10)/10;});
   S.invHist=(S.invHist||[]).filter(h=>h.d!==d);
-  S.invHist.push({d,stock:{...stock}});
+  S.invHist.push({d,stock:compact});
   S.invHist.sort((a,b)=>a.d<b.d?-1:1);
-  if(S.invHist.length>90)S.invHist=S.invHist.slice(-90);
+  if(S.invHist.length>INV_HIST_MAX)S.invHist=S.invHist.slice(-INV_HIST_MAX);
 }
 /* DW 재고 파일을 잘못 올렸을 때 — 업로드는 매번 이전 수치를 통째로 덮어쓰는 방식이라(합치는 게
    아님) 되돌리기 기능이 따로 없었음(실사용 문의로 확인). 매일 자동으로 쌓이는 날짜별 스냅샷
@@ -5639,14 +5659,117 @@ function stRopKeyOf(orderItem){
     .find(r=>{const rn=norm(r.item);return rn.length>=3&&n.includes(rn);});
   return hit?hit.item:null;
 }
-/* 최근 최대 5개 스냅샷 구간 소비율. 소비량 = 재고감소 + 구간 내 입고 kg(톱니 보정) */
-function statConsume(pts,item){
-  const use=pts.slice(-5),a=use[0],b=use[use.length-1];
-  const days=Math.max(1,diffDays(b.d,a.d));
-  const inKg=S.orders.filter(o=>!o.skip&&o.inDate&&o.inDate>a.d&&o.inDate<=b.d&&stRopKeyOf(o.item)===item)
-    .reduce((s,o)=>s+(kgOf(o)||0),0);
-  const cons=(a.v-b.v)+inKg;
-  return cons>0?{rate:cons/days,inKg}:{rate:0,inKg};
+/* ═════════ 재고 소진 예측(통계) — fc-engine.js 기반 ═════════
+   날짜별 재고 스냅샷(S.invHist) + 입고 완료 발주(kg 환산)로 품목별 일 소비량을 추정하고,
+   소진 예상 범위·안전재고·동적 발주점·권장 발주량·리스크를 계산. 계산 자체는 fc-engine.js(순수
+   함수)에 있고 여기서는 작업판 데이터(S·M)를 엔진 입력으로 바꾸는 일만 함. */
+const FC_Z_KEY='jjFcZ';   // 서비스 수준(90/95/99) — 기기별 설정, 공유 데이터 아님
+function fcZ(){let v=null;try{v=+localStorage.getItem(FC_Z_KEY);}catch(e){}return FcEngine.Z_BY_SERVICE[v]?v:95;}   // 사파리 사생활 모드 등 localStorage 접근 실패 시 95%
+function fcSetZ(v){try{localStorage.setItem(FC_Z_KEY,String(v));}catch(e){}renderFcStat();if(isTabActive('stats'))renderStTrend();}
+const FC_RISK_CHIP={short:'c-late',order:'c-wait',excess:'c-ord',ok:'c-done',none:'c-mut'};
+/* 한 번의 렌더에 필요한 공통 입력을 미리 모음 — 품목마다 전체 발주·주기 기준표를 다시 훑으면
+   (품목 수 × 발주 건수) 번 stRopKeyOf()(M.rop 복사·정렬 포함)가 돌아 표가 느려짐.
+   - keyOf  : 품목명 → 발주 기준 품목 키(결과 캐시)
+   - grp    : 키별 {inb:[{d,kg}] 자가 입고 완료, onOrder: 자가 입고 대기 kg} — 사급(업체 직납)은
+              스냅샷이 재는 부강 M창고 재고에 들어오지 않으므로 다른 입고 화면과 같이 self만 셈
+   - review : 키별 발주 검토 주기(일) — 주기 기준표(M.presetSelf)에 있으면 그 주기 */
+function fcContext(){
+  const cache={};
+  const keyOf=name=>{const k=String(name||'');if(!(k in cache))cache[k]=stRopKeyOf(k);return cache[k];};
+  const grp={};
+  S.orders.forEach(o=>{
+    if(o.skip||o.type!=='self')return;
+    const k=keyOf(o.item);if(!k)return;
+    const kg=kgOf(o);if(kg==null)return;
+    const e=grp[k]=grp[k]||{inb:[],onOrder:0};
+    if(o.inDate)e.inb.push({d:o.inDate,kg});else e.onOrder+=kg;
+  });
+  const review={};
+  M.presetSelf.forEach(p=>{if(isCycleExcluded(p))return;const k=keyOf(p.item);if(k&&review[k]==null&&CYCLE[p.cycle])review[k]=CYCLE[p.cycle];});
+  // 오늘 파일에 없는 품목을 0으로 볼지 판단할 "바로 전 스냅샷"(ropDue와 같은 기준)
+  const todayD=(S.inv&&S.inv.ts||'').slice(0,10);
+  const prevSnap=(S.invHist||[]).filter(h=>h.d!==todayD).sort((a,b)=>a.d<b.d?1:-1)[0];
+  return{grp,review,prevStock:prevSnap?prevSnap.stock:null};
+}
+/* 한 품목의 엔진 입력을 작업판 데이터에서 모아 판단 결과를 돌려줌.
+   baseD/baseStock: 소진 예상의 기준 날짜·재고(생략 시 현재 DW 재고와 그 업로드 날짜).
+   DW 파일에서 재고 0 품목은 행이 빠지는 경우가 있어(ropDue 참고) 바로 전 스냅샷에 재고가 있던
+   품목이 이번 파일에 없으면 0으로 봄 — 오래전에 빠진 품목(다른 창고 전용 등)은 null(판단 제외). */
+function fcAssessItem(item,ctx,zLevel,baseD,baseStock){
+  const r=M.rop.find(x=>x.item===item);
+  const g=ctx.grp[item]||{inb:[],onOrder:0};
+  const ser=FcEngine.consumptionSeries(S.invHist||[],g.inb,item);
+  let stock=baseStock,d0=baseD;
+  if(stock==null){
+    if(S.inv&&S.inv.stock){stock=S.inv.stock[item]!=null?S.inv.stock[item]:((ctx.prevStock&&ctx.prevStock[item]>0)?0:null);d0=d0||(S.inv.ts||'').slice(0,10);}
+    else{stock=ser.lastStock;d0=d0||ser.to;}
+  }
+  // 스냅샷 복원 직후에는 S.inv.ts가 복원한(옛) 날짜라 기준일이 과거로 가버림 — 최신 스냅샷 날짜보다 앞서지 않게
+  if(!d0||!/^\d{4}-\d{2}-\d{2}$/.test(d0))d0=ser.to||realToday();
+  if(ser.to&&ser.to>d0)d0=ser.to;
+  const lt=(r&&r.lt!=null)?r.lt:FcEngine.DEFAULTS.lt,review=ctx.review[item]||FcEngine.DEFAULTS.review;
+  const a=FcEngine.assess({series:ser.days,stock,onOrder:g.onOrder,lt,review,z:FcEngine.Z_BY_SERVICE[zLevel],minQty:r?r.qty:0});
+  a.item=item;a.ser=ser;a.lt=lt;a.review=review;a.rop=r?r.rop:null;a.baseD=d0;
+  if(a.ok&&a.depletion){a.dz=addDays(d0,Math.floor(a.depletion.days));a.dzLo=addDays(d0,Math.floor(a.depletion.lo));a.dzHi=addDays(d0,Math.floor(a.depletion.hi));}
+  return a;
+}
+let FC_STAT=[];   // 마지막으로 계산한 ③ 표의 행 — 검색은 이걸 거르기만 하고(renderFcStatTable), 엑셀 내보내기도 이걸 씀
+function renderFcStat(){
+  const tb=document.getElementById('fcStBody');if(!tb)return;
+  const tiles=document.getElementById('fcStTiles'),hint=document.getElementById('fcStHint'),cnt=document.getElementById('fcStCnt');
+  const zSel=document.getElementById('fcZSel');if(zSel)zSel.value=String(fcZ());
+  const hist=S.invHist||[];
+  if(hist.length<2){
+    FC_STAT=[];tiles.innerHTML='';cnt.textContent='';hint.textContent='';
+    tb.innerHTML=`<tr><td colspan="13" class="empty">재고 스냅샷이 ${hist.length}개 — [현황]에서 DW 재고 파일을 올릴 때마다 하루 1개씩 쌓이며, 2개부터 소비량·3일치부터 예측이 계산됩니다</td></tr>`;
+    return;
+  }
+  const ctx=fcContext(),z=fcZ();
+  const seen=new Set();
+  FC_STAT=M.rop.filter(r=>r.item&&!seen.has(r.item)&&seen.add(r.item))
+    .map(r=>fcAssessItem(r.item,ctx,z)).filter(a=>a.ser.points>=2&&a.stock!=null)
+    .sort((a,b)=>{const ra=a.ok?FcEngine.RISK_ORDER[a.risk]:5,rb=b.ok?FcEngine.RISK_ORDER[b.risk]:5;return ra-rb||((a.cover??1e9)-(b.cover??1e9));});
+  const rows=FC_STAT,n=k=>rows.filter(a=>a.ok&&a.risk===k).length,lack=rows.filter(a=>!a.ok).length;
+  tiles.innerHTML=
+   `<div class="s red"><div class="v">${n('short')}</div><div class="l">부족 위험</div></div>
+    <div class="s amber"><div class="v">${n('order')}</div><div class="l">발주 필요</div></div>
+    <div class="s acc"><div class="v">${n('excess')}</div><div class="l">과잉(${FcEngine.DEFAULTS.overDays}일분↑)</div></div>
+    <div class="s green"><div class="v">${n('ok')}</div><div class="l">정상</div></div>
+    <div class="s"><div class="v">${lack+n('none')}</div><div class="l">판단 불가·표본 부족</div></div>`;
+  cnt.textContent=rows.length?`${rows.length}개 품목`:'';
+  hint.textContent=`스냅샷 ${hist.length}개(${hist[0].d}~${hist[hist.length-1].d}) · 안전재고 = z×σ×√(리드타임+검토주기), 서비스 수준 ${z}% · 정확도 = 마지막 20% 기간을 미리 예측해 본 1−WAPE`;
+  renderFcStatTable();
+}
+/* 검색어로 FC_STAT을 걸러 표만 다시 그림 — 글자 하나 칠 때마다 예측을 다시 계산하지 않게 */
+function renderFcStatTable(){
+  const tb=document.getElementById('fcStBody');if(!tb)return;
+  if(!FC_STAT.length)return;   // 비어 있을 때의 안내문은 renderFcStat()이 이미 넣어 둠
+  const q=norm(document.getElementById('fcStSearch').value||'');
+  const vis=q?FC_STAT.filter(a=>norm(a.item).includes(q)||norm(ITEM_DISPLAY_LABEL[a.item]||'').includes(q)):FC_STAT;
+  tb.innerHTML=vis.length?vis.map(a=>{
+    const lbl=ITEM_DISPLAY_LABEL[a.item]||a.item;
+    const meta=`<div class="tag">스냅샷 ${a.ser.points}개 · 입력률 ${Math.round(a.ser.coverage*100)}%${a.ser.anomalies?` · 미등록 입고 ${a.ser.anomalies}건`:''} · LT ${a.lt}일 · 검토 ${a.review}일</div>`;
+    if(!a.ok)return`<tr style="color:var(--mut)"><td><b>${esc(lbl)}</b>${meta}</td><td><span class="chip c-mut">표본 부족</span></td><td class="num">${fmtN(Math.round(a.stock))}</td><td colspan="10" class="hint">소비량 ${a.n}일치 — 3일치부터 예측</td></tr>`;
+    const dd=a.dz?diffDays(a.dz,cur):null;
+    const depl=a.dz?`<b>${fmtK(a.dz)}</b> <span class="dday ${dd<=a.lt?'late':'soon'}">${dd>=0?'D-'+dd:'지남'}</span><div class="tag">${fmtK(a.dzLo)}~${fmtK(a.dzHi)}</div>`:(a.rate>0?'':'소비 없음');
+    const acc=a.accuracy!=null?`<span class="chip ${a.accuracy>=0.8?'c-done':a.accuracy>=0.6?'c-wait':'c-late'}">${Math.round(a.accuracy*100)}%</span>`:'<span class="tag">검증 전(14일↑ 필요)</span>';
+    const ropCell=a.rop!=null?`${fmtN(a.rop)}${a.dynRop>a.rop*1.2?' <span class="tag" style="color:var(--amber)">상향 검토</span>':a.dynRop<a.rop*0.5&&a.rate>0?' <span class="tag">하향 검토</span>':''}`:'';
+    return`<tr><td><b>${esc(lbl)}</b>${meta}</td><td><span class="chip ${FC_RISK_CHIP[a.risk]}">${FcEngine.RISK_LABEL[a.risk]}</span></td><td class="num">${fmtN(Math.round(a.stock))}</td><td class="num">${a.onOrder?fmtN(Math.round(a.onOrder)):'—'}</td><td class="num">${fmtN(Math.round(a.rate))}</td><td class="num">${fmtN(Math.round(a.sigma))}</td><td class="num">${a.cover!=null?fmtN(Math.round(a.cover)):''}${a.onOrder&&a.coverIncl!=null?`<div class="tag">입고 포함 ${fmtN(Math.round(a.coverIncl))}</div>`:''}</td><td>${depl}</td><td class="num">${fmtN(Math.round(a.dynRop))}<div class="tag">안전재고 ${fmtN(Math.round(a.ss))}</div></td><td class="num">${ropCell}</td><td class="num">${a.suggestQty?`<b>${fmtN(a.suggestQty)}</b>`:'—'}</td><td><div class="tag">${esc(a.model)}</div>${acc}</td><td>${a.suggestQty?`<button class="btn sm warn" data-n="${esc(a.item)}" data-q="${a.suggestQty}" onclick="fcToOrder(this.dataset.n,this.dataset.q)">발주 탭으로</button>`:''}</td></tr>`;
+  }).join(''):'<tr><td colspan="13" class="empty">검색 결과 없음</td></tr>';
+}
+/* ③ 표를 엑셀로 — 주간 발주 검토(S&OP) 자료용. 화면과 같은 정렬(리스크 → 커버일수) */
+function exportFcStatXlsx(){
+  if(!FC_STAT.length){toast('내보낼 예측 결과가 없습니다 — 재고 스냅샷이 2개 이상 쌓여야 합니다');return;}
+  const aoa=[['품목','리스크','현재고(kg)','입고예정(kg)','일 소비(kg)','변동 σ(kg)','커버(일)','소진 예상','소진 낙관','소진 비관','리드타임(일)','검토주기(일)','안전재고(kg)','동적 발주점(kg)','등록 발주점(kg)','권장 발주량(kg)','모델','검증 정확도','스냅샷 수','입력률']];
+  const r1=v=>v==null?'':Math.round(v*10)/10;
+  FC_STAT.forEach(a=>aoa.push(a.ok
+    ?[ITEM_DISPLAY_LABEL[a.item]||a.item,FcEngine.RISK_LABEL[a.risk],r1(a.stock),r1(a.onOrder),r1(a.rate),r1(a.sigma),r1(a.cover),a.dz||'',a.dzLo||'',a.dzHi||'',a.lt,a.review,r1(a.ss),r1(a.dynRop),a.rop??'',a.suggestQty||0,a.model,a.accuracy==null?'':Math.round(a.accuracy*1000)/1000,a.ser.points,Math.round(a.ser.coverage*1000)/1000]
+    :[ITEM_DISPLAY_LABEL[a.item]||a.item,'표본 부족',r1(a.stock),'','','','','','','',a.lt,a.review,'','',a.rop??'','','','',a.ser.points,Math.round(a.ser.coverage*1000)/1000]));
+  const ws=XLSX.utils.aoa_to_sheet(aoa);
+  ws['!cols']=aoa[0].map(h=>({wch:Math.max(10,h.length+4)}));
+  const wb=XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb,ws,'재고소진예측');
+  XLSX.writeFile(wb,`재고소진예측_${cur}.xlsx`);
 }
 
 function renderStats(){
@@ -5724,11 +5847,15 @@ function renderStTrend(){
   if(pts.length<2){
     box.innerHTML=`<div class="empty">현재고 ${fmtN(Math.round(pts[0].v))}kg (${esc(pts[0].d)})${rp?` · 발주점 ${fmtN(rp.rop)}kg`:''}<br>이력이 쌓이면 추이가 표시됩니다 — 재고 파일을 올릴 때마다 하루 1개 스냅샷이 저장됩니다</div>`;return;
   }
-  const c=statConsume(pts,stItem),last=pts[pts.length-1];
+  // 소비율·소진 예상은 원료 예측 탭 ③과 같은 엔진(fc-engine.js)으로 계산 — 두 화면의 수치가 어긋나지 않게
+  const last=pts[pts.length-1];
+  const a=fcAssessItem(stItem,fcContext(),fcZ(),last.d,last.v);
   let info;
-  if(c.rate>0){
-    const dz=addDays(last.d,Math.floor(last.v/c.rate)),dd=diffDays(dz,cur);
-    info=`<div class="hint" style="margin-top:6px">일 소비 약 <b>${fmtN(Math.round(c.rate))}kg</b>${c.inKg?` (기간 입고 ${fmtN(Math.round(c.inKg))}kg 보정)`:''} · 소진 예상 <b>${fmtK(dz)}</b> <span class="dday ${dd<=7?'late':'soon'}">${dd>=0?'D-'+dd:'지남'}</span>${rp?` · 발주점(${fmtN(rp.rop)}kg) ${last.v>rp.rop?'도달까지 약 '+Math.floor((last.v-rp.rop)/c.rate)+'일':'이미 도달'}`:''}${pts.length<3?' · <span class="tag">표본 부족 — 스냅샷이 쌓이면 정확해집니다</span>':''}</div>`;
+  if(!a.ok){
+    info=`<div class="hint" style="margin-top:6px">표본 부족(스냅샷 ${pts.length}개) — 재고 파일을 올릴 때마다 하루 1개 스냅샷이 저장되며 3일치부터 예측이 시작됩니다</div>`;
+  }else if(a.rate>0){
+    const dd=diffDays(a.dz,cur);
+    info=`<div class="hint" style="margin-top:6px">일 소비 약 <b>${fmtN(Math.round(a.rate))}kg</b> (±${fmtN(Math.round(a.sigma))} · ${esc(a.model)}${a.ser.inKg?` · 기간 입고 ${fmtN(Math.round(a.ser.inKg))}kg 보정`:''}) · 소진 예상 <b>${fmtK(a.dz)}</b> <span class="dday ${dd<=7?'late':'soon'}">${dd>=0?'D-'+dd:'지남'}</span> <span class="tag">범위 ${fmtK(a.dzLo)}~${fmtK(a.dzHi)}</span> · 동적 발주점 <b>${fmtN(Math.round(a.dynRop))}kg</b>${rp?`(등록 ${fmtN(rp.rop)}kg)`:''} · <span class="chip ${FC_RISK_CHIP[a.risk]}">${FcEngine.RISK_LABEL[a.risk]}</span>${a.accuracy!=null?` · 검증 정확도 ${Math.round(a.accuracy*100)}%`:''}${a.ser.points<5?' · <span class="tag">표본 부족 — 스냅샷이 쌓이면 정확해집니다</span>':''}</div>`;
   }else{
     info='<div class="hint" style="margin-top:6px">최근 구간에서 소비 추세가 없습니다 (재고 유지·증가)</div>';
   }
@@ -5963,6 +6090,7 @@ function renderFc(){
     return`<tr><td><b>${esc(p.code)}</b></td><td>${nm}</td><td class="num">${fmtN(p.qty)}${m&&m.u?' '+esc(m.u):''}</td><td>${p.date?fmtK(p.date):''}</td><td><button class="btn sm" style="color:var(--red)" onclick="fcDelPlan(${i})">삭제</button></td></tr>`;
   }).join(''):'<tr><td colspan="5" class="empty">계획 없음 — 위에서 생산계획 파일을 올리거나 붙여넣으세요</td></tr>';
   renderFcResult();
+  renderFcStat();
 }
 /* 단일 계열 가로 막대(상위 소요 KG) — statBarChart와 같은 토큰·레이아웃 계열, 부족 자재는 빨강 */
 function fcBarChart(rows){
@@ -6016,14 +6144,17 @@ function renderFcResult(){
   }).join(''):'<tr><td colspan="7" class="empty">검색 결과 없음</td></tr>';
   hint.textContent=(S.inv&&S.inv.stock)?`현재고 기준: ${S.inv.ts}`:'DW 재고 미업로드 — [현황]에서 재고 파일을 올리면 현재고·부족분이 표시됩니다';
 }
-/* 부족 자재 → 발주 탭 연계 */
-function fcToOrder(name){
+/* 부족 자재 → 발주 탭 연계. qty(③ 권장 발주량)가 오면 수량칸까지 채움 — 확인 후 등록하도록 포커스는 수량칸에 둠 */
+function fcToOrder(name,qty){
   showTab('order');
   const el=document.getElementById('odItem');
   el.value=name;
   el.dispatchEvent(new Event('input')); // autoLoc('od') 트리거
-  document.getElementById('odQty').focus();
-  toast('발주 품목 입력됨 — 수량을 입력하세요');
+  const q=document.getElementById('odQty');
+  const n=+qty;
+  if(n>0){q.value=n;document.getElementById('odUnit').value='kg';}
+  q.focus();
+  toast(n>0?`발주 품목·권장 수량 ${fmtN(n)}kg 입력됨 — 확인 후 등록하세요`:'발주 품목 입력됨 — 수량을 입력하세요');
 }
 
 /* ── 드롭존 · 시작 시 BOM 비동기 로드 ── */

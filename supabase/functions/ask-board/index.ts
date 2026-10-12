@@ -118,7 +118,7 @@ Deno.serve(async (req: Request) => {
   try {
     const res = await client.beta.messages.create({
       model: MODEL,
-      max_tokens: 4096,
+      max_tokens: 16000,   // 생각(thinking) 토큰도 여기에 포함되므로 넉넉히 — 잘리면 아래서 오류로 돌려줌
       system: [{ type: 'text', text: SYSTEM, cache_control: { type: 'ephemeral' } }],
       messages: [{ role: 'user', content: `context:\n${context}\n\n입력:\n${text}` }],
       output_config: { effort: 'medium', format: { type: 'json_schema', schema: OUTPUT_SCHEMA } },
@@ -126,6 +126,7 @@ Deno.serve(async (req: Request) => {
       betas: ['server-side-fallback-2026-07-01'],
       fallbacks: 'default',
     });
+    if (res.stop_reason === 'max_tokens') return json({ error: 'truncated', detail: '응답이 잘렸습니다 — 지시를 나눠서 다시 입력' }, 502);
     if (res.stop_reason === 'refusal') {
       return json({ ops: [], message: '이 입력은 처리할 수 없습니다. 다르게 적어 주세요.', model: res.model, usage: res.usage });
     }

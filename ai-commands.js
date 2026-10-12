@@ -27,7 +27,9 @@
 
   const str = v => (v == null ? '' : String(v)).trim();
   const num = v => { if (v === null || v === undefined || v === '') return null; const n = Number(v); return Number.isFinite(n) ? n : null; };
-  const isoDate = v => /^\d{4}-\d{2}-\d{2}$/.test(str(v)) ? str(v) : '';
+  const isoDate = v => { const d = str(v); if (!/^\d{4}-\d{2}-\d{2}$/.test(d)) return ''; const x = new Date(d + 'T00:00:00'); return isNaN(x) || localISO(x) !== d ? '' : d; };   // 2026-13-45 같은 값은 버림
+  const pad2 = n => String(n).padStart(2, '0');
+  const localISO = x => `${x.getFullYear()}-${pad2(x.getMonth() + 1)}-${pad2(x.getDate())}`;
   const fmtQ = (q, u) => (q == null || q === '' ? '' : `${Number(q).toLocaleString('ko-KR')} ${u || ''}`.trim());
   const pickUnit = (u, list, dflt) => { const s = str(u); const hit = list.find(x => x.toLowerCase() === s.toLowerCase()); return hit || dflt; };
 
@@ -73,9 +75,11 @@
     const nearItem = x => { const ks = h.itemKeys(x.item); return keys.some(k => ks.some(kk => kk.includes(k) || k.includes(kk))); };
     let c = live.filter(exactItem), exact = true;
     if (!c.length) { c = live.filter(nearItem); exact = false; }
+    // 업체·사급처를 적었으면 그 조건에 맞는 건만 — 맞는 게 없으면 "없음"으로(다른 업체 건을 대신 고르지 않음)
     const partner = who === 'orders' ? op.vendor : op.consignee;
-    if (partner) { const pn = h.norm(partner); const c2 = c.filter(x => { const xn = h.norm(who === 'orders' ? x.vendor : x.consignee); return xn && (xn.includes(pn) || pn.includes(xn)); }); if (c2.length) c = c2; }
-    if (c.length > 1 && op.qty != null) { const c3 = c.filter(x => Number(x.qty) === op.qty); if (c3.length) c = c3; }
+    if (partner) { const pn = h.norm(partner); c = c.filter(x => { const xn = h.norm(who === 'orders' ? x.vendor : x.consignee); return xn && (xn.includes(pn) || pn.includes(xn)); }); }
+    // 수량을 적었으면 같은 수량 건으로 좁힘 — 맞는 수량이 없으면 후보는 두되 사람이 고르게(exact:false)
+    if (c.length && op.qty != null) { const c3 = c.filter(x => Number(x.qty) === op.qty); if (c3.length) c = c3; else exact = false; }
     return { list: c, exact };
   }
   const orderDesc = o => `${o.item} · ${o.vendor || o.dest || ''} · ${fmtQ(o.qty, o.unit)}${o.eta ? ' · 착일 ' + o.eta : ''}`.replace(/ · (?= ·| $)/g, '');
@@ -93,7 +97,7 @@
         if (!c.length) { p.reason = op.item ? `열려 있는 ${who === 'orders' ? '발주' : '사급'} 건 중 '${op.item}'을 찾지 못함` : '대상을 지정하지 않음'; return null; }
         p.candidates = c.map(x => ({ id: x.id, desc: d(x) }));
         if (c.length > 1) { p.reason = `대상 ${c.length}건 — 아래에서 1건을 고르세요`; return null; }
-        if (!exact) { p.reason = `'${op.item}'과 정확히 같은 품목이 없어 비슷한 건을 찾음 — 맞으면 아래에서 고르세요`; return null; }
+        if (!exact) { p.reason = `'${op.item}'${op.qty != null ? ` ${fmtQ(op.qty, op.unit)}` : ''}과 정확히 맞는 건이 없어 비슷한 건을 찾음 — 맞으면 아래에서 고르세요`; return null; }
         p.target = c[0].id; return c[0];
       };
       switch (op.type) {
@@ -133,7 +137,7 @@
           const after = {};
           if (op.date) after.eta = op.date;
           if (op.qty != null && op.qty > 0) after.qty = op.qty;
-          if (op.unit && ORDER_UNITS.includes(pickUnit(op.unit, ORDER_UNITS, ''))) after.unit = pickUnit(op.unit, ORDER_UNITS, '');
+          const ou = pickUnit(op.unit, ORDER_UNITS, ''); if (ou) after.unit = ou;
           if (op.note) after.note = op.note;   // 업체(vendor)는 대상을 찾는 조건으로만 쓰고 바꾸지 않음 — 매입처 변경은 수정 창에서
           if (!Object.keys(after).length) { p.reason = '바꿀 내용이 없음(입고예정일·수량·단위·비고 중 하나)'; break; }
           p.before = Object.fromEntries(Object.keys(after).map(k => [k, o[k] ?? ''])); p.after = after;
@@ -145,7 +149,7 @@
           const after = {};
           if (op.date) after.due = op.date;
           if (op.qty != null && op.qty > 0) after.qty = op.qty;
-          if (op.unit && pickUnit(op.unit, CONS_UNITS, '')) after.unit = pickUnit(op.unit, CONS_UNITS, '');
+          const cu = pickUnit(op.unit, CONS_UNITS, ''); if (cu) after.unit = cu;
           if (op.note) after.note = op.note;
           if (!Object.keys(after).length) { p.reason = '바꿀 내용이 없음(요청납기·수량·단위·비고 중 하나)'; break; }
           p.before = Object.fromEntries(Object.keys(after).map(k => [k, c[k] ?? ''])); p.after = after;
@@ -230,5 +234,152 @@
     return n;
   }
 
-  return { OP_TYPES, MOVE_DEPTS, MOVE_UNITS, ORDER_UNITS, CONS_UNITS, CONS_MARKS, OP_LABEL, buildContext, normalizeOps, planOps, applyPlan, undoChanges };
+  /* ───────── 규칙 기반 해석(무료, 서버 불필요) ─────────
+     정해진 어순을 정규식·사전으로 읽어 AI와 같은 모양의 ops를 만듦. AI(ask-board)는 서버에 설정돼 있을 때만
+     이 해석이 실패한 문장에 한해 선택적으로 쓰임. 알아듣는 어순(한 줄에 여러 지시는 줄바꿈·';'·' / '로 구분):
+       [부서] 품목 수량[단위] 이동|이동요청|가져다        → add_move   (예: 경질 P-1000 2톤 이동)
+       품목 수량[단위] 발주 [착일 10/20]                   → add_order  (예: TIONA-696 백 10톤 발주)
+       품목 [업체] 입고|입고완료|입고 처리 [10/11]          → mark_in    (예: P-1000 발주 입고)
+       사급처 품목 출고완료|발주완료|완료                   → mark_cons  (예: 대양물산 SP-390 출고 완료)
+       품목|사급처 품목 (요청)납기|착일|입고예정 10/20[으로] → edit_cons / edit_order
+       품목|사급처 품목 수량 500[kg]으로                    → edit_cons / edit_order
+       메모: 내용  /  메모 내용                             → add_note
+     "2톤"은 kg로 환산, 날짜는 M/D·M월 D일·YYYY-MM-DD·오늘·내일·모레. 사급처 이름이나 "사급"이 있으면 사급 건으로 봄. */
+  const DEPT_ALIAS = { '경질': '경질', '창호': '창호', '타일': '타일', '디럭스': '타일', 'DBP': 'DBP', '데코': 'DBP', '장판': 'DBP', '벽지': 'DBP', '기타': '기타' };
+  const UNIT_ALIAS = { '톤': 'ton', 't': 'ton', 'ton': 'ton', 'kg': 'kg', '킬로': 'kg', '키로': 'kg', 'bag': 'Bag', '백': 'Bag', '포': 'Bag', '드럼': '드럼', 'plt': 'PLT', '파레트': 'PLT', '팔레트': 'PLT', '빠레트': 'PLT', 'box': 'Box', '박스': 'Box', '대': '대', '롤': '롤', 'ea': 'EA', 'l': 'L' };
+  const UNIT_RE = '톤|ton|kg|킬로|키로|bag|백|포|드럼|plt|파레트|팔레트|빠레트|box|박스|대|롤|ea|l|t';
+  const QTY_RE = new RegExp(`(?:^|[\\s,])(\\d[\\d,]*(?:\\.\\d+)?)\\s*(${UNIT_RE})?(?=$|[\\s,]|으로|로)`, 'i');
+  const SPLIT_RE = /\n|;|\s\/\s|\s·\s/;
+  function parseDate(text, today) {
+    // 상대 표현
+    if (/오늘/.test(text)) return { date: today, matched: '오늘' };
+    if (/내일/.test(text)) return { date: addDaysISO(today, 1), matched: '내일' };
+    if (/모레/.test(text)) return { date: addDaysISO(today, 2), matched: '모레' };
+    let m = text.match(/(\d{4})[-./](\d{1,2})[-./](\d{1,2})/);
+    if (m) return { date: `${m[1]}-${pad2(m[2])}-${pad2(m[3])}`, matched: m[0] };
+    m = text.match(/(?:^|[^\d])(\d{1,2})\s*\/\s*(\d{1,2})(?!\d)/) || text.match(/(\d{1,2})\s*월\s*(\d{1,2})\s*일?/);   // M.D는 1.5톤과 겹쳐 받지 않음
+    if (!m) return null;
+    const mo = +m[1], d = +m[2];
+    if (mo < 1 || mo > 12 || d < 1 || d > 31) return null;
+    let y = +today.slice(0, 4);
+    const cand = `${y}-${pad2(mo)}-${pad2(d)}`;
+    // 연도 없이 적은 날짜가 반년 넘게 과거면 내년으로(연말에 1월 납기를 적는 경우)
+    if (diffDaysISO(cand, today) < -180) y++;
+    return { date: `${y}-${pad2(mo)}-${pad2(d)}`, matched: m[0].replace(/^[^\d]/, '') };
+  }
+  function addDaysISO(d, n) { const x = new Date(d + 'T00:00:00'); x.setDate(x.getDate() + n); return localISO(x); }
+  function diffDaysISO(a, b) { return Math.round((new Date(a + 'T00:00:00') - new Date(b + 'T00:00:00')) / 86400000); }
+
+  /* 문장 안에서 사전(items·consignees) 항목 찾기 — 띄어쓰기·하이픈·괄호 차이는 norm으로 무시.
+     토큰 1~3개를 이어 본 것 중 정확히 같은 항목을 우선, 없으면 토큰(3자 이상)을 포함하는 항목 중 가장 짧은 것. */
+  function findInDict(tokens, dict, h, minLen) {
+    const normed = dict.map(name => ({ name, k: h.norm(name) })).filter(x => x.k);
+    let best = null;
+    for (let n = Math.min(3, tokens.length); n >= 1; n--) {
+      for (let i = 0; i + n <= tokens.length; i++) {
+        const span = tokens.slice(i, i + n).join('');
+        const k = h.norm(span); if (k.length < minLen) continue;
+        const exact = normed.find(x => x.k === k);
+        if (exact) return { name: exact.name, from: i, to: i + n };
+        if (!best) {
+          const part = normed.filter(x => x.k.includes(k) || (k.length >= 4 && k.includes(x.k))).sort((a, b) => a.k.length - b.k.length)[0];
+          if (part && n === 1) best = { name: part.name, from: i, to: i + n, partial: true };
+        }
+      }
+    }
+    return best;
+  }
+
+  function parseOne(line, ctx, h) {
+    let text = line.trim(); if (!text) return null;
+    const today = ctx.today;
+    // 메모
+    const memo = text.match(/^(?:메모|전달|전달사항)\s*[:：]?\s*(.+)$/);
+    if (memo) return { type: 'add_note', text: memo[1].trim() };
+
+    // 수량·날짜는 먼저 떼어내 품목 코드(P-1000) 숫자와 섞이지 않게 함. 수량을 먼저 떼야 "1.5톤"이 1월 5일로 읽히지 않음.
+    const isEditDate = /납기|착일|입고예정|예정일|예정/.test(text);
+    const isEditQty = /수량/.test(text) || /(\d)\s*(?:kg|톤)?\s*(?:으로|로)(?=\s|$)/i.test(text);
+    let qty = null, unit = '';
+    // 수량: 품목 토큰(P-1000 같은 코드)을 피하려고 "숫자 단위" 꼴 또는 공백으로 분리된 숫자만 봄
+    const tokens0 = text.split(/\s+/).filter(Boolean);
+    const items0 = findInDict(tokens0, ctx.items || [], h, 3);
+    const noItem = items0 ? tokens0.filter((_, i) => i < items0.from || i >= items0.to).join(' ') : text;
+    const qm = noItem.match(QTY_RE);
+    if (qm) {
+      qty = parseFloat(qm[1].replace(/,/g, ''));
+      const u = (qm[2] || '').toLowerCase();
+      unit = UNIT_ALIAS[u] || UNIT_ALIAS[qm[2]] || '';
+      if (unit === 'ton') { qty = qty * 1000; unit = 'kg'; }
+      text = text.replace(qm[0], ' ');
+    }
+    const dt = parseDate(text, today);
+    if (dt) text = text.replace(dt.matched, ' ');
+    text = text.replace(/(으로|로)(?=\s|$)/g, ' ').replace(/\s+/g, ' ').trim();
+
+    // 동작 키워드 (뒤에서부터 찍는 게 보통이라 전체에서 찾되 우선순위를 둠)
+    const has = re => re.test(text);
+    let action = null;
+    if (has(/출고\s*완료|출고\s*처리|출고됨|출고$|나감/)) action = 'cons_out';
+    else if (has(/(?:공급사|업체)?\s*발주\s*완료|발주\s*처리|발주됨|발주했/)) action = 'cons_ord';
+    else if (has(/입고\s*완료|입고\s*처리|입고됨|입고$|입고(?=\s)|들어옴|들어왔/)) action = 'in';
+    else if (has(/이동\s*요청|이동|가져다|가져와|옮겨|출고\s*요청/)) action = 'move';
+    else if (has(/발주/)) action = 'order';
+    else if (has(/완료|끝남|처리/)) action = 'done';
+    if (!action && (isEditDate || isEditQty)) action = 'edit';
+    if (!action) return null;
+
+    // 수정 키워드가 있으면 등록 동작이 아니라 수정으로 봄 ("P-1000 발주 착일 10/20으로", "SP-390 납기 10/20").
+    // 단 "P-1000 3000 발주 착일 10/20"처럼 수량이 함께 있는 발주는 착일을 지정한 신규 발주, 이동 등록은 그대로.
+    if (isEditQty && qty != null && action !== 'move') action = 'edit';
+    else if (isEditDate && dt && action !== 'move' && action !== 'in' && !(action === 'order' && qty != null)) action = 'edit';
+
+    const strip = text.replace(/출고\s*완료|출고\s*처리|출고됨|발주\s*완료|발주\s*처리|발주됨|발주했|입고\s*완료|입고\s*처리|입고됨|들어옴|들어왔|이동\s*요청|출고\s*요청|이동|가져다\s*주세요|가져다|가져와|옮겨\s*주세요|옮겨|발주|입고|출고|완료|끝남|처리|수량|요청납기|납기|착일|입고예정일|입고예정|예정일|예정|수정|변경|공급사|업체|사급|건|을|를/g, ' ').replace(/\s+/g, ' ').trim();
+    const tokens = strip.split(' ').filter(Boolean);
+    const itemHit = findInDict(tokens, ctx.items || [], h, 3);
+    const rest = tokens.filter((_, i) => !itemHit || i < itemHit.from || i >= itemHit.to);
+    const consHit = findInDict(rest, ctx.consignees || [], h, 2);
+    const rest2 = rest.filter((_, i) => !consHit || i < consHit.from || i >= consHit.to);
+    const deptTok = rest2.find(t => DEPT_ALIAS[t]);
+    const rest3 = rest2.filter(t => t !== deptTok);
+    // 사급처 이름이 있으면 사급. 없으면 "사급"·"납기"(사급 요청납기)면 사급, "착일·입고예정"(발주 쪽 말)이면 발주
+    const isCons = consHit ? true : (/사급|납기/.test(text) && !/착일|입고예정/.test(text));
+    // 사전에 없는 품목: 남은 토큰 중 영숫자·하이픈 코드 꼴(P-1000, SP390) 또는 첫 토큰
+    const codeTok = rest3.find(t => /^[A-Za-z]{1,6}-?\d{2,}[A-Za-z0-9-]*$/.test(t));
+    const item = itemHit ? itemHit.name : (codeTok || rest3[0] || '');
+    const rest4 = rest3.filter(t => t !== (itemHit ? null : (codeTok || rest3[0])));
+    const partner = consHit ? consHit.name : (rest4[0] || '');
+    const base = { id: null, item: item || null, vendor: null, consignee: null, dept: null, qty: null, unit: null, loc: null, date: null, note: null, text: null, mark: null };
+
+    switch (action) {
+      case 'move': return { ...base, type: 'add_move', dept: deptTok ? DEPT_ALIAS[deptTok] : null, qty, unit: unit || null };
+      case 'order': return { ...base, type: 'add_order', qty, unit: unit || null, vendor: isCons ? null : (partner || null), date: dt ? dt.date : null };
+      case 'in': return { ...base, type: 'mark_in', vendor: partner || null, qty: qty, date: dt ? dt.date : null };
+      case 'cons_out': return { ...base, type: 'mark_cons', consignee: partner || null, qty, mark: 'outDate' };
+      case 'cons_ord': return { ...base, type: 'mark_cons', consignee: partner || null, qty, mark: 'ordDate' };
+      case 'done': return isCons ? { ...base, type: 'mark_cons', consignee: partner || null, qty, mark: 'done' } : { ...base, type: 'mark_in', vendor: partner || null, qty, date: dt ? dt.date : null };
+      case 'edit': {
+        const set = { date: dt ? dt.date : null, qty: isEditQty ? qty : null, unit: isEditQty && unit ? unit : null };
+        if (!set.date && set.qty == null) return null;
+        return isCons ? { ...base, type: 'edit_cons', consignee: partner || null, ...set }
+                      : { ...base, type: 'edit_order', vendor: partner || null, ...set };
+      }
+    }
+    return null;
+  }
+
+  /* 입력 전체 → {ops, message, unparsed[]}. ctx: buildContext() 결과(items·consignees·today), h: helpers(norm). */
+  function parseLocal(input, ctx, h) {
+    const lines = String(input || '').split(SPLIT_RE).map(x => x.trim()).filter(Boolean);
+    const ops = [], unparsed = [];
+    for (const line of lines) { const op = parseOne(line, ctx, h); if (op) ops.push(op); else unparsed.push(line); }
+    let message = '';
+    if (!lines.length) message = '지시 내용을 입력하세요';
+    else if (!ops.length) message = '어순을 알아듣지 못했습니다 — 예) 경질 P-1000 2톤 이동 · 대양물산 SP-390 출고 완료 · P-1000 발주 입고 · 메모: 내용';
+    else if (unparsed.length) message = `${ops.length}건 해석 · 알아듣지 못한 줄: ${unparsed.join(' / ')}`;
+    else message = `${ops.length}건 해석했습니다 — 아래 미리보기를 확인하세요`;
+    return { ops, message, unparsed };
+  }
+
+  return { OP_TYPES, MOVE_DEPTS, MOVE_UNITS, ORDER_UNITS, CONS_UNITS, CONS_MARKS, OP_LABEL, buildContext, normalizeOps, planOps, applyPlan, undoChanges, parseLocal, parseDate };
 });

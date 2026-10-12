@@ -162,3 +162,65 @@ test('applyPlan: 미리보기 뒤 사라진 대상은 건너뛰고 반영 건수
   const {applied,changes}=A.applyPlan(plan,{S,today,who:'',csApplyMark});
   assert.equal(applied,0);assert.equal(changes.length,0);
 });
+
+/* ───── 규칙 기반 해석 ───── */
+const PCTX={today:'2026-10-12',items:['P-1000','TIONA-696(백)','TIONA-696(지대)','SP-390','M-210','PMS-1803'],consignees:['(주)대양물산','한솔']};
+const parse=t=>A.parseLocal(t,PCTX,{norm}).ops.map(o=>Object.fromEntries(Object.entries(o).filter(([k,v])=>v!=null)));
+
+test('규칙 해석: 창고이동·발주 등록 — 톤은 kg로, 백/PLT 단위, 괄호 표기(백·지대) 품목 보정',()=>{
+  assert.deepEqual(parse('경질 P-1000 2톤 이동'),[{type:'add_move',item:'P-1000',dept:'경질',qty:2000,unit:'kg'}]);
+  assert.deepEqual(parse('타일 PMS-1803 5백 가져다 주세요'),[{type:'add_move',item:'PMS-1803',dept:'타일',qty:5,unit:'Bag'}]);
+  assert.deepEqual(parse('DBP TIONA-696 지대 3PLT 이동'),[{type:'add_move',item:'TIONA-696(지대)',dept:'DBP',qty:3,unit:'PLT'}]);
+  assert.deepEqual(parse('TIONA-696 백 10톤 발주'),[{type:'add_order',item:'TIONA-696(백)',qty:10000,unit:'kg'}]);
+  assert.deepEqual(parse('P-1000 3000 발주 착일 10/20'),[{type:'add_order',item:'P-1000',qty:3000,date:'2026-10-20'}]);
+});
+test('규칙 해석: 입고·사급 처리 — 사급처 이름이나 "사급"이 있으면 사급 건, 업체는 조건으로',()=>{
+  assert.deepEqual(parse('P-1000 발주 입고'),[{type:'mark_in',item:'P-1000'}]);
+  assert.deepEqual(parse('P-1000 한화 입고 10/11'),[{type:'mark_in',item:'P-1000',vendor:'한화',date:'2026-10-11'}]);
+  assert.deepEqual(parse('대양물산 SP-390 출고 완료'),[{type:'mark_cons',item:'SP-390',consignee:'(주)대양물산',mark:'outDate'}]);
+  assert.deepEqual(parse('한솔 M-210 공급사 발주 완료'),[{type:'mark_cons',item:'M-210',consignee:'한솔',mark:'ordDate'}]);
+  assert.deepEqual(parse('SP-390 사급 완료'),[{type:'mark_cons',item:'SP-390',mark:'done'}]);
+  assert.deepEqual(parse('P-1000 완료'),[{type:'mark_in',item:'P-1000'}],'사급 표시가 없는 완료는 발주 입고');
+});
+test('규칙 해석: 수정 — 납기·착일·수량, "으로" 처리, 연도 추정',()=>{
+  assert.deepEqual(parse('대양물산 SP-390 납기 10/20으로'),[{type:'edit_cons',item:'SP-390',consignee:'(주)대양물산',date:'2026-10-20'}]);
+  assert.deepEqual(parse('P-1000 발주 착일 10/20으로'),[{type:'edit_order',item:'P-1000',date:'2026-10-20'}]);
+  assert.deepEqual(parse('P-1000 수량 500으로'),[{type:'edit_order',item:'P-1000',qty:500}]);
+  assert.deepEqual(parse('한솔 M-210 요청납기 1월 5일'),[{type:'edit_cons',item:'M-210',consignee:'한솔',date:'2027-01-05'}],'반년 넘게 과거인 날짜는 내년');
+  assert.equal(A.parseDate('내일',PCTX.today).date,'2026-10-13');
+  assert.equal(A.parseDate('2026-10-20 착일',PCTX.today).date,'2026-10-20');
+  assert.equal(A.parseDate('13/45',PCTX.today),null);
+});
+test('규칙 해석: 메모·여러 줄·실패 안내',()=>{
+  assert.deepEqual(parse('메모: 내일 오전 지게차 점검'),[{type:'add_note',text:'내일 오전 지게차 점검'}]);
+  const r=A.parseLocal('경질 P-1000 2톤 이동\n아무말 대잔치 ; 메모 점검',PCTX,{norm});
+  assert.equal(r.ops.length,2);assert.deepEqual(r.unparsed,['아무말 대잔치']);assert.match(r.message,/알아듣지 못한 줄/);
+  const none=A.parseLocal('안녕',PCTX,{norm});
+  assert.equal(none.ops.length,0);assert.match(none.message,/어순을 알아듣지 못했습니다/);
+  assert.match(A.parseLocal('',PCTX,{norm}).message,/입력하세요/);
+});
+test('규칙 해석 결과는 planOps에 그대로 들어감(끝까지 연결)',()=>{
+  const S=mkS();
+  const ops=A.parseLocal('대양물산 SP-390 500 출고 완료\n경질 P-1000 2톤 이동',PCTX,{norm}).ops;
+  const plan=A.planOps(ops,ctx(S));
+  assert.deepEqual(plan.map(p=>[p.op.type,p.ok,p.target]),[['mark_cons',true,11],['add_move',true,null]],'수량 500으로 대양물산 2건 중 1건으로 좁힘');
+});
+
+test('규칙 해석: 소수점 톤은 날짜가 아니라 수량, 납기는 사급·착일은 발주로 구분',()=>{
+  assert.deepEqual(parse('P-1000 1.5톤 발주'),[{type:'add_order',item:'P-1000',qty:1500,unit:'kg'}]);
+  assert.deepEqual(parse('경질 P-1000 2.5톤 이동'),[{type:'add_move',item:'P-1000',dept:'경질',qty:2500,unit:'kg'}]);
+  assert.deepEqual(parse('SP-390 납기 10/20'),[{type:'edit_cons',item:'SP-390',date:'2026-10-20'}],'사급처 없이도 납기는 사급 건');
+  assert.deepEqual(parse('P-1000 착일 10/20'),[{type:'edit_order',item:'P-1000',date:'2026-10-20'}]);
+  assert.deepEqual(parse('P-1000 2026.10.20 입고'),[{type:'mark_in',item:'P-1000',date:'2026-10-20'}]);
+});
+test('대상 찾기: 적은 업체·수량이 안 맞는 건을 대신 고르지 않음',()=>{
+  const S=mkS();
+  const [wrongVendor,wrongQty]=A.planOps([{type:'mark_in',item:'P-1000',vendor:'LG화학'},{type:'mark_in',id:null,item:'P-1000',qty:9999}],ctx(S));
+  assert.equal(wrongVendor.ok,false);assert.match(wrongVendor.reason,/찾지 못함/);assert.equal(wrongVendor.candidates.length,0);
+  assert.equal(wrongQty.ok,false);assert.equal(wrongQty.candidates.length,2,'수량이 안 맞으면 후보는 보여주되 사람이 고름');
+});
+test('normalizeOps: 범위를 벗어난 날짜는 버림',()=>{
+  const [a,b]=A.normalizeOps([{type:'edit_order',id:1,date:'2026-13-45'},{type:'edit_order',id:1,date:'2026-02-29'}]);
+  assert.equal(a.date,'');assert.equal(b.date,'','2026년은 평년');
+  assert.equal(A.normalizeOps([{type:'edit_order',id:1,date:'2028-02-29'}])[0].date,'2028-02-29');
+});

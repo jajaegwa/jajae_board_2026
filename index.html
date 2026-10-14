@@ -2818,9 +2818,18 @@ function findDate(t,y){let m=t.match(/(20\d{2})[.\-\/년\s]+(\d{1,2})[.\-\/월\s
 function readXls(f){
   if(!f)return;
   const r=new FileReader();
-  r.onload=e=>{try{const wb=XLSX.read(new Uint8Array(e.target.result),{type:'array',cellDates:true});
-    let txt='';wb.SheetNames.forEach(n=>{const ws=wb.Sheets[n];const rows=XLSX.utils.sheet_to_json(ws,{header:1,raw:false,dateNF:'yyyy-mm-dd',defval:''});rows.forEach(row=>{const l=row.map(c=>String(c).trim()).join('\t').replace(/\t+$/,'');if(l.trim())txt+=l+'\n';});});
-    document.getElementById('csPaste').value=txt;parseCs();toast(`${f.name} 읽음`);}catch(err){toast('엑셀을 읽지 못함: '+err.message);}};
+  /* 엑셀에서 "보이는 것"만 읽음 — 숨긴 행·열은 SheetJS 옵션(cellStyles + skipHidden)으로 빼고, 숨긴 시트는 제외.
+     시트가 여러 개면 저장 당시 보고 있던 시트(활성 탭) 하나만 읽되, 그 시트가 비어 있으면(표지 등) 다음 보이는 시트로 넘어감. UiHelpers.xlsPickSheet 참고. */
+  r.onload=e=>{try{const wb=XLSX.read(new Uint8Array(e.target.result),{type:'array',cellDates:true,cellStyles:true});
+    const pick=UiHelpers.xlsPickSheet(wb);if(!pick){toast('읽을 수 있는 시트가 없음(모든 시트가 숨김 상태)');return;}
+    let txt='',used='';
+    for(const n of pick.names){const rows=XLSX.utils.sheet_to_json(wb.Sheets[n],{header:1,raw:false,dateNF:'yyyy-mm-dd',defval:'',skipHidden:true});
+      rows.forEach(row=>{const l=row.map(c=>String(c==null?'':c).trim()).join('\t').replace(/\t+$/,'');if(l.trim())txt+=l+'\n';});
+      if(txt){used=n;break;}}
+    if(!txt){toast(`${f.name}: 보이는 내용이 없음(숨긴 행·시트는 읽지 않음)`);return;}
+    document.getElementById('csPaste').value=txt;parseCs();
+    const notes=[];if(pick.visibleCount>1)notes.push(`시트 ${pick.visibleCount}개 중 '${used}' 시트만 읽음`);if(pick.hiddenCount)notes.push(`숨긴 시트 ${pick.hiddenCount}개 제외`);
+    toast(`${f.name} 읽음`+(notes.length?' — '+notes.join(', '):''));}catch(err){toast('엑셀을 읽지 못함: '+err.message);}};
   r.readAsArrayBuffer(f);
 }
 const dz=document.getElementById('drop');

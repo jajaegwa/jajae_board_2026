@@ -172,6 +172,23 @@ ${b.day}일자로 세금계산서 발행부탁드립니다.
 김성진 드림.`, month: mm, day: b.day, date: b.date, holidayKnown: b.holidayKnown };
   }
 
+  /* 사급발주 엑셀 업로드 — 읽을 시트 고르기. 시트가 여러 개면(업체가 날짜별 시트를 쌓아 두는 발주서 등)
+     엑셀에서 저장 당시 보고 있던 시트(활성 탭, xlsx만 기록됨) 하나만 읽음. 숨긴 시트(숨기기·VBA 숨기기)는 제외.
+     반환: { names: 읽기 후보 순서(활성 탭 → 나머지 보이는 시트 순), how: 'active'|'first', visibleCount, hiddenCount }, 보이는 시트가 없으면 null.
+     호출 쪽은 names 순서로 돌면서 내용이 있는 첫 시트를 쓰면 됨(활성 탭이 표지 같은 빈 시트일 때 대비).
+     숨긴 행·열은 SheetJS 자체 옵션으로 뺌: XLSX.read(..., {cellStyles:true}) + sheet_to_json(ws, {skipHidden:true}). */
+  function xlsPickSheet(wb) {
+    const names = (wb && wb.SheetNames) || [];
+    const book = (wb && wb.Workbook) || {};
+    const hidden = new Set((book.Sheets || []).filter(s => s && s.Hidden > 0).map(s => s.name));
+    const visible = names.filter(n => !hidden.has(n));
+    if (!visible.length) return null;
+    const active = names[+((book.WBView || [])[0] || {}).activeTab];
+    const how = (active !== undefined && !hidden.has(active)) ? 'active' : 'first';
+    const first = how === 'active' ? active : visible[0];
+    return { names: [first, ...visible.filter(n => n !== first)], how, visibleCount: visible.length, hiddenCount: names.length - visible.length };
+  }
+
   return { moveCounts, moveCountText, CYCLE_CANON, cycleLabel, cycleOptions, cycleValueToStore, cycleText, connState,
-    consDraftSummary, emptyReason, fcCalcState, snapshot, restore, calDayLabel, KR_HOLIDAYS, lastBizDay, closingMailText };
+    consDraftSummary, emptyReason, fcCalcState, snapshot, restore, calDayLabel, KR_HOLIDAYS, lastBizDay, closingMailText, xlsPickSheet };
 });

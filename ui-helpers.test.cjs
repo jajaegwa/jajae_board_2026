@@ -111,3 +111,15 @@ test('마감 메일 문구: 마감월·마지막 영업일만 치환, 나머지�
   assert.match(U.closingMailText('2026-10').text,/10월 마감 내역[\s\S]*30일자로/);
   assert.equal(U.closingMailText('bad'),null);
 });
+
+test('사급발주 엑셀: 시트가 여러 개면 활성 탭을 먼저, 숨긴 시트는 제외, 활성 탭 정보가 없으면 첫 시트',()=>{
+  const wb={SheetNames:['1월','2월','3월'],Workbook:{Sheets:[{name:'1월',Hidden:0},{name:'2월',Hidden:0},{name:'3월',Hidden:0}],WBView:[{activeTab:2}]}};
+  assert.deepEqual(U.xlsPickSheet(wb),{names:['3월','1월','2월'],how:'active',visibleCount:3,hiddenCount:0});
+  // 활성 탭이 숨긴 시트(VBA 숨기기 포함)면 첫 번째 보이는 시트
+  const wb2={SheetNames:['참고','발주서','메모'],Workbook:{Sheets:[{name:'참고',Hidden:1},{name:'발주서',Hidden:0},{name:'메모',Hidden:2}],WBView:[{activeTab:0}]}};
+  assert.deepEqual(U.xlsPickSheet(wb2),{names:['발주서'],how:'first',visibleCount:1,hiddenCount:2});
+  // xls·CSV처럼 활성 탭 기록이 없으면 첫 시트
+  assert.deepEqual(U.xlsPickSheet({SheetNames:['A','B']}),{names:['A','B'],how:'first',visibleCount:2,hiddenCount:0});
+  assert.equal(U.xlsPickSheet({SheetNames:['A'],Workbook:{Sheets:[{name:'A',Hidden:1}]}}),null);
+  assert.equal(U.xlsPickSheet(null),null);
+});
